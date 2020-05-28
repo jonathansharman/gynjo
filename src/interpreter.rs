@@ -2,7 +2,7 @@ use super::env::Env;
 use super::exprs::{Expr, BinaryOp, Cluster, ClusterConnector, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::lexer::lex;
-use super::literals::{Literal, Boolean};
+use super::primitives::{Primitive, Boolean};
 use super::parser::{parse_expr, parse_stmt};
 use super::stmts::Stmt;
 use super::values::{Closure, Tuple, List, Value};
@@ -24,7 +24,7 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 		Expr::Cond { test, then_expr, else_expr } => {
 			eval_expr(&mut env, *test).and_then(|test_value| {
 				match test_value {
-					Value::Literal(Literal::Boolean(boolean)) => eval_expr(&mut env, if boolean.into() { *then_expr } else { *else_expr }),
+					Value::Primitive(Primitive::Boolean(boolean)) => eval_expr(&mut env, if boolean.into() { *then_expr } else { *else_expr }),
 					_ => Err(format!("expected boolean in conditional test, found {}", test_value.to_string(env))),
 				}
 			})
@@ -46,9 +46,9 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 		Expr::BinaryExpr(bin_expr) => match bin_expr.op {
 			BinaryOp::And => {
 				match eval_expr(&mut env, *bin_expr.left)? {
-					Value::Literal(Literal::Boolean(left)) => if left.into() {
+					Value::Primitive(Primitive::Boolean(left)) => if left.into() {
 						match eval_expr(&mut env, *bin_expr.right)? {
-							Value::Literal(Literal::Boolean(right)) => Ok(right.into()),
+							Value::Primitive(Primitive::Boolean(right)) => Ok(right.into()),
 							invalid @ _ => Err(format!("cannot take logical conjunction of non-boolean value {}", invalid.to_string(&env))),
 						}
 					} else {
@@ -60,12 +60,12 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 			},
 			BinaryOp::Or => {
 				match eval_expr(env, *bin_expr.left)? {
-					Value::Literal(Literal::Boolean(left)) => if left.into() {
+					Value::Primitive(Primitive::Boolean(left)) => if left.into() {
 						// Short-circuit to true.
 						Ok(Boolean::True.into())
 					} else {
 						match eval_expr(env, *bin_expr.right)? {
-							Value::Literal(Literal::Boolean(right)) => Ok(right.into()),
+							Value::Primitive(Primitive::Boolean(right)) => Ok(right.into()),
 							invalid @ _ => Err(format!("cannot take logical disjunction of non-boolean value {}", invalid.to_string(&env))),
 						}
 					},
@@ -98,17 +98,17 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 			BinaryOp::Add => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "addition", |a, b| -> EvalResult { Ok(Value::Literal(Literal::Number(a + b))) })
+				bin_num_op(&env, left, right, "addition", |a, b| -> EvalResult { Ok(Value::Primitive(Primitive::Number(a + b))) })
 			},
 			BinaryOp::Sub => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "subtraction", |a, b| -> EvalResult { Ok(Value::Literal(Literal::Number(a - b))) })
+				bin_num_op(&env, left, right, "subtraction", |a, b| -> EvalResult { Ok(Value::Primitive(Primitive::Number(a - b))) })
 			},
 		},
 		Expr::Not { expr } => {
 			match eval_expr(env, *expr)? {
-				Value::Literal(Literal::Boolean(b)) => Ok(Boolean::from(!bool::from(b)).into()),
+				Value::Primitive(Primitive::Boolean(b)) => Ok(Boolean::from(!bool::from(b)).into()),
 				invalid @ _ => Err(format!("cannot take logical negation of {}", invalid.to_string(&env))),
 			}
 		},
@@ -131,7 +131,7 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 		Expr::Symbol(symbol) => env.lookup(&symbol)
 			.map(|v| v.clone())
 			.ok_or(format!("'{}' is undefined", symbol.name)),
-		Expr::Literal(literal) => Ok(Value::Literal(literal)),
+		Expr::Primitive(literal) => Ok(Value::Primitive(literal)),
 	}
 }
 
@@ -167,7 +167,7 @@ pub fn exec_stmt(mut env: &mut Rc<Env>, stmt: Stmt) -> ExecResult {
 		Stmt::Branch { test, then_stmt, else_stmt } => {
 			let test_value = eval_expr(env, *test).map_err(|err| format!("in branch test expression: {}", err))?;
 			match test_value {
-				Value::Literal(Literal::Boolean(b)) => exec_stmt(env, if b.into() { *then_stmt } else { *else_stmt }),
+				Value::Primitive(Primitive::Boolean(b)) => exec_stmt(env, if b.into() { *then_stmt } else { *else_stmt }),
 				_ => Err(format!("expected boolean in conditional test, found {}", test_value.to_string(env))),
 			}
 		},
@@ -176,7 +176,7 @@ pub fn exec_stmt(mut env: &mut Rc<Env>, stmt: Stmt) -> ExecResult {
 				// Evaluate the test condition.
 				let test_value = eval_expr(env, (*test).clone()).map_err(|err| format!("in while-loop test expression: {}", err))?;
 				match test_value {
-					Value::Literal(Literal::Boolean(b)) => if b.into() {
+					Value::Primitive(Primitive::Boolean(b)) => if b.into() {
 						// Execute next iteration.
 						exec_stmt(env, (*body).clone())?;
 					} else {
@@ -236,9 +236,9 @@ fn list_num_op(env: &Rc<Env>, list: List, number: BigDecimal, number_on_left: bo
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
 			head: if number_on_left {
-				Box::new(bin_num_op(env, Value::Literal(Literal::Number(number.clone())), *head, op_name, op)?)
+				Box::new(bin_num_op(env, Value::Primitive(Primitive::Number(number.clone())), *head, op_name, op)?)
 			} else {
-				Box::new(bin_num_op(env, *head, Value::Literal(Literal::Number(number.clone())), op_name, op)?)
+				Box::new(bin_num_op(env, *head, Value::Primitive(Primitive::Number(number.clone())), op_name, op)?)
 			},
 			tail: Rc::new(list_num_op(env, (*tail).clone(), number, number_on_left, op_name, op)?),
 		}),
@@ -249,11 +249,11 @@ fn list_num_op(env: &Rc<Env>, list: List, number: BigDecimal, number_on_left: bo
 fn bin_num_op(env: &Rc<Env>, left: Value, right: Value, op_name: &str, op: fn(BigDecimal, BigDecimal) -> EvalResult) -> EvalResult {
 	match (left, right) {
 		// Number op Number
-		(Value::Literal(Literal::Number(left)), Value::Literal(Literal::Number(right))) => op(left, right),
+		(Value::Primitive(Primitive::Number(left)), Value::Primitive(Primitive::Number(right))) => op(left, right),
 		// List op Number
-		(Value::List(list), Value::Literal(Literal::Number(number))) => Ok(Value::List(list_num_op(env, list, number, false, op_name, op)?)),
+		(Value::List(list), Value::Primitive(Primitive::Number(number))) => Ok(Value::List(list_num_op(env, list, number, false, op_name, op)?)),
 		// Number op List
-		(Value::Literal(Literal::Number(number)), Value::List(list)) => Ok(Value::List(list_num_op(env, list, number, true, op_name, op)?)),
+		(Value::Primitive(Primitive::Number(number)), Value::List(list)) => Ok(Value::List(list_num_op(env, list, number, true, op_name, op)?)),
 		// Invalid numeric operation
 		(left @ _, right @ _) => Err(format!("cannot perform {} with {} and {}", op_name, left.to_string(&env), right.to_string(&env))),
 	}
@@ -309,13 +309,13 @@ fn eval_late_expr(env: &Rc<Env>, late_expr: LateExpr) -> EvalResult {
 			Err("BigDecimal does not support exponentiation yet".to_string())
 		}),
 		LateExpr::Multiply(left, right) => bin_num_op(env, left, right, "multiplication", |a, b| -> EvalResult {
-			Ok(Value::Literal(Literal::Number(a * b)))
+			Ok(Value::Primitive(Primitive::Number(a * b)))
 		}),
 		LateExpr::Divide(left, right) => bin_num_op(env, left, right, "multiplication", |a, b| -> EvalResult {
 			if b == BigDecimal::from(0) {
 				Err("division by zero".to_string())
 			} else {
-				Ok(Value::Literal(Literal::Number(a / b)))
+				Ok(Value::Primitive(Primitive::Number(a / b)))
 			}
 		}),
 	}
@@ -377,7 +377,7 @@ fn eval_application(c: Closure, args: Vec<Value>) -> EvalResult {
 				Intrinsic::Read => {
 					let mut input = String::new();
 					io::stdin().read_line(&mut input);
-					Ok(Value::Literal(Literal::String(input)))
+					Ok(Value::Primitive(Primitive::String(input)))
 				}
 			}
 		}
@@ -386,7 +386,7 @@ fn eval_application(c: Closure, args: Vec<Value>) -> EvalResult {
 
 fn eval_negation(env: &Rc<Env>, value: &Value) -> EvalResult {
 	match value {
-		Value::Literal(Literal::Number(number)) => Ok(Value::Literal(Literal::Number(-number))),
+		Value::Primitive(Primitive::Number(number)) => Ok(Value::Primitive(Primitive::Number(-number))),
 		_ => Err(format!("cannot negate {}", value.to_string(env))),
 	}
 }

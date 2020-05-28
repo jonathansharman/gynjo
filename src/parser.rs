@@ -1,6 +1,6 @@
 use super::exprs::{Expr, BinaryExpr, BinaryOp, Cluster ,ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use super::intrinsics::Intrinsic;
-use super::literals::Literal;
+use super::primitives::Primitive;
 use super::stmts::Stmt;
 use super::symbol::Symbol;
 use super::tokens::Token;
@@ -201,8 +201,8 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 				Ok((tokens, Expr::Symbol(symbol.clone())))
 			}
 		},
-		// Literal
-		[Token::Literal(literal), tokens @ ..] => Ok((tokens, Expr::Literal(literal.clone()))),
+		// Primitive
+		[Token::Primitive(literal), tokens @ ..] => Ok((tokens, Expr::Primitive(literal.clone()))),
 		[t, ..] => Err(format!("unexpected token in expression: {}", t.to_string())),
 	}
 }
@@ -448,7 +448,7 @@ fn parse_import(tokens: &[Token]) -> ParseStmtResult {
 	match tokens {
 		[] => Err("expected import target".to_string()),
 		[Token::Symbol(Symbol { name }), tokens @ ..] => Ok((tokens, Stmt::Import { filename : name.clone() })),
-		[Token::Literal(Literal::String(filename)), tokens @ ..] => Ok((tokens, Stmt::Import { filename: filename.clone() })),
+		[Token::Primitive(Primitive::String(filename)), tokens @ ..] => Ok((tokens, Stmt::Import { filename: filename.clone() })),
 		[first, ..] => Err(format!("expected filename (symbol or string) in import statement, found {}", first.to_string())),
 	}
 }

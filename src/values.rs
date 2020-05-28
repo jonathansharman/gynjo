@@ -1,6 +1,6 @@
 use super::env::Env;
 use super::exprs::Lambda;
-use super::literals::{Literal, Boolean};
+use super::primitives::{Primitive, Boolean};
 use super::symbol::Symbol;
 
 use num_traits::cast::ToPrimitive;
@@ -87,7 +87,7 @@ impl Eq for Closure {}
 /// Sum type of all Gynjo values.
 #[derive(Clone, Eq, PartialEq)]
 pub enum Value {
-	Literal(Literal),
+	Primitive(Primitive),
 	Tuple(Tuple),
 	List(List),
 	Closure(Closure),
@@ -95,7 +95,7 @@ pub enum Value {
 
 impl From<Boolean> for Value {
 	fn from(boolean: Boolean) -> Value {
-		Value::Literal(Literal::Boolean(boolean))
+		Value::Primitive(Primitive::Boolean(boolean))
 	}
 }
 
@@ -104,10 +104,10 @@ impl Value {
 	/// `env` - Used for values whose string representation is environment-dependent.
 	pub fn to_string(&self, env: &Rc<Env>) -> String {
 		match self {
-			// Can't just use Literal::to_string() because Value::to_string() needs to respect the current precision.
-			Value::Literal(literal) => match literal {
-				Literal::Boolean(b) => b.to_string(),
-				Literal::Number(number) => {
+			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
+			Value::Primitive(literal) => match literal {
+				Primitive::Boolean(b) => b.to_string(),
+				Primitive::Number(number) => {
 					let precision = env
 						// Look up precision setting.
 						.lookup(&Symbol { name: "precision".to_string() })
@@ -119,7 +119,7 @@ impl Value {
 						.unwrap_or(12);
 					format!("{}", number.with_prec(precision))
 				},
-				Literal::String(value) => value.clone(),
+				Primitive::String(value) => value.clone(),
 			},
 			Value::Tuple(tuple) => tuple.to_string(&env),
 			Value::List(list) => list.to_string(&env),
@@ -129,7 +129,7 @@ impl Value {
 
 	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
 	fn as_i64(&self) -> Option<i64> {
-		if let Value::Literal(Literal::Number(number)) = self {
+		if let Value::Primitive(Primitive::Number(number)) = self {
 			let (mantissa, exponent) = number.clone().into_bigint_and_exponent();
 			if exponent == 0 {
 				mantissa.to_i64()

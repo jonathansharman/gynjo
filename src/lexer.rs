@@ -1,5 +1,5 @@
-use super::literals::{Literal, Boolean};
 use super::intrinsics::Intrinsic;
+use super::primitives::{Primitive, Boolean};
 use super::symbol::Symbol;
 use super::tokens::Token;
 
@@ -51,12 +51,12 @@ pub fn lex(input: &str) -> LexResult {
 			SingleLexer::new(r"^\?", |_| Some(Token::Question)),
 			SingleLexer::new(r"^:", |_| Some(Token::Colon)),
 			// Value literals
-			SingleLexer::new(r"^(\.\d+)|(0|[1-9]\d*)(\.\d+)?", |match_text| Some(Token::Literal(Literal::Number(BigDecimal::from_str(match_text).unwrap())))),
-			SingleLexer::new(keyword!("true"), |_| Some(Token::Literal(Literal::Boolean(Boolean::True)))),
-			SingleLexer::new(keyword!("false"), |_| Some(Token::Literal(Literal::Boolean(Boolean::False)))),
+			SingleLexer::new(r"^(\.\d+)|(0|[1-9]\d*)(\.\d+)?", |match_text| Some(Token::Primitive(Primitive::Number(BigDecimal::from_str(match_text).unwrap())))),
+			SingleLexer::new(keyword!("true"), |_| Some(Token::Primitive(Primitive::Boolean(Boolean::True)))),
+			SingleLexer::new(keyword!("false"), |_| Some(Token::Primitive(Primitive::Boolean(Boolean::False)))),
 			SingleLexer::new(r#"^"([^"\\]|\\["\\])*""#, |match_text| {
 				// Strip enclosing quotes and escape characters.
-				Some(Token::Literal(Literal::String(match_text[1..match_text.len() - 1].replace(r"\\", r"\"))))
+				Some(Token::Primitive(Primitive::String(match_text[1..match_text.len() - 1].replace(r"\\", r"\"))))
 			}),
 			// Intrinsic functions
 			SingleLexer::new(keyword!("top"), |_| Some(Token::Intrinsic(Intrinsic::Top))),

@@ -1,5 +1,5 @@
 use super::intrinsics::Intrinsic;
-use super::literals::Literal;
+use super::primitives::Primitive;
 use super::stmts::Stmt;
 use super::symbol::Symbol;
 
@@ -151,7 +151,7 @@ pub enum Expr {
 	TupleExpr(Box<Vec<Expr>>),
 	ListExpr(Box<Vec<Expr>>),
 	Symbol(Symbol),
-	Literal(Literal),
+	Primitive(Primitive),
 }
 
 impl Expr {
@@ -168,7 +168,7 @@ impl Expr {
 			Expr::TupleExpr(exprs) => format!("({})", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::ListExpr(exprs) => format!("[{}]", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::Symbol(symbol) => symbol.to_string(),
-			Expr::Literal(literal) => literal.to_string(),
+			Expr::Primitive(primitive) => primitive.to_string(),
 		}
 	}
 }

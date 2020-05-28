@@ -1,5 +1,5 @@
 use super::intrinsics::Intrinsic;
-use super::literals::Literal;
+use super::primitives::Primitive;
 use super::symbol::Symbol;
 /// Sum type of all valid Gynjo tokens.
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -52,7 +52,7 @@ pub enum Token {
 	// Symbol
 	Symbol(Symbol),
 	// Literal
-	Literal(Literal),
+	Primitive(Primitive),
 }
 
 impl Token {
@@ -97,7 +97,7 @@ impl Token {
 			Token::Colon => ":".to_string(),
 			Token::Intrinsic(f) => f.name(),
 			Token::Symbol(symbol) => symbol.to_string(),
-			Token::Literal(literal) => literal.to_string(),
+			Token::Primitive(primitive) => primitive.to_string(),
 		}
 	}
 }

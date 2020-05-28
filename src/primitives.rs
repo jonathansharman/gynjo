@@ -30,21 +30,21 @@ impl From<bool> for Boolean {
 	}
 }
 
-/// Sum type of Gynjo literal values.
+/// Sum type of Gynjo primitive values.
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub enum Literal {
+pub enum Primitive {
 	Boolean(Boolean),
 	Number(BigDecimal),
 	String(String),
 }
 
-impl Literal {
+impl Primitive {
 	/// Converts this literal to a user-readable string.
 	pub fn to_string(&self) -> String {
 		match self {
-			Literal::Boolean(b) => b.to_string(),
-			Literal::Number(n) => n.to_string(),
-			Literal::String(s) => format!("\"{}\"", s),
+			Primitive::Boolean(b) => b.to_string(),
+			Primitive::Number(n) => n.to_string(),
+			Primitive::String(s) => format!("\"{}\"", s),
 		}
 	}
 }
