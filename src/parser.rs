@@ -295,7 +295,7 @@ fn parse_cluster(tokens: &[Token]) -> ParseExprResult {
 	}
 }
 
-/// Parses a series of binary expressions with equal precedence, using `subparse` to parse each operand.
+/// Parses a series of left-associative binary expressions with equal precedence, using `subparse` to parse each operand.
 fn parse_binary_expressions<'a>(tokens: &'a [Token], subparse: fn(&'a [Token]) -> ParseExprResult, op_map: &HashMap<Token, BinaryOp>) -> ParseExprResult<'a> {
 	// Parse first expression.
 	let (mut tokens, mut exprs) = subparse(tokens)?;
