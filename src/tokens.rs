@@ -2,7 +2,7 @@ use super::intrinsics::Intrinsic;
 use super::literals::Literal;
 use super::symbol::Symbol;
 /// Sum type of all valid Gynjo tokens.
-#[derive(Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Token {
 	Import,
 	Let,

@@ -39,7 +39,7 @@ fn main() {
 			io::stdin().read_line(&mut input);
 		}
 		// First try to interpret the line as an expression.
-		let eval_result = interpreter::eval(&env, &input);
+		let eval_result = interpreter::eval(&mut env, &input);
 		match eval_result {
 			Ok(value) => {
 				// Print the computed value.

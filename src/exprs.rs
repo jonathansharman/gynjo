@@ -128,7 +128,7 @@ pub struct Lambda {
 
 impl Lambda {
 	pub fn to_string(&self) -> String {
-		match self.body {
+		match &self.body {
 			LambdaBody::UserDefined(body) => format!("(({}) -> {})", self.params.iter().map(|s| s.name.clone()).join(", "), body.to_string()),
 			LambdaBody::Intrinsic(f) => f.name(),
 		}

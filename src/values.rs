@@ -27,7 +27,6 @@ impl List {
 	}
 }
 
-/// An iterator over a list that returns references.
 struct ListIter<'a>(&'a List);
 
 impl <'a> Iterator for ListIter<'a> {

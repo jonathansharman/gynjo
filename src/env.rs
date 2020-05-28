@@ -24,15 +24,10 @@ impl Env {
 
 	/// Creates a new ref-counted environment with core libs loaded.
 	pub fn make_with_core_libs() -> Rc<Env> {
-		lazy_static! {
-			static ref CORE_LIBS_ENV: Rc<Env> = {
-				let mut env = Env::make_empty();
-				import_lib(&mut env, r#""core/constants.gynj""#);
-				import_lib(&mut env, r#""core/core.gynj""#);
-				env
-			};
-		}
-		Rc::new(Env::new(Some(CORE_LIBS_ENV.clone())))
+		let mut parent = Env::make_empty();
+		import_lib(&mut parent, r#""core/constants.gynj""#);
+		import_lib(&mut parent, r#""core/core.gynj""#);
+		Rc::new(Env::new(Some(parent)))
 	}
 
 	/// Creates a new empty ref-counted environment.
@@ -48,7 +43,7 @@ impl Env {
 	pub fn lookup(&self, variable: &Symbol) -> Option<&Value> {
 		self.local_vars
 			.get(variable)
-			.or(self.parent_env.and_then(|p| p.lookup(variable)))
+			.or(self.parent_env.as_ref().and_then(|p| p.lookup(variable)))
 	}
 }
 

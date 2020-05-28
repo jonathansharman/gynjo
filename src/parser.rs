@@ -5,6 +5,8 @@ use super::stmts::Stmt;
 use super::symbol::Symbol;
 use super::tokens::Token;
 
+use std::collections::HashMap;
+
 /// Result of expression parsing: (remaining tokens, parsed expression).
 type ParseExprResult<'a> = Result<(&'a [Token], Expr), String>;
 
@@ -98,9 +100,9 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 			// Try to parse this expression as a lambda.
 			let mut params = Vec::with_capacity(elems.len());
 			let mut could_be_lambda = true;
-			for expr in elems {
+			for expr in elems.iter() {
 				match expr {
-					Expr::Symbol(param) => params.push(param),
+					Expr::Symbol(param) => params.push(param.clone()),
 					_ => {
 						could_be_lambda = false;
 						break;
@@ -121,7 +123,7 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 			// value grouping without having to special-case interpretation when an argument is a singleton.
 			if elems.len() == 1 {
 				// Extract singleton element.
-				Ok((tokens, *elems.first().unwrap()))
+				Ok((tokens, elems.remove(0)))
 			} else {
 				// Return unmodified tuple.
 				Ok((tokens, Expr::TupleExpr(Box::new(elems))))
@@ -241,7 +243,7 @@ fn parse_cluster(tokens: &[Token]) -> ParseExprResult {
 	// Parse the first cluster item.
 	let (tokens, first_negated) = parse_optional_token(tokens, &Token::Minus);
 	let (tokens, first_expr) = parse_value(tokens)?;
-	let items = vec!(ClusterItem {
+	let mut items = vec!(ClusterItem {
 		expr: Box::new(first_expr),
 		negated: first_negated,
 		connector: ClusterConnector::None,
@@ -287,142 +289,65 @@ fn parse_cluster(tokens: &[Token]) -> ParseExprResult {
 	}
 	if items.len() == 1 && !items[0].negated {
 		// Found a single non-negated value. Just extract it here.
-		Ok((tokens, *items[0].expr))
+		Ok((tokens, *items.remove(0).expr))
 	} else {
 		Ok((tokens, Expr::Cluster(Cluster { items })))
 	}
 }
 
-/// Parses a series of additions and subtractions.
-fn parse_terms(tokens: &[Token]) -> ParseExprResult {
-	// Parse first term.
-	let (mut tokens, mut terms) = parse_cluster(tokens)?;
-	// Parse subsequent terms.
-	let process_term = |rest, op: BinaryOp| -> Result<(), String> {
-		let (after_term, next_term) = parse_cluster(rest)
-			.map_err(|_| format!("expected a term after '{}'", op.to_string()))?;
-		tokens = after_term;
-		// Incorporate next term into expression.
-		terms = Expr::BinaryExpr(BinaryExpr {
-			op: op,
-			left: Box::new(terms),
-			right: Box::new(next_term),
-		});
-		Ok(())
-	};
+/// Parses a series of binary expressions with equal precedence, using `subparse` to parse each operand.
+fn parse_binary_expressions<'a>(tokens: &'a [Token], subparse: fn(&'a [Token]) -> ParseExprResult, op_map: &HashMap<Token, BinaryOp>) -> ParseExprResult<'a> {
+	// Parse first expression.
+	let (mut tokens, mut exprs) = subparse(tokens)?;
+	// Parse subsequent expressions.
 	loop {
-		match tokens {
-			[] => break,
-			[Token::Plus, rest @ ..] => process_term(rest, BinaryOp::Add)?,
-			[Token::Minus, rest @ ..] => process_term(rest, BinaryOp::Sub)?,
-			[_, ..] => break,
-		}
+		match tokens.first() {
+			Some(token) => match op_map.get(token) {
+				Some(op) => {
+					let (after_expr, next_expr) = subparse(&tokens[1..])
+						.map_err(|_| format!("expected operand after '{}'", op.to_string()))?;
+					tokens = after_expr;
+					// Incorporate next expression into expression.
+					exprs = Expr::BinaryExpr(BinaryExpr {
+						op: *op,
+						left: Box::new(exprs),
+						right: Box::new(next_expr),
+					});
+				},
+				None => break,
+			},
+			None => break,
+		};
 	}
-	Ok((tokens, terms))
+	Ok((tokens, exprs))
 }
 
-/// Parses a series of comparison checks (not including equals or not equals).
+/// Parses a series of additions and subtractions.
+fn parse_terms(tokens: &[Token]) -> ParseExprResult {
+	parse_binary_expressions(tokens, parse_comparisons,
+		&[(Token::Plus, BinaryOp::Add), (Token::Minus, BinaryOp::Add)].iter().cloned().collect())
+}
+
+/// Parses a series of comparison checks (not including equality, inequality, or approximate equality).
 fn parse_comparisons(tokens: &[Token]) -> ParseExprResult {
-	// Parse first comparison.
-	let (mut tokens, mut comparisons) = parse_terms(tokens)?;
-	// Parse subsequent comparisons.
-	let process_comparison = |rest, op: BinaryOp| -> Result<(), String> {
-		let (after_term, next_comparison) = parse_terms(rest)
-			.map_err(|_| format!("expected a comparison after '{}'", op.to_string()))?;
-		tokens = after_term;
-		// Incorporate next comparison into expression.
-		comparisons = Expr::BinaryExpr(BinaryExpr {
-			op: op,
-			left: Box::new(comparisons),
-			right: Box::new(next_comparison),
-		});
-		Ok(())
-	};
-	loop {
-		match tokens {
-			[] => break,
-			[Token::Lt, rest @ ..] => process_comparison(rest, BinaryOp::Lt)?,
-			[Token::Leq, rest @ ..] => process_comparison(rest, BinaryOp::Leq)?,
-			[Token::Gt, rest @ ..] => process_comparison(rest, BinaryOp::Gt)?,
-			[Token::Geq, rest @ ..] => process_comparison(rest, BinaryOp::Geq)?,
-			[_, ..] => break,
-		}
-	}
-	Ok((tokens, comparisons))
+	parse_binary_expressions(tokens, parse_terms,
+		&[(Token::Lt, BinaryOp::Lt), (Token::Leq, BinaryOp::Leq), (Token::Gt, BinaryOp::Gt), (Token::Geq, BinaryOp::Geq)].iter().cloned().collect())
 }
 
 /// Parses a series of equality, inequality, or approximate equality checks.
 fn parse_eq_checks(tokens: &[Token]) -> ParseExprResult {
-	// Parse first checks.
-	let (mut tokens, mut checks) = parse_terms(tokens)?;
-	// Parse subsequent checks.
-	let process_check = |rest, op: BinaryOp| -> Result<(), String> {
-		let (after_term, next_check) = parse_terms(rest)
-			.map_err(|_| format!("expected an equality check after '{}'", op.to_string()))?;
-		tokens = after_term;
-		// Incorporate next check into expression.
-		checks = Expr::BinaryExpr(BinaryExpr {
-			op: op,
-			left: Box::new(checks),
-			right: Box::new(next_check),
-		});
-		Ok(())
-	};
-	loop {
-		match tokens {
-			[] => break,
-			[Token::Lt, rest @ ..] => process_check(rest, BinaryOp::Lt)?,
-			[Token::Leq, rest @ ..] => process_check(rest, BinaryOp::Leq)?,
-			[Token::Gt, rest @ ..] => process_check(rest, BinaryOp::Gt)?,
-			[Token::Geq, rest @ ..] => process_check(rest, BinaryOp::Geq)?,
-			[_, ..] => break,
-		}
-	}
-	Ok((tokens, checks))
+	parse_binary_expressions(tokens, parse_comparisons,
+		&[(Token::Eq, BinaryOp::Eq), (Token::Neq, BinaryOp::Neq), (Token::Approx, BinaryOp::Approx)].iter().cloned().collect())
 }
 
 /// Parses a series of logical conjunctions.
 fn parse_conjunctions(tokens: &[Token]) -> ParseExprResult {
-	let (mut tokens, mut conjunctions) = parse_eq_checks(tokens)?;
-	loop {
-		match tokens {
-			[Token::Or, after_or @ ..] => {
-				// Parse next conjunction.
-				let (after_conjunction, next_conjunction) = parse_eq_checks(after_or).map_err(|_| "expected conjunction")?;
-				tokens = after_conjunction;
-				// Incorporate into expression.
-				conjunctions = Expr::BinaryExpr(BinaryExpr {				
-					op: BinaryOp::Or,
-					left: Box::new(conjunctions),
-					right: Box::new(next_conjunction),
-				})
-			},
-			_ => break,
-		}
-	}
-	Ok((tokens, conjunctions))
+	parse_binary_expressions(tokens, parse_eq_checks, &[(Token::And, BinaryOp::And)].iter().cloned().collect())
 }
 
 /// Parses a series of logical disjunctions.
 fn parse_disjunctions(tokens: &[Token]) -> ParseExprResult {
-	let (mut tokens, mut disjunctions) = parse_conjunctions(tokens)?;
-	loop {
-		match tokens {
-			[Token::Or, after_or @ ..] => {
-				// Parse next disjunction.
-				let (after_disjunction, next_disjunction) = parse_conjunctions(after_or).map_err(|_| "expected disjunction")?;
-				tokens = after_disjunction;
-				// Incorporate into expression.
-				disjunctions = Expr::BinaryExpr(BinaryExpr {				
-					op: BinaryOp::Or,
-					left: Box::new(disjunctions),
-					right: Box::new(next_disjunction),
-				})
-			},
-			_ => break,
-		}
-	}
-	Ok((tokens, disjunctions))
+	parse_binary_expressions(tokens, parse_conjunctions, &[(Token::Or, BinaryOp::Or)].iter().cloned().collect())
 }
 
 /// Parses a logical negation. Note that negation is right-associative.

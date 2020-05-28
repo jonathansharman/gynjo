@@ -31,7 +31,7 @@ impl From<bool> for Boolean {
 }
 
 /// Sum type of Gynjo literal values.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Literal {
 	Boolean(Boolean),
 	Number(BigDecimal),
