@@ -4,7 +4,7 @@ use super::symbol::Symbol;
 use super::tokens::Token;
 
 use bigdecimal::BigDecimal;
-use regex::{Regex, RegexSet, Match};
+use fancy_regex::{Regex};
 
 use std::str::FromStr;
 
@@ -25,7 +25,7 @@ pub fn lex(input: &str) -> LexResult {
 			// Whitespace (ignored)
 			SingleLexer::new(r"^\s+", |_| None),
 			// Line comment (ignored)
-			SingleLexer::new(r"^//.*", |_| None),
+			SingleLexer::new(r"^//.*$", |_| None),
 			// Operators/separators
 			SingleLexer::new(r"^=", |_| Some(Token::Eq)),
 			SingleLexer::new(r"^!=", |_| Some(Token::Neq)),
@@ -81,24 +81,24 @@ pub fn lex(input: &str) -> LexResult {
 			// Symbol
 			SingleLexer::new(r"^[a-zA-Z_]+", |match_text| Some(Token::Symbol(Symbol{ name: match_text.to_string() })))
 		];
-		static ref PATTERNS: Vec<&'static str> = SINGLE_LEXERS.iter().map(|single_lexer| single_lexer.pattern).collect();
-		static ref REGEX_SET: RegexSet = RegexSet::new(PATTERNS.iter()).unwrap();
 	}
 
 	let mut next_input = input;
 	let mut tokens: Vec<Token> = Vec::new();
 	while !next_input.is_empty() {
-		let matches = REGEX_SET.matches(next_input);
-		if matches.matched_any() {
-			let single_lexer = &SINGLE_LEXERS[matches.into_iter().next().unwrap()];
-			// This search is guaranteed to succeed. Only doing this to find the match indices.
-			let match_result: Match = single_lexer.regex.find(next_input).unwrap();
-			if let Some(token) = (single_lexer.generator)(match_result.as_str()) {
-				tokens.push(token);
+		let mut no_matches = true;
+		for single_lexer in SINGLE_LEXERS.iter() {
+			if let Some(match_result) = single_lexer.regex.find(next_input).unwrap() {
+				if let Some(token) = (single_lexer.generator)(match_result.as_str()) {
+					tokens.push(token);
+				}
+				next_input = &next_input[match_result.end()..];
+				no_matches = false;
+				break;
 			}
-			next_input = &next_input[match_result.end()..];
-		} else {
-			return Err(format!("unrecognized token: '{}'", Regex::new(r"\W+").unwrap().find(next_input).unwrap().as_str()));
+		}
+		if no_matches {
+			return Err(format!("unrecognized token: '{}'", Regex::new(r"\W+").unwrap().find(next_input).unwrap().unwrap().as_str()));
 		}
 	}
 	Ok(tokens)
@@ -109,13 +109,12 @@ type Generator = fn(&str) -> Option<Token>;
 
 /// Capable of matching and producing a single token.
 struct SingleLexer {
-	pattern: &'static str,
 	regex: Regex,
 	generator: Generator,
 }
 
 impl SingleLexer {
-	fn new(pattern: &'static str, generator: Generator) -> SingleLexer {
-		SingleLexer { pattern, regex: Regex::new(pattern).unwrap(), generator }
+	fn new(pattern: &str, generator: Generator) -> SingleLexer {
+		SingleLexer { regex: Regex::new(pattern).unwrap(), generator }
 	}
 }

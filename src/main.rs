@@ -21,7 +21,7 @@ use std::io;
 
 fn main() {
 	// Create environment with core libs.
-	let mut env = env::Env::make_with_core_libs();
+	let mut env = env::Env::with_core_libs();
 
 	// Try to load user's profile script.
 	env::import_lib(&mut env, "\"profile.gynj\"");
@@ -30,13 +30,13 @@ fn main() {
 	loop {
 		print!(">> ");
 		let mut input = String::new();
-		io::stdin().read_line(&mut input);
+		io::stdin().read_line(&mut input).unwrap();
 		while let Some('\\') = input.chars().last() {
 			// Continue line. Add a space to ensure new token on next line.
 			input.pop();
 			input.push(' ');
 			print!("   ");
-			io::stdin().read_line(&mut input);
+			io::stdin().read_line(&mut input).unwrap();
 		}
 		// First try to interpret the line as an expression.
 		let eval_result = interpreter::eval(&mut env, &input);

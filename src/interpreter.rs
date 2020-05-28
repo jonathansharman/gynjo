@@ -9,6 +9,7 @@ use super::values::{Closure, Tuple, List, Value};
 
 use bigdecimal::BigDecimal;
 
+use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 
@@ -19,7 +20,7 @@ type EvalResult = Result<Value, String>;
 type ExecResult = Result<(), String>;
 
 /// If possible, computes the value of `expr` in the context of `env`.
-pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
+pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 	match expr {
 		Expr::Cond { test, then_expr, else_expr } => {
 			eval_expr(&mut env, *test).and_then(|test_value| {
@@ -128,7 +129,7 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 			}
 			Ok(Value::List(list))
 		},
-		Expr::Symbol(symbol) => env.lookup(&symbol)
+		Expr::Symbol(symbol) => env.borrow().lookup(&symbol)
 			.map(|v| v.clone())
 			.ok_or(format!("'{}' is undefined", symbol.name)),
 		Expr::Primitive(primitive) => Ok(Value::Primitive(primitive)),
@@ -136,7 +137,7 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 }
 
 /// If possible, computes the value of the expression contained in `input` in the context of `env`.
-pub fn eval(env: &mut Rc<Env>, input: &str) -> EvalResult {
+pub fn eval(env: &mut Rc<RefCell<Env>>, input: &str) -> EvalResult {
 	// Lex.
 	let tokens = lex(input).map_err(|err| format!("(lex error) {}", err))?;
 	// Parse.
@@ -150,7 +151,7 @@ pub fn eval(env: &mut Rc<Env>, input: &str) -> EvalResult {
 }
 
 /// If possible, executes `stmt` in the context of `env`.
-pub fn exec_stmt(mut env: &mut Rc<Env>, stmt: Stmt) -> ExecResult {
+pub fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
 	match stmt {
 		Stmt::Nop => Ok(()),
 		Stmt::Import { filename } => {
@@ -161,7 +162,7 @@ pub fn exec_stmt(mut env: &mut Rc<Env>, stmt: Stmt) -> ExecResult {
 		Stmt::Assign { lhs, rhs } => {
 			let rhs_value = eval_expr(env, *rhs).map_err(|err| format!("in RHS of assignment: {}", err))?;
 			// Perform the assignment, possibly overwriting the existing value.
-			env.assign(lhs, rhs_value);
+			env.borrow_mut().assign(lhs, rhs_value);
 			Ok(())
 		},
 		Stmt::Branch { test, then_stmt, else_stmt } => {
@@ -193,7 +194,7 @@ pub fn exec_stmt(mut env: &mut Rc<Env>, stmt: Stmt) -> ExecResult {
 				Value::List(range_list) => {
 					for value in range_list.iter() {
 						// Assign the loop variable to the current value in the range list.
-						env.assign(loop_var.clone(), value.clone());
+						env.borrow_mut().assign(loop_var.clone(), value.clone());
 						// Execute the loop body in this context.
 						exec_stmt(env, (*body).clone()).map_err(|err| format!("in body of for-loop: {}", err))?;
 					}
@@ -215,7 +216,7 @@ pub fn exec_stmt(mut env: &mut Rc<Env>, stmt: Stmt) -> ExecResult {
 }
 
 /// If possible, executes the statements contained in `input` in the context of `env`.
-pub fn exec(env: &mut Rc<Env>, input: &str) -> ExecResult {
+pub fn exec(env: &mut Rc<RefCell<Env>>, input: &str) -> ExecResult {
 	// Lex.
 	let tokens = lex(input)?;
 	let mut token_slice = &tokens[..];
@@ -231,7 +232,7 @@ pub fn exec(env: &mut Rc<Env>, input: &str) -> ExecResult {
 }
 
 /// Evaluates a numerical operation on a list and a number.
-fn list_num_op(env: &Rc<Env>, list: List, number: BigDecimal, number_on_left: bool, op_name: &str, op: fn(BigDecimal, BigDecimal) -> EvalResult) -> Result<List, String> {
+fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: BigDecimal, number_on_left: bool, op_name: &str, op: fn(BigDecimal, BigDecimal) -> EvalResult) -> Result<List, String> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
@@ -246,7 +247,7 @@ fn list_num_op(env: &Rc<Env>, list: List, number: BigDecimal, number_on_left: bo
 }
 
 /// Evaluates a numerical operation on two values.
-fn bin_num_op(env: &Rc<Env>, left: Value, right: Value, op_name: &str, op: fn(BigDecimal, BigDecimal) -> EvalResult) -> EvalResult {
+fn bin_num_op(env: &Rc<RefCell<Env>>, left: Value, right: Value, op_name: &str, op: fn(BigDecimal, BigDecimal) -> EvalResult) -> EvalResult {
 	match (left, right) {
 		// Number op Number
 		(Value::Primitive(Primitive::Number(left)), Value::Primitive(Primitive::Number(right))) => op(left, right),
@@ -294,7 +295,7 @@ fn parse_parenthesized_applications(items: &[EvaluatedClusterItem]) -> LateParse
 	Ok((items, LateExpr::Value(Value::Tuple(Tuple::empty()))))
 }
 
-fn eval_late_expr(env: &Rc<Env>, late_expr: LateExpr) -> EvalResult {
+fn eval_late_expr(env: &Rc<RefCell<Env>>, late_expr: LateExpr) -> EvalResult {
 	match late_expr {
 		LateExpr::Value(value) => Ok(value),
 		LateExpr::Apply(closure, args) => {
@@ -322,7 +323,7 @@ fn eval_late_expr(env: &Rc<Env>, late_expr: LateExpr) -> EvalResult {
 }
 
 /// Evaluates a cluster expression.
-fn eval_cluster(env: &mut Rc<Env>, cluster: Cluster) -> EvalResult {
+fn eval_cluster(env: &mut Rc<RefCell<Env>>, cluster: Cluster) -> EvalResult {
 	// First, evaluate the cluster items.
 	let mut evaluated_cluster: Vec<EvaluatedClusterItem> = Vec::with_capacity(cluster.items.len());
 	for item in cluster.items {
@@ -347,36 +348,35 @@ fn eval_application(c: Closure, args: Vec<Value>) -> EvalResult {
 	// Assign arguments to parameters within a copy of the closure's environment.
 	let mut local_env = Env::new(Some(c.env.clone()));
 	for (variable, value) in c.f.params.into_iter().zip(args.into_iter()) {
-		local_env.assign(variable, value);
+		local_env.borrow_mut().assign(variable, value);
 	}
-	let mut local_env = Rc::new(local_env);
 	// Evaluate function body within the application environment.
 	match c.f.body {
 		LambdaBody::UserDefined(body) => eval_expr(&mut local_env, *body),
 		LambdaBody::Intrinsic(body) => {
 			match body {
-				Intrinsic::Top => match local_env.lookup(&"list".into()).unwrap() {
-					Value::List(List::Cons { head, .. }) => Ok((**head).clone()),
+				Intrinsic::Top => match local_env.borrow().lookup(&"list".into()).unwrap() {
+					Value::List(List::Cons { head, .. }) => Ok((*head).clone()),
 					arg @ _ => Err(format!("top() expected a non-empty list, found {}", arg.to_string(&local_env))),
 				},
-				Intrinsic::Pop => match local_env.lookup(&"list".into()).unwrap() {
-					Value::List(List::Cons { tail, .. }) => Ok(Value::List((**tail).clone())),
+				Intrinsic::Pop => match local_env.borrow().lookup(&"list".into()).unwrap() {
+					Value::List(List::Cons { tail, .. }) => Ok(Value::List((*tail).clone())),
 					arg @ _ => Err(format!("pop() expected a non-empty list, found {}", arg.to_string(&local_env))),
 				},
-				Intrinsic::Push => match local_env.lookup(&"list".into()).unwrap() {
+				Intrinsic::Push => match local_env.borrow().lookup(&"list".into()).unwrap() {
 					Value::List(list) => {
-						let value = local_env.lookup(&"value".into()).unwrap().clone();
+						let value = local_env.borrow().lookup(&"value".into()).unwrap().clone();
 						Ok(Value::List(List::Cons { head: Box::new(value), tail: Rc::new(list.clone()) }))
 					},
 					arg @ _ => Err(format!("push() expected a list, found {}", arg.to_string(&local_env))),
 				},
 				Intrinsic::Print => {
-					println!("{}", local_env.lookup(&"value".into()).unwrap().to_string(&local_env));
+					println!("{}", local_env.borrow().lookup(&"value".into()).unwrap().to_string(&local_env));
 					Ok(Value::Tuple(Tuple::empty()))
 				},
 				Intrinsic::Read => {
 					let mut input = String::new();
-					io::stdin().read_line(&mut input);
+					io::stdin().read_line(&mut input).unwrap();
 					Ok(Value::Primitive(Primitive::String(input)))
 				}
 			}
@@ -384,7 +384,7 @@ fn eval_application(c: Closure, args: Vec<Value>) -> EvalResult {
 	}
 }
 
-fn eval_negation(env: &Rc<Env>, value: &Value) -> EvalResult {
+fn eval_negation(env: &Rc<RefCell<Env>>, value: &Value) -> EvalResult {
 	match value {
 		Value::Primitive(Primitive::Number(number)) => Ok(Value::Primitive(Primitive::Number(-number))),
 		_ => Err(format!("cannot negate {}", value.to_string(env))),

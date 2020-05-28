@@ -45,7 +45,7 @@ pub fn parse_stmt<'a>(tokens: &'a [Token]) -> ParseStmtResult {
 		[Token::Return, rest @ ..] => parse_ret(rest),
 		_ => {
 			let (tokens, expr) = parse_expr(tokens)?;
-			parse_required_token(&tokens, &Token::Semicolon, "expression statement");
+			let tokens = parse_required_token(&tokens, &Token::Semicolon, "expression statement")?;
 			Ok((tokens, Stmt::ExprStmt(Box::new(expr))))
 		},
 	}
@@ -53,7 +53,6 @@ pub fn parse_stmt<'a>(tokens: &'a [Token]) -> ParseStmtResult {
 
 /// Parses a function body.
 fn parse_body(tokens: &[Token]) -> ParseExprResult {
-	#![feature(slice_patterns)]
 	match tokens {
 		[Token::Arrow, rest @ ..] => parse_expr(rest),
 		_ => Err("expected function body".to_string()),
@@ -324,8 +323,8 @@ fn parse_binary_expressions<'a>(tokens: &'a [Token], subparse: fn(&'a [Token]) -
 
 /// Parses a series of additions and subtractions.
 fn parse_terms(tokens: &[Token]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_comparisons,
-		&[(Token::Plus, BinaryOp::Add), (Token::Minus, BinaryOp::Add)].iter().cloned().collect())
+	parse_binary_expressions(tokens, parse_cluster,
+		&[(Token::Plus, BinaryOp::Add), (Token::Minus, BinaryOp::Sub)].iter().cloned().collect())
 }
 
 /// Parses a series of comparison checks (not including equality, inequality, or approximate equality).

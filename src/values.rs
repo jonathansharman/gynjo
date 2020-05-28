@@ -7,6 +7,7 @@ use num_traits::cast::ToPrimitive;
 use itertools::Itertools;
 
 use std::boxed::Box;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Functional linked list of Gynjo values.
@@ -17,7 +18,7 @@ pub enum List {
 }
 
 impl List {
-	pub fn to_string(&self, env: &Rc<Env>) -> String {
+	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
 		format!("[{}]", self.iter().map(|elem| elem.to_string(&env)).join(", "))
 	}
 
@@ -27,7 +28,7 @@ impl List {
 	}
 }
 
-struct ListIter<'a>(&'a List);
+pub struct ListIter<'a>(&'a List);
 
 impl <'a> Iterator for ListIter<'a> {
 	type Item = &'a Value;
@@ -65,7 +66,7 @@ impl Tuple {
 		Tuple { elems: Box::new(Vec::new()) }
 	}
 
-	pub fn to_string(&self, env: &Rc<Env>) -> String {
+	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
 		format!("({})", self.elems.iter().map(|elem| elem.to_string(env)).join(", "))
 	}
 }
@@ -73,7 +74,7 @@ impl Tuple {
 #[derive(Clone)]
 pub struct Closure {
 	pub f: Lambda,
-	pub env: Rc<Env>,
+	pub env: Rc<RefCell<Env>>,
 }
 
 impl PartialEq for Closure {
@@ -102,13 +103,13 @@ impl From<Boolean> for Value {
 impl Value {
 	/// Converts this value to a user-readable string.
 	/// `env` - Used for values whose string representation is environment-dependent.
-	pub fn to_string(&self, env: &Rc<Env>) -> String {
+	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
 		match self {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
 			Value::Primitive(primitive) => match primitive {
 				Primitive::Boolean(b) => b.to_string(),
 				Primitive::Number(number) => {
-					let precision = env
+					let precision = env.borrow()
 						// Look up precision setting.
 						.lookup(&Symbol { name: "precision".to_string() })
 						// Interpret as an integer.
