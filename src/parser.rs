@@ -202,7 +202,7 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 			}
 		},
 		// Primitive
-		[Token::Primitive(literal), tokens @ ..] => Ok((tokens, Expr::Primitive(literal.clone()))),
+		[Token::Primitive(primitive), tokens @ ..] => Ok((tokens, Expr::Primitive(primitive.clone()))),
 		[t, ..] => Err(format!("unexpected token in expression: {}", t.to_string())),
 	}
 }

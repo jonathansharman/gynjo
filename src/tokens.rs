@@ -51,7 +51,7 @@ pub enum Token {
 	Intrinsic(Intrinsic),
 	// Symbol
 	Symbol(Symbol),
-	// Literal
+	// Primitive
 	Primitive(Primitive),
 }
 

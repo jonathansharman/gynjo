@@ -105,7 +105,7 @@ impl Value {
 	pub fn to_string(&self, env: &Rc<Env>) -> String {
 		match self {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
-			Value::Primitive(literal) => match literal {
+			Value::Primitive(primitive) => match primitive {
 				Primitive::Boolean(b) => b.to_string(),
 				Primitive::Number(number) => {
 					let precision = env

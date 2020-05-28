@@ -131,7 +131,7 @@ pub fn eval_expr(mut env: &mut Rc<Env>, expr: Expr) -> EvalResult {
 		Expr::Symbol(symbol) => env.lookup(&symbol)
 			.map(|v| v.clone())
 			.ok_or(format!("'{}' is undefined", symbol.name)),
-		Expr::Primitive(literal) => Ok(Value::Primitive(literal)),
+		Expr::Primitive(primitive) => Ok(Value::Primitive(primitive)),
 	}
 }
 

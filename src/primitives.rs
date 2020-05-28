@@ -39,7 +39,7 @@ pub enum Primitive {
 }
 
 impl Primitive {
-	/// Converts this literal to a user-readable string.
+	/// Converts this primitive to a user-readable string.
 	pub fn to_string(&self) -> String {
 		match self {
 			Primitive::Boolean(b) => b.to_string(),
