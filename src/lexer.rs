@@ -86,13 +86,10 @@ pub fn lex(input: &str) -> LexResult {
 	let mut next_input = input;
 	let mut tokens: Vec<Token> = Vec::new();
 	while !next_input.is_empty() {
-		println!("Input: {}", next_input);
 		let mut no_matches = true;
 		for single_lexer in SINGLE_LEXERS.iter() {
 			if let Some(match_result) = single_lexer.regex.find(next_input).unwrap() {
-				println!("Matched '{}' at index {}", match_result.as_str(), match_result.start());
 				if let Some(token) = (single_lexer.generator)(match_result.as_str()) {
-					println!("Found token {}", token.to_string());
 					tokens.push(token);
 				}
 				next_input = &next_input[match_result.end()..];
