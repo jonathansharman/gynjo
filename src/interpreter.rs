@@ -343,7 +343,7 @@ fn eval_cluster(env: &mut Rc<RefCell<Env>>, cluster: Cluster) -> EvalResult {
 	for item in cluster.items {
 		let value = eval_expr(env, *item.expr)?;
 		evaluated_cluster.push(EvaluatedClusterItem {
-			value: if item.negated { eval_negation(env, &value)? } else { value },
+			value: if item.negated { eval_negation(env, value)? } else { value },
 			connector: item.connector,
 		});
 	}
@@ -403,9 +403,20 @@ fn eval_application(c: Closure, args: Value) -> EvalResult {
 	}
 }
 
-fn eval_negation(env: &Rc<RefCell<Env>>, value: &Value) -> EvalResult {
+fn negate_list(env: &Rc<RefCell<Env>>, list: List) -> Result<List, String> {
+	match list {
+		List::Empty => Ok(List::Empty),
+		List::Cons { head, tail } => Ok(List::Cons {
+			head: Box::new(eval_negation(env, *head)?),
+			tail: Rc::new(negate_list(env, (*tail).clone())?),
+		}),
+	}
+}
+
+fn eval_negation(env: &Rc<RefCell<Env>>, value: Value) -> EvalResult {
 	match value {
 		Value::Primitive(Primitive::Number(number)) => Ok(Value::Primitive(Primitive::Number(-number))),
+		Value::List(list) => Ok(Value::List(negate_list(env, list)?)),
 		_ => Err(format!("cannot negate {}", value.to_string(env))),
 	}
 }
