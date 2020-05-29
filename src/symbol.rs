@@ -1,5 +1,5 @@
 /// A Gynjo symbol, e.g. a variable name.
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Symbol { pub name: String }
 
 impl <S> From<S> for Symbol where S: Into<String> {

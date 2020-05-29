@@ -1,5 +1,5 @@
 /// Represents an intrinsic Gynjo function or its body, depending on context.
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Intrinsic {
 	// Fundamental list operations
 	Top,

@@ -2,7 +2,7 @@ use super::intrinsics::Intrinsic;
 use super::primitives::Primitive;
 use super::symbol::Symbol;
 /// Sum type of all valid Gynjo tokens.
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Token {
 	Import,
 	Let,
@@ -55,6 +55,18 @@ pub enum Token {
 	Primitive(Primitive),
 }
 
+impl From<i32> for Token {
+	fn from(n: i32) -> Token {
+		Token::Primitive(Primitive::from(n))
+	}
+}
+
+impl From<f32> for Token {
+	fn from(n: f32) -> Token {
+		Token::Primitive(Primitive::from(n))
+	}
+}
+
 impl Token {
 	/// Converts this token to a user-readable string.
 	pub fn to_string(&self) -> String {
@@ -99,5 +111,13 @@ impl Token {
 			Token::Symbol(symbol) => symbol.to_string(),
 			Token::Primitive(primitive) => primitive.to_string(),
 		}
+	}
+
+	pub fn from_string<S>(s: S) -> Token where S: Into<String> {
+		Token::Primitive(Primitive::from(s.into()))
+	}
+
+	pub fn from_symbol<S>(s: S) -> Token where S: Into<String> {
+		Token::Symbol(Symbol::from(s))
 	}
 }

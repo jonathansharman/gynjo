@@ -1,7 +1,7 @@
 use bigdecimal::BigDecimal;
 
 /// Boolean Gynjo value.
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Boolean { True, False }
 
 impl Boolean {
@@ -31,7 +31,7 @@ impl From<bool> for Boolean {
 }
 
 /// Sum type of Gynjo primitive values.
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Primitive {
 	Boolean(Boolean),
 	Number(BigDecimal),
@@ -46,5 +46,29 @@ impl Primitive {
 			Primitive::Number(n) => n.to_string(),
 			Primitive::String(s) => format!("\"{}\"", s),
 		}
+	}
+}
+
+impl From<i32> for Primitive {
+	fn from(n: i32) -> Primitive {
+		Primitive::Number(bigdecimal::FromPrimitive::from_i32(n).unwrap())
+	}
+}
+
+impl From<f32> for Primitive {
+	fn from(n: f32) -> Primitive {
+		Primitive::Number(bigdecimal::FromPrimitive::from_f32(n).unwrap())
+	}
+}
+
+impl From<&str> for Primitive {
+	fn from(s: &str) -> Primitive {
+		Primitive::String(s.into())
+	}
+}
+
+impl From<String> for Primitive {
+	fn from(s: String) -> Primitive {
+		Primitive::String(s)
 	}
 }
