@@ -260,16 +260,7 @@ fn bin_num_op(env: &Rc<RefCell<Env>>, left: Value, right: Value, op_name: &str, 
 	}
 }
 
-/// These are cluster sub-expressions that can only be fully parsed once their value types are known.
-enum LateExpr {
-	Value(Value),
-	Apply(Closure, Value),
-	Exponentiate(Value, Value),
-	Multiply(Value, Value),
-	Divide(Value, Value),
-}
-
-/// An evaluated cluster item.
+/// A cluster item with its expression resolved to a value.
 struct EvaluatedClusterItem {
 	/// This item's value.
 	value: Value,
@@ -277,48 +268,71 @@ struct EvaluatedClusterItem {
 	connector: ClusterConnector,
 }
 
-type LateParseResult<'a> = Result<(&'a [EvaluatedClusterItem], LateExpr), String>;
+fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
+	if cluster.len() > 1 {
+		//for each operation, in decreasing order of precedence
+		//	for each index, order of the current operation's associativity
+		//		if the current index has the current operation
+		//			evaluate at the current index
+		//			return to the top of the while loop
 
-fn parse_multiplications_and_divisions(items: &[EvaluatedClusterItem]) -> LateParseResult {
-	Ok((items, LateExpr::Value(Value::Tuple(Tuple::empty()))))
-}
-
-fn parse_non_parenthesized_applications(items: &[EvaluatedClusterItem]) -> LateParseResult {
-	Ok((items, LateExpr::Value(Value::Tuple(Tuple::empty()))))
-}
-
-fn parse_exponentiations(items: &[EvaluatedClusterItem]) -> LateParseResult {
-	Ok((items, LateExpr::Value(Value::Tuple(Tuple::empty()))))
-}
-
-fn parse_parenthesized_applications(items: &[EvaluatedClusterItem]) -> LateParseResult {
-	Ok((items, LateExpr::Value(Value::Tuple(Tuple::empty()))))
-}
-
-fn eval_late_expr(env: &Rc<RefCell<Env>>, late_expr: LateExpr) -> EvalResult {
-	match late_expr {
-		LateExpr::Value(value) => Ok(value),
-		LateExpr::Apply(closure, args) => {
-			match args {
-				// Argument is already a tuple.
-				Value::Tuple(tuple) => eval_application(closure, *tuple.elems),
-				// Wrap argument in a tuple.
-				_ => eval_application(closure, vec!(args)),
+		// Parenthesized applications
+		for idx in 0..cluster.len() - 1 {
+			if let Value::Closure(closure) = &cluster[idx].value {
+				if cluster[idx + 1].connector == ClusterConnector::AdjParen {
+					cluster[idx].value = eval_application(closure.clone(), cluster[idx + 1].value.clone())?;
+					cluster.remove(idx + 1);
+					return eval_evaluated_cluster(env, cluster);
+				}
 			}
-		},
-		LateExpr::Exponentiate(left, right) => bin_num_op(env, left, right, "exponentiation", |_, _| -> EvalResult {
-			Err("BigDecimal does not support exponentiation yet".to_string())
-		}),
-		LateExpr::Multiply(left, right) => bin_num_op(env, left, right, "multiplication", |a, b| -> EvalResult {
-			Ok(Value::Primitive(Primitive::Number(a * b)))
-		}),
-		LateExpr::Divide(left, right) => bin_num_op(env, left, right, "multiplication", |a, b| -> EvalResult {
-			if b == BigDecimal::from(0) {
-				Err("division by zero".to_string())
-			} else {
-				Ok(Value::Primitive(Primitive::Number(a / b)))
+		}
+		// Exponentiations
+		for idx in (0..cluster.len() - 1).rev() {
+			if cluster[idx + 1].connector == ClusterConnector::Exp {
+				cluster[idx].value = bin_num_op(env, cluster[idx].value.clone(), cluster[idx + 1].value.clone(), "exponentiation", |_, _| -> EvalResult {
+					Err("BigDecimal does not support exponentiation yet".to_string())
+				})?;
+				cluster.remove(idx + 1);
+				return eval_evaluated_cluster(env, cluster);
 			}
-		}),
+		}
+		// Non-parenthesized applications
+		for idx in 0..cluster.len() - 1 {
+			if let Value::Closure(closure) = &cluster[idx].value {
+				if cluster[idx + 1].connector == ClusterConnector::AdjNonparen {
+					cluster[idx].value = eval_application(closure.clone(), cluster[idx + 1].value.clone())?;
+					cluster.remove(idx + 1);
+					return eval_evaluated_cluster(env, cluster);
+				}
+			}
+		}
+		// Multiplications and Divisions
+		for idx in 0..cluster.len() - 1 {
+			match &cluster[idx + 1].connector {
+				ClusterConnector::AdjParen | ClusterConnector::AdjNonparen | ClusterConnector::Mul => {
+					cluster[idx].value = bin_num_op(env, cluster[idx].value.clone(), cluster[idx + 1].value.clone(), "multiplication", |a, b| -> EvalResult {
+						Ok(Value::Primitive(Primitive::Number(a * b)))
+					})?;
+					cluster.remove(idx + 1);
+					return eval_evaluated_cluster(env, cluster);
+				},
+				ClusterConnector::Div => {
+					cluster[idx].value = bin_num_op(env, cluster[idx].value.clone(), cluster[idx + 1].value.clone(), "division", |a, b| -> EvalResult {
+						if b == BigDecimal::from(0) {
+							Err("division by zero".to_string())
+						} else {
+							Ok(Value::Primitive(Primitive::Number(a / b)))
+						}
+					})?;
+					cluster.remove(idx + 1);
+					return eval_evaluated_cluster(env, cluster);
+				},
+				_ => ()
+			}
+		}
+		unreachable!("previous cases are exhaustive")
+	} else {
+		Ok(cluster.remove(0).value)
 	}
 }
 
@@ -333,14 +347,19 @@ fn eval_cluster(env: &mut Rc<RefCell<Env>>, cluster: Cluster) -> EvalResult {
 			connector: item.connector,
 		});
 	}
-	// Now that the items' types are known, fully resolve the parse tree.
-	let (_, late_expr) = parse_multiplications_and_divisions(&evaluated_cluster[..])?;
-	// Evaluate parse tree.
-	eval_late_expr(env, late_expr)
+	// Now that the items' types are known, evaluate down to a single value.
+	eval_evaluated_cluster(env, evaluated_cluster)
 }
 
 /// Evaluates a closure application.
-fn eval_application(c: Closure, args: Vec<Value>) -> EvalResult {
+fn eval_application(c: Closure, args: Value) -> EvalResult {
+	// Extract arguments into a vector.
+	let args = match args {
+		Value::Tuple(tuple) => {
+			*tuple.elems
+		},
+		_ => vec!(args),
+	};
 	// Ensure correct number of arguments.
 	if args.len() != c.f.params.len() {
 		return Err(format!("function requires {} argument{}, received {}", c.f.params.len(), if c.f.params.len() == 1 { "" } else { "s" }, args.len()));
