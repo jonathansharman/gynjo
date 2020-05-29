@@ -282,6 +282,8 @@ fn parse_cluster(tokens: &[Token]) -> ParseExprResult {
 						negated: false,
 						connector: ClusterConnector::AdjNonparen,
 					});
+				} else {
+					break;
 				}
 			},
 		}
