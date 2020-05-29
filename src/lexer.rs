@@ -1,6 +1,5 @@
 use super::intrinsics::Intrinsic;
 use super::primitives::{Primitive, Boolean};
-use super::symbol::Symbol;
 use super::tokens::Token;
 
 use bigdecimal::BigDecimal;
@@ -79,7 +78,7 @@ pub fn lex(input: &str) -> LexResult {
 			SingleLexer::new(keyword!("or"), |_| Some(Token::Or)),
 			SingleLexer::new(keyword!("not"), |_| Some(Token::Not)),
 			// Symbol
-			SingleLexer::new(r"^[a-zA-Z_]+", |match_text| Some(Token::Symbol(Symbol{ name: match_text.to_string() })))
+			SingleLexer::new(r"^[a-zA-Z_]+", |match_text| Some(Token::from_symbol(match_text.to_string())))
 		];
 	}
 

@@ -17,7 +17,7 @@ mod tokens;
 #[macro_use]
 extern crate lazy_static;
 
-use std::io;
+use std::io::{self, Write};
 
 fn main() {
 	// Create environment with core libs.
@@ -29,6 +29,7 @@ fn main() {
 	// REPL
 	loop {
 		print!(">> ");
+		io::stdout().flush().unwrap();
 		let mut input = String::new();
 		io::stdin().read_line(&mut input).unwrap();
 		while let Some('\\') = input.chars().last() {
@@ -36,6 +37,7 @@ fn main() {
 			input.pop();
 			input.push(' ');
 			print!("   ");
+			io::stdout().flush().unwrap();
 			io::stdin().read_line(&mut input).unwrap();
 		}
 		// First try to interpret the line as an expression.
