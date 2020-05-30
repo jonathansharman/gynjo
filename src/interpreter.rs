@@ -621,7 +621,7 @@ mod tests {
 
 	#[test]
 	fn subtraction_and_negation() -> Result<(), String> {
-		assert_eq!(Value::from(-1.25), eval(&mut Env::new(None), "-1+-2^-2")?);
+		assert_eq!(Value::from(3), eval(&mut Env::new(None), "-1+-2*-2")?);
 		Ok(())
 	}
 
@@ -711,7 +711,7 @@ mod tests {
 		#[test]
 		fn addition() -> Result<(), String> {
 			let mut env = Env::new(None);
-			let expected = Value::List(make_list!(Value::from(4), Value::from(3), Value::from(2)));
+			let expected = Value::List(make_list!(Value::from(2), Value::from(3), Value::from(4)));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 3] + 1")?);
 			assert_eq!(expected, eval(&mut env, "1 + [1, 2, 3]")?);
 			Ok(())
@@ -719,7 +719,7 @@ mod tests {
 		#[test]
 		fn subtraction() -> Result<(), String> {
 			let mut env = Env::new(None);
-			let expected = Value::List(make_list!(Value::from(3), Value::from(2), Value::from(1)));
+			let expected = Value::List(make_list!(Value::from(1), Value::from(2), Value::from(3)));
 			assert_eq!(expected, eval(&mut env, "[2, 3, 4]-1")?);
 			assert_eq!(expected, eval(&mut env, "4-[3, 2, 1]")?);
 			Ok(())
@@ -753,8 +753,8 @@ mod tests {
 	#[test]
 	fn simple_function_application() -> Result<(), String> {
 		let mut env = Env::new(None);
-		exec(&mut env, "let Value::from(false) = () -> 42")?;
-		assert_eq!(Value::from(42), eval(&mut env, "Value::from(false)()")?);
+		exec(&mut env, "let f = () -> 42")?;
+		assert_eq!(Value::from(42), eval(&mut env, "f()")?);
 		Ok(())
 	}
 
@@ -780,7 +780,7 @@ mod tests {
 	#[test]
 	fn higher_order_functions() -> Result<(), String> {
 		let mut env = Env::new(None);
-		exec(&mut env, "let apply = (Value::from(false), a) -> Value::from(false)(a)")?;
+		exec(&mut env, "let apply = (f, a) -> f(a)")?;
 		assert_eq!(Value::from(42), eval(&mut env, "apply(a -> a, 42)")?);
 		Ok(())
 	}

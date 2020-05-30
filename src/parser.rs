@@ -6,6 +6,7 @@ use super::symbol::Symbol;
 use super::tokens::Token;
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 
 /// Result of expression parsing: (remaining tokens, parsed expression).
 type ParseExprResult<'a> = Result<(&'a [Token], Expr), String>;
@@ -94,7 +95,7 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 					tokens
 				},
 				// Empty tuple; parse close parenthesis.
-				_ => parse_required_token(tokens, &Token::Rparen, "tuple expression")?,
+				_ => parse_required_token(&tokens[1..], &Token::Rparen, "tuple expression")?,
 			};
 			// Try to parse this expression as a lambda.
 			let mut params = Vec::with_capacity(elems.len());
@@ -131,11 +132,11 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 		// List
 		[Token::Lsquare, after_lsquare @ ..] => {
 			let mut tokens = after_lsquare;
-			let mut elems = Box::new(Vec::new());
+			let mut elems = Box::new(VecDeque::new());
 			// Try to parse an expression.
 			if let Ok((after_first_elem, first_elem)) = parse_expr(tokens) {
 				tokens = after_first_elem;
-				elems.push(first_elem);
+				elems.push_front(first_elem);
 				// Try to parse additional comma-delimited expressions.
 				loop {
 					match tokens {
@@ -145,7 +146,7 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 							tokens = after_comma;
 							let (after_next_elem, next_elem) = parse_expr(tokens).map_err(|_| "expected expression after ',' in list expression")?;
 							tokens = after_next_elem;
-							elems.push(next_elem);
+							elems.push_front(next_elem);
 						},
 						// End of list
 						[Token::Rsquare, rest @ ..] => {
@@ -155,9 +156,10 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 						[invalid @ _, ..] => return Err(format!("expected ',' or ']' in list expression, found {}", invalid.to_string())),
 					}
 				}
+			} else {
+				// Parse close square bracket of empty list.
+				tokens = parse_required_token(&tokens, &Token::Rsquare, "list expression")?;
 			}
-			// Parse close square bracket.
-			tokens = parse_required_token(&tokens, &Token::Rsquare, "list expression")?;
 			Ok((tokens, Expr::ListExpr(elems)))
 		},
 		// Block

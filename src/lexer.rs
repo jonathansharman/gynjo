@@ -24,7 +24,7 @@ pub fn lex(input: &str) -> LexResult {
 			// Whitespace (ignored)
 			SingleLexer::new(r"^\s+", |_| None),
 			// Line comment (ignored)
-			SingleLexer::new(r"^//.*$", |_| None),
+			SingleLexer::new(r"^//.*", |_| None),
 			// Operators/separators
 			SingleLexer::new(r"^=", |_| Some(Token::Eq)),
 			SingleLexer::new(r"^!=", |_| Some(Token::Neq)),

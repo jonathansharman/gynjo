@@ -6,6 +6,7 @@ use super::symbol::Symbol;
 use itertools::Itertools;
 
 use std::boxed::Box;
+use std::collections::VecDeque;
 
 /// Sum type of binary Gynjo operators.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -149,7 +150,7 @@ pub enum Expr {
 	Cluster(Cluster),
 	Lambda(Lambda),
 	TupleExpr(Box<Vec<Expr>>),
-	ListExpr(Box<Vec<Expr>>),
+	ListExpr(Box<VecDeque<Expr>>),
 	Symbol(Symbol),
 	Primitive(Primitive),
 }
