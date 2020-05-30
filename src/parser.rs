@@ -182,9 +182,10 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 		// Intrinsic function
 		[Token::Intrinsic(f), tokens @ ..] => {
 			let params = match f {
-				Intrinsic::Top | Intrinsic::Pop => vec!(Symbol { name: "list".to_string() }),
-				Intrinsic::Push => vec!(Symbol { name: "list".to_string() }, Symbol { name: "value".to_string() }),
-				Intrinsic::Print | Intrinsic::Read => vec!(Symbol { name: "value".to_string() }),
+				Intrinsic::Top | Intrinsic::Pop => vec!(Symbol::from("list")),
+				Intrinsic::Push => vec!(Symbol::from("list"), Symbol::from("value")),
+				Intrinsic::Print => vec!(Symbol::from("value")),
+				Intrinsic::Read => vec!(),
 			};
 			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(f.clone()) })))
 		},

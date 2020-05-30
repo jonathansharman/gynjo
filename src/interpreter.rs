@@ -390,13 +390,13 @@ fn eval_application(c: Closure, args: Value) -> EvalResult {
 					arg @ _ => Err(format!("push() expected a list, found {}", arg.to_string(&local_env))),
 				},
 				Intrinsic::Print => {
-					println!("{}", local_env.borrow().lookup(&"value".into()).unwrap().to_string(&local_env));
+					print!("{}", local_env.borrow().lookup(&"value".into()).unwrap().to_string(&local_env));
 					Ok(Value::Tuple(Tuple::empty()))
 				},
 				Intrinsic::Read => {
 					let mut input = String::new();
 					io::stdin().read_line(&mut input).unwrap();
-					Ok(Value::Primitive(Primitive::String(input)))
+					Ok(Value::from(input.trim().to_string()))
 				}
 			}
 		}

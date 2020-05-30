@@ -126,6 +126,12 @@ impl From<f64> for Value {
 	}
 }
 
+impl From<String> for Value {
+	fn from(s: String) -> Value {
+		Value::Primitive(Primitive::String(s))
+	}
+}
+
 impl Value {
 	/// Converts this value to a user-readable string.
 	/// `env` - Used for values whose string representation is environment-dependent.
@@ -146,7 +152,7 @@ impl Value {
 						.unwrap_or(12);
 					format!("{}", number.with_prec(precision))
 				},
-				Primitive::String(value) => value.clone(),
+				Primitive::String(s) => format!("\"{}\"", s),
 			},
 			Value::Tuple(tuple) => tuple.to_string(&env),
 			Value::List(list) => list.to_string(&env),

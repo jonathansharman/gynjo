@@ -67,12 +67,6 @@ impl From<f64> for Primitive {
 	}
 }
 
-impl From<&str> for Primitive {
-	fn from(s: &str) -> Primitive {
-		Primitive::String(s.into())
-	}
-}
-
 impl From<String> for Primitive {
 	fn from(s: String) -> Primitive {
 		Primitive::String(s)
