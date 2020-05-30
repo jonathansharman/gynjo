@@ -4,7 +4,7 @@ use super::symbol::Symbol;
 use std::boxed::Box;
 
 /// Sum type of Gynjo statements.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Stmt {
 	Nop,
 	Import { filename: String },

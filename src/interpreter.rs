@@ -420,3 +420,475 @@ fn eval_negation(env: &Rc<RefCell<Env>>, value: Value) -> EvalResult {
 		_ => Err(format!("cannot negate {}", value.to_string(env))),
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use crate::interpreter::{eval, exec};
+	use crate::env::Env;
+	use crate::primitives::Primitive;
+	use crate::values::{Value, Tuple, List};
+
+	use bigdecimal::BigDecimal;
+
+	use std::cell::RefCell;
+	use std::rc::Rc;
+	use std::str::FromStr;
+
+	#[test]
+	fn execution_of_empty_statement_returns_nothing() -> Result<(), String> {
+		assert_eq!((), exec(&mut Env::new(None), "")?);
+		Ok(())
+	}
+
+	mod logical_operators {
+		use super::*;
+		#[test]
+		fn and() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "false and false")?);
+			assert_eq!(Value::from(false), eval(&mut env, "false and true")?);
+			assert_eq!(Value::from(false), eval(&mut env, "true and false")?);
+			assert_eq!(Value::from(true), eval(&mut env, "true and true")?);
+			Ok(())
+		}
+		#[test]
+		fn or() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "false or false")?);
+			assert_eq!(Value::from(true), eval(&mut env, "false or true")?);
+			assert_eq!(Value::from(true), eval(&mut env, "true or false")?);
+			assert_eq!(Value::from(true), eval(&mut env, "true or true")?);
+			Ok(())
+		}
+		#[test]
+		fn not() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "not true")?);
+			assert_eq!(Value::from(true), eval(&mut env, "not false")?);
+			assert_eq!(Value::from(true), eval(&mut env, "not false and false")?);
+			Ok(())
+		}
+		#[test]
+		fn short_circuiting() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "false and 1/0")?);
+			assert_eq!(Value::from(true), eval(&mut env, "true or 1/0")?);
+			Ok(())
+		}
+		#[test]
+		fn and_precedes_or() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "true or true and false")?);
+			assert_eq!(Value::from(true), eval(&mut env, "false and true or true")?);
+			Ok(())
+		}
+		#[test]
+		fn parenthesized() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "(false) and true")?);
+			assert_eq!(Value::from(true), eval(&mut env, "false or ((true))")?);
+			assert_eq!(Value::from(true), eval(&mut env, "not (false)")?);
+			Ok(())
+		}
+	}
+
+	mod comparisons {
+		use super::*;
+		#[test]
+		fn eq() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1 = 1")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 = 2")?);
+			Ok(())
+		}
+		#[test]
+		fn neq() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1 != 2")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 != 1")?);
+			Ok(())
+		}
+		#[test]
+		fn approx() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1/3 ~ 0.333333333333")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1/3 ~ 0.333")?);
+			Ok(())
+		}
+		#[test]
+		fn lt() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1 < 2")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 < 1")?);
+			assert_eq!(Value::from(false), eval(&mut env, "2 < 1")?);
+			Ok(())
+		}
+		#[test]
+		fn leq() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1 <= 2")?);
+			assert_eq!(Value::from(true), eval(&mut env, "1 <= 1")?);
+			assert_eq!(Value::from(false), eval(&mut env, "2 <= 1")?);
+			Ok(())
+		}
+		#[test]
+		fn gt() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "1 > 2")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 > 1")?);
+			assert_eq!(Value::from(true), eval(&mut env, "2 > 1")?);
+			Ok(())
+		}
+		#[test]
+		fn geq() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "1 >= 2")?);
+			assert_eq!(Value::from(true), eval(&mut env, "1 >= 1")?);
+			assert_eq!(Value::from(true), eval(&mut env, "2 >= 1")?);
+			Ok(())
+		}
+		#[test]
+		fn comparisons_and_logical_operators() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1 = 1 and 2 = 2")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 = 1 and 2 = 3")?);
+			assert_eq!(Value::from(true), eval(&mut env, "1 = 2 or 3 = 3")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 = 2 or 3 = 4")?);
+			Ok(())
+		}
+		#[test]
+		fn non_numbers_are_equal_checkable_but_not_comparable() -> Result<(), String> {
+			let mut env = Env::new(None);
+			// Booleans and tuples can be equality-checked.
+			assert_eq!(Value::from(true), eval(&mut env, "true = true")?);
+			assert_eq!(Value::from(false), eval(&mut env, "true = false")?);
+			assert_eq!(Value::from(false), eval(&mut env, "true != true")?);
+			assert_eq!(Value::from(true), eval(&mut env, "true != false")?);
+			assert_eq!(Value::from(true), eval(&mut env, "(1, 2, 3) = (1, 2, 3)")?);
+			assert_eq!(Value::from(false), eval(&mut env, "(1, 2, 3) = (3, 2, 1)")?);
+			assert_eq!(Value::from(false), eval(&mut env, "(1, 2, 3) != (1, 2, 3)")?);
+			assert_eq!(Value::from(true), eval(&mut env, "(1, 2, 3) != (3, 2, 1)")?);
+			// Cannot be compared.
+			assert!(eval(&mut env, "false < true").is_err());
+			assert!(eval(&mut env, "(1, 2, 3) < (3, 2, 1)").is_err());
+			Ok(())
+		}
+		#[test]
+		fn different_types_compare_inequal() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(false), eval(&mut env, "[1, 2, 3] = (1, 2, 3)")?);
+			assert_eq!(Value::from(true), eval(&mut env, "(x -> x) != false")?);
+			Ok(())
+		}
+		#[test]
+		fn different_types_cannot_be_order_compared() -> Result<(), String> {
+			assert!(eval(&mut Env::new(None), "(x -> x) < false").is_err());
+			Ok(())
+		}
+		#[test]
+		fn comparison_precedes_equality() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "1 < 2 = 2 < 3")?);
+			assert_eq!(Value::from(true), eval(&mut env, "1 > 2 != 2 < 3")?);
+			Ok(())
+		}
+		#[test]
+		fn parenthesized() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "(1) = 1")?);
+			assert_eq!(Value::from(false), eval(&mut env, "1 != (1)")?);
+			assert_eq!(Value::from(true), eval(&mut env, "((1)) < 2")?);
+			assert_eq!(Value::from(true), eval(&mut env, "1 <= ((1))")?);
+			assert_eq!(Value::from(false), eval(&mut env, "(1) > (1)")?);
+			assert_eq!(Value::from(false), eval(&mut env, "((1)) >= (2)")?);
+			Ok(())
+		}
+	}
+
+	mod conditional_expressions {
+		use super::*;
+		#[test]
+		fn true_is_lazy() -> Result<(), String> {
+			assert_eq!(Value::from(1), eval(&mut Env::new(None), "false ? 1/0 : 1")?);
+			Ok(())
+		}
+		#[test]
+		fn false_is_lazy() -> Result<(), String> {
+			assert_eq!(Value::from(1), eval(&mut Env::new(None), "true ? 1 : 1/0")?);
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn subtraction_and_negation() -> Result<(), String> {
+		assert_eq!(Value::from(-1.25), eval(&mut Env::new(None), "-1+-2^-2")?);
+		Ok(())
+	}
+
+	#[test]
+	fn simple_compound_expression_with_parentheses() -> Result<(), String> {
+		assert_eq!(Value::from(5.0), eval(&mut Env::new(None), "-5 *(1 +  -2)")?);
+		Ok(())
+	}
+
+	#[test]
+	fn exponentiation_is_right_associative() -> Result<(), String> {
+		assert_eq!(Value::from(262144), eval(&mut Env::new(None), "4^3^2")?);
+		Ok(())
+	}
+
+	#[test]
+	fn basic_assignment() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, "let x = 42")?;
+		assert_eq!(Value::from(42), eval(&mut env, "x")?);
+		Ok(())
+	}
+
+	mod tuples {
+		use super::*;
+		#[test]
+		fn singleton_collapses_into_contained_value() -> Result<(), String> {
+			assert_eq!(Value::from(1), eval(&mut Env::new(None), "(1)")?);
+			Ok(())
+		}
+		#[test]
+		fn nested_tuple_of_numbers() -> Result<(), String> {
+			let expected = make_tuple!(Value::from(1), make_tuple!(Value::from(2), Value::from(3)));
+			assert_eq!(expected, eval(&mut Env::new(None), "(1, (2, 3))")?);
+			Ok(())
+		}
+		#[test]
+		fn nested_tuple_of_numbers_and_booleans() -> Result<(), String> {
+			let expected = make_tuple!(Value::from(true), make_tuple!(Value::from(2), Value::from(false)));
+			assert_eq!(expected, eval(&mut Env::new(None), "(1 < 2, (2, false))")?);
+			Ok(())
+		}
+	}
+
+	mod list_construction {
+		use super::*;
+		#[test]
+		fn singleton_list() -> Result<(), String> {
+			assert_eq!(Value::List(make_list!(Value::from(1))), eval(&mut Env::new(None), "[1]")?);
+			Ok(())
+		}
+		#[test]
+		fn nested_list_of_numbers() -> Result<(), String> {
+			let expected = Value::List(make_list!(Value::from(1), Value::List(make_list!(Value::from(2), Value::from(3)))));
+			assert_eq!(expected, eval(&mut Env::new(None), "[1, [2, 3]]")?);
+			Ok(())
+		}
+		#[test]
+		fn nested_list_of_numbers_and_booleans() -> Result<(), String> {
+			let expected = Value::List(make_list!(Value::from(true), Value::List(make_list!(Value::from(2), Value::from(false)))));
+			assert_eq!(expected, eval(&mut Env::new(None), "[1 < 2, [2, false]]")?);
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn list_destruction_does_not_cause_stack_overflow() {
+		let result = exec(&mut Env::new(None), r"(
+			let i = 0
+			let l = []
+			while i < 1000 do {
+				let l = push(l, i)
+				let i = i + 1
+			};
+			)");
+		assert!(result.is_ok());
+	}
+
+	mod math_operations_on_lists {
+		use super::*;
+		#[test]
+		fn negation() -> Result<(), String> {
+			let expected = Value::List(make_list!(Value::from(-1), Value::from(-2), Value::from(-3)));
+			assert_eq!(expected, eval(&mut Env::new(None), "-[1, 2, 3]")?);
+			Ok(())
+		}
+		#[test]
+		fn addition() -> Result<(), String> {
+			let mut env = Env::new(None);
+			let expected = Value::List(make_list!(Value::from(4), Value::from(3), Value::from(2)));
+			assert_eq!(expected, eval(&mut env, "[1, 2, 3] + 1")?);
+			assert_eq!(expected, eval(&mut env, "1 + [1, 2, 3]")?);
+			Ok(())
+		}
+		#[test]
+		fn subtraction() -> Result<(), String> {
+			let mut env = Env::new(None);
+			let expected = Value::List(make_list!(Value::from(3), Value::from(2), Value::from(1)));
+			assert_eq!(expected, eval(&mut env, "[2, 3, 4]-1")?);
+			assert_eq!(expected, eval(&mut env, "4-[3, 2, 1]")?);
+			Ok(())
+		}
+		#[test]
+		fn multiplication() -> Result<(), String> {
+			let mut env = Env::new(None);
+			let expected = Value::List(make_list!(Value::from(2), Value::from(4), Value::from(6)));
+			assert_eq!(expected, eval(&mut env, "[1, 2, 3]2")?);
+			assert_eq!(expected, eval(&mut env, "2[1, 2, 3]")?);
+			Ok(())
+		}
+		#[test]
+		fn division() -> Result<(), String> {
+			let mut env = Env::new(None);
+			let expected = Value::List(make_list!(Value::from(1), Value::from(2), Value::from(3)));
+			assert_eq!(expected, eval(&mut env, "[2, 4, 6]/2")?);
+			assert_eq!(expected, eval(&mut env, "6/[6, 3, 2]")?);
+			Ok(())
+		}
+		#[test]
+		fn exponentiation() -> Result<(), String> {
+			let mut env = Env::new(None);
+			let expected = Value::List(make_list!(Value::from(1), Value::from(4), Value::from(16)));
+			assert_eq!(expected, eval(&mut env, "[1, 2, 4]^2")?);
+			assert_eq!(expected, eval(&mut env, "2^[0, 1, 4]")?);
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn simple_function_application() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, "let Value::from(false) = () -> 42")?;
+		assert_eq!(Value::from(42), eval(&mut env, "Value::from(false)()")?);
+		Ok(())
+	}
+
+	mod order_of_operations {
+		use super::*;
+		fn env_with_inc() -> Result<Rc<RefCell<Env>>, String> {
+			let mut env = Env::new(None);
+			exec(&mut env, "let inc = a -> a + 1")?;
+			Ok(env)
+		}
+		#[test]
+		fn parenthesized_function_call_before_exponentiation() -> Result<(), String> {
+			assert_eq!(Value::from(36), eval(&mut env_with_inc()?, "4inc(2)^2")?);
+			Ok(())
+		}
+		#[test]
+		fn exponentiation_before_non_parenthesized_function_call() -> Result<(), String> {
+			assert_eq!(Value::from(20), eval(&mut env_with_inc()?, "4inc 2^2")?);
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn higher_order_functions() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, "let apply = (Value::from(false), a) -> Value::from(false)(a)")?;
+		assert_eq!(Value::from(42), eval(&mut env, "apply(a -> a, 42)")?);
+		Ok(())
+	}
+
+	#[test]
+	fn curried_function() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, "let sum = a -> b -> a + b")?;
+		assert_eq!(Value::from(3), eval(&mut env, "sum 1 2")?);
+		Ok(())
+	}
+
+	#[test]
+	fn environment_does_not_persist_between_function_chains() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, r"
+			let sum = a -> b -> a + b
+			let get_a = () -> a
+		")?;
+		// "a" should be undefined.
+		assert!(eval(&mut env, "sum (1) (2) get_a ()").is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn chained_application_with_and_without_parentheses() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, r"
+			let sum = a -> b -> a + b
+			let inc = a -> a + 1
+		")?;
+		assert_eq!(Value::from(3), eval(&mut env, "sum (1) 2")?);
+		Ok(())
+	}
+
+	#[test]
+	fn chained_application_does_not_pollute_applications_higher_in_the_call_chain() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, r"
+			let sum = a -> b -> a + b
+			let inc = b -> b + 1
+		")?;
+		assert_eq!(Value::from(8), eval(&mut env, "sum (inc 5) 2")?);
+		Ok(())
+	}
+
+	#[test]
+	fn importing_core_constants() -> Result<(), String> {
+		let mut env = Env::new(None);
+		let expected = Value::Primitive(Primitive::Number(BigDecimal::from_str("3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679").unwrap()));
+		exec(&mut env, "import \"core/constants.gynj\"")?;
+		assert_eq!(expected, eval(&mut env, "PI")?);
+		Ok(())
+	}
+
+	#[test]
+	fn blocks() -> Result<(), String> {
+		let mut env = Env::new(None);
+		eval(&mut env, "{}")?;
+		eval(&mut env, "{ let a = 0 }")?;
+		eval(&mut env, "{ let b = { let a = a + 1 return a } }")?;
+		assert_eq!(Value::from(1), eval(&mut env, "b")?);
+		Ok(())
+	}
+
+	mod branch_statements {
+		use super::*;
+		#[test]
+		fn true_is_lazy() -> Result<(), String> {
+			let mut env = Env::new(None);
+			exec(&mut env, "if false then let a = 1/0 else let a = 1")?;
+			assert_eq!(Value::from(1), eval(&mut env, "a")?);
+			Ok(())
+		}
+		#[test]
+		fn false_is_lazy() -> Result<(), String> {
+			let mut env = Env::new(None);
+			exec(&mut env, "if true then let a = 1 else let a = 1/0")?;
+			assert_eq!(Value::from(1), eval(&mut env, "a")?);
+			Ok(())
+		}
+		#[test]
+		fn no_else_statement() -> Result<(), String> {
+			assert_eq!((), exec(&mut Env::new(None), "if false then let a = 1/0")?);
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn while_loops() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, r"
+			let a = 0
+			while a < 3 do let a = a + 1
+		")?;
+		assert_eq!(Value::from(3), eval(&mut env, "a")?);
+		Ok(())
+	}
+
+	#[test]
+	fn for_loops() -> Result<(), String> {
+		let mut env = Env::new(None);
+		exec(&mut env, r"
+			let a = 0
+			for x in [1, 2, 3] do let a = a + x
+			for x in [] do let a = 10
+		")?;
+		assert_eq!(Value::from(6), eval(&mut env, "a")?);
+		Ok(())
+	}
+}

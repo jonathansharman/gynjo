@@ -49,15 +49,21 @@ impl Primitive {
 	}
 }
 
+impl From<bool> for Primitive {
+	fn from(b: bool) -> Primitive {
+		Primitive::Boolean(Boolean::from(b))
+	}
+}
+
 impl From<i32> for Primitive {
 	fn from(n: i32) -> Primitive {
 		Primitive::Number(bigdecimal::FromPrimitive::from_i32(n).unwrap())
 	}
 }
 
-impl From<f32> for Primitive {
-	fn from(n: f32) -> Primitive {
-		Primitive::Number(bigdecimal::FromPrimitive::from_f32(n).unwrap())
+impl From<f64> for Primitive {
+	fn from(n: f64) -> Primitive {
+		Primitive::Number(bigdecimal::FromPrimitive::from_f64(n).unwrap())
 	}
 }
 

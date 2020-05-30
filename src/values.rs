@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Functional linked list of Gynjo values.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum List {
 	Empty,
 	Cons { head: Box<Value>, tail: Rc<List> },
@@ -56,9 +56,17 @@ macro_rules! make_list {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Tuple {
 	pub elems: Box<Vec<Value>>,
+}
+
+/// Convenience macro for turning a comma-separated list of values into a value tuple.
+#[macro_export]
+macro_rules! make_tuple {
+	($($exprs:expr),*) => {
+		Value::Tuple(Tuple { elems: Box::new(vec!($($exprs),*)) })
+	}
 }
 
 impl Tuple {
@@ -71,7 +79,7 @@ impl Tuple {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Closure {
 	pub f: Lambda,
 	pub env: Rc<RefCell<Env>>,
@@ -86,7 +94,7 @@ impl PartialEq for Closure {
 impl Eq for Closure {}
 
 /// Sum type of all Gynjo values.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Value {
 	Primitive(Primitive),
 	Tuple(Tuple),
@@ -94,9 +102,27 @@ pub enum Value {
 	Closure(Closure),
 }
 
+impl From<bool> for Value {
+	fn from(b: bool) -> Value {
+		Value::Primitive(Primitive::from(b))
+	}
+}
+
 impl From<Boolean> for Value {
 	fn from(boolean: Boolean) -> Value {
 		Value::Primitive(Primitive::Boolean(boolean))
+	}
+}
+
+impl From<i32> for Value {
+	fn from(n: i32) -> Value {
+		Value::Primitive(Primitive::from(n))
+	}
+}
+
+impl From<f64> for Value {
+	fn from(n: f64) -> Value {
+		Value::Primitive(Primitive::from(n))
 	}
 }
 

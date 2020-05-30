@@ -8,7 +8,7 @@ use itertools::Itertools;
 use std::boxed::Box;
 
 /// Sum type of binary Gynjo operators.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum BinaryOp {
 	And,
 	Or,
@@ -42,7 +42,7 @@ impl BinaryOp {
 }
 
 /// Sum type of binary Gynjo expressions.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BinaryExpr {
 	pub op: BinaryOp,
 	pub left: Box<Expr>,
@@ -56,7 +56,7 @@ impl BinaryExpr {
 }
 
 /// The way in which a cluster item is attached to the preceding element of the cluster.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum ClusterConnector {
 	/// Item is the first in the cluster.
 	None,
@@ -73,7 +73,7 @@ pub enum ClusterConnector {
 }
 
 /// A single item in an expression `Cluster`.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ClusterItem {
 	/// This item's expression.
 	pub expr: Box<Expr>,
@@ -107,20 +107,20 @@ impl ClusterItem {
 /// This large grouping of operations is as fine-grained as possible in the parsing stage. Breaking this down
 /// into specific operations requires additional parsing in the evaluation stage since determining the order of
 /// operations requires type info.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Cluster {
 	pub items: Vec<ClusterItem>,
 }
 
 /// Lambda bodies can be user-defined expressions or intrinsic function bodies.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum LambdaBody {
 	UserDefined(Box<Expr>),
 	Intrinsic(Intrinsic),
 }
 
 /// A function expression.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Lambda {
 	pub params: Vec<Symbol>,
 	pub body: LambdaBody,
@@ -136,7 +136,7 @@ impl Lambda {
 }
 
 /// Sum type of all Gynjo expressions.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expr {
 	Cond {
 		test: Box<Expr>,

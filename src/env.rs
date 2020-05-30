@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// A chained set of variable mappings.
+#[derive(Debug)]
 pub struct Env {
 	/// Variables mappings created within the local scope.
 	local_vars: HashMap<Symbol, Value>,

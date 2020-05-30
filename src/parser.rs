@@ -64,10 +64,10 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 	match tokens {
 		[] => Err("expected value".to_string()),
 		// Tuple or lambda
-		[Token::Lparen, ref after_lparen @ ..] => {
+		[Token::Lparen, after_lparen @ ..] => {
 			let mut elems: Vec<Expr> = Vec::new();
 			// Parse contained expressions.
-			let after_elems = match parse_expr(after_lparen) {
+			let after_tuple = match parse_expr(after_lparen) {
 				// Found at least one expression.
 				Ok((after_first_elem, first_elem)) => {
 					elems.push(first_elem);
@@ -110,7 +110,7 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 			}
 			if could_be_lambda {
 				// Try to parse a lambda body.
-				if let Ok((after_body, body_expr)) = parse_body(after_elems) {
+				if let Ok((after_body, body_expr)) = parse_body(after_tuple) {
 					// Assemble lambda from parameter tuple and body.
 					return Ok((after_body, Expr::Lambda(Lambda {
 						params: params,
@@ -122,10 +122,10 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 			// value grouping without having to special-case interpretation when an argument is a singleton.
 			if elems.len() == 1 {
 				// Extract singleton element.
-				Ok((tokens, elems.remove(0)))
+				Ok((after_tuple, elems.remove(0)))
 			} else {
 				// Return unmodified tuple.
-				Ok((tokens, Expr::TupleExpr(Box::new(elems))))
+				Ok((after_tuple, Expr::TupleExpr(Box::new(elems))))
 			}
 		},
 		// List

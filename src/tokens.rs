@@ -55,14 +55,20 @@ pub enum Token {
 	Primitive(Primitive),
 }
 
+impl From<bool> for Token {
+	fn from(b: bool) -> Token {
+		Token::Primitive(Primitive::from(b))
+	}
+}
+
 impl From<i32> for Token {
 	fn from(n: i32) -> Token {
 		Token::Primitive(Primitive::from(n))
 	}
 }
 
-impl From<f32> for Token {
-	fn from(n: f32) -> Token {
+impl From<f64> for Token {
+	fn from(n: f64) -> Token {
 		Token::Primitive(Primitive::from(n))
 	}
 }
