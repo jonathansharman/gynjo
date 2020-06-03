@@ -3,7 +3,7 @@ use super::symbol::Symbol;
 
 use std::boxed::Box;
 
-/// Sum type of Gynjo statements.
+/// Gynjo statements.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Stmt {
 	Nop,

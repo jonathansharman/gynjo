@@ -1,9 +1,10 @@
 use super::intrinsics::Intrinsic;
-use super::primitives::{Primitive, Boolean};
+use super::primitives::{Primitive, Boolean, Number};
 use super::tokens::Token;
 
 use bigdecimal::BigDecimal;
 use fancy_regex::{Regex};
+use num_bigint::BigInt;
 
 use std::str::FromStr;
 
@@ -20,7 +21,7 @@ macro_rules! keyword {
 /// Lexes `input` into a vector of tokens, if possible.
 pub fn lex(input: &str) -> LexResult {
 	lazy_static! {
-		static ref SINGLE_LEXERS: [SingleLexer; 48] = [
+		static ref SINGLE_LEXERS: [SingleLexer; 49] = [
 			// Whitespace (ignored)
 			SingleLexer::new(r"^\s+", |_| None),
 			// Line comment (ignored)
@@ -50,7 +51,12 @@ pub fn lex(input: &str) -> LexResult {
 			SingleLexer::new(r"^\?", |_| Some(Token::Question)),
 			SingleLexer::new(r"^:", |_| Some(Token::Colon)),
 			// Value literals
-			SingleLexer::new(r"^((\.\d+)|(0|[1-9]\d*)(\.\d+)?)", |match_text| Some(Token::Primitive(Primitive::Number(BigDecimal::from_str(match_text).unwrap())))),
+			SingleLexer::new(r"^((0|([1-9]\d*))?\.\d+)", |match_text| {
+				Some(Token::Primitive(Primitive::Number(Number::Real(BigDecimal::from_str(match_text).unwrap()))))
+			}),
+			SingleLexer::new(r"^(0|([1-9]\d*))", |match_text| {
+				Some(Token::Primitive(Primitive::Number(Number::Integer(BigInt::from_str(match_text).unwrap()))))
+			}),
 			SingleLexer::new(keyword!("true"), |_| Some(Token::Primitive(Primitive::Boolean(Boolean::True)))),
 			SingleLexer::new(keyword!("false"), |_| Some(Token::Primitive(Primitive::Boolean(Boolean::False)))),
 			SingleLexer::new(r#"^("([^"\\]|\\["\\])*")"#, |match_text| {

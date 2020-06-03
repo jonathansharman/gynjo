@@ -1,6 +1,7 @@
 use bigdecimal::BigDecimal;
+use num_bigint::BigInt;
 
-/// Boolean Gynjo value.
+/// Boolean Gynjo type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Boolean { True, False }
 
@@ -30,11 +31,61 @@ impl From<bool> for Boolean {
 	}
 }
 
-/// Sum type of Gynjo primitive values.
+/// Numeric Gynjo types.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Number {
+	Integer(BigInt),
+	Real(BigDecimal),
+}
+
+impl Number {
+	/// Converts this number to a user-readable string.
+	pub fn to_string(&self) -> String {
+		match self {
+			Number::Integer(n) => n.to_string(),
+			Number::Real(n) => n.to_string(),
+		}
+	}
+
+	/// Converts this number to a `Number::Integer` if its value is integral.
+	pub fn to_integer_if_integral(self) -> Number {
+		match self {
+			Number::Integer(integer) => Number::Integer(integer),
+			Number::Real(real) => {
+				if real.is_integer() {
+					let (mut mantissa, exponent) = real.into_bigint_and_exponent();
+					if exponent > 0 {
+						for _ in 0..exponent {
+							mantissa /= 10;
+						}
+					} else {
+						for _ in 0..-exponent {
+							mantissa *= 10;
+						}
+					}
+					Number::Integer(mantissa)
+				} else {
+					Number::Real(real)
+				}
+			}
+		}
+	}
+}
+
+impl From<Number> for BigDecimal {
+	fn from(number: Number) -> BigDecimal {
+		match number {
+			Number::Integer(integer) => integer.into(),
+			Number::Real(real) => real,
+		}
+	}
+}
+
+/// Primitive Gynjo value types.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Primitive {
 	Boolean(Boolean),
-	Number(BigDecimal),
+	Number(Number),
 	String(String),
 }
 
@@ -55,15 +106,15 @@ impl From<bool> for Primitive {
 	}
 }
 
-impl From<i32> for Primitive {
-	fn from(n: i32) -> Primitive {
-		Primitive::Number(bigdecimal::FromPrimitive::from_i32(n).unwrap())
+impl From<i64> for Primitive {
+	fn from(n: i64) -> Primitive {
+		Primitive::Number(Number::Integer(n.into()))
 	}
 }
 
 impl From<f64> for Primitive {
 	fn from(n: f64) -> Primitive {
-		Primitive::Number(bigdecimal::FromPrimitive::from_f64(n).unwrap())
+		Primitive::Number(Number::Real(n.into()))
 	}
 }
 

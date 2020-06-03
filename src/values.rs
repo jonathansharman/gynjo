@@ -1,6 +1,6 @@
 use super::env::Env;
 use super::exprs::Lambda;
-use super::primitives::{Primitive, Boolean};
+use super::primitives::{Primitive, Boolean, Number};
 use super::symbol::Symbol;
 
 use num_traits::cast::ToPrimitive;
@@ -93,7 +93,7 @@ impl PartialEq for Closure {
 
 impl Eq for Closure {}
 
-/// Sum type of all Gynjo values.
+/// Gynjo value types.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Value {
 	Primitive(Primitive),
@@ -114,8 +114,8 @@ impl From<Boolean> for Value {
 	}
 }
 
-impl From<i32> for Value {
-	fn from(n: i32) -> Value {
+impl From<i64> for Value {
+	fn from(n: i64) -> Value {
 		Value::Primitive(Primitive::from(n))
 	}
 }
@@ -140,17 +140,20 @@ impl Value {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
 			Value::Primitive(primitive) => match primitive {
 				Primitive::Boolean(b) => b.to_string(),
-				Primitive::Number(number) => {
-					let precision = env.borrow()
-						// Look up precision setting.
-						.lookup(&Symbol { name: "precision".to_string() })
-						// Interpret as an integer.
-						.and_then(|v| v.as_i64())
-						// Interpret as a non-negative integer.
-						.and_then(|v| if v < 0 { None } else { Some(v as u64) })
-						// If something failed, use default precision setting.
-						.unwrap_or(12);
-					format!("{}", number.with_prec(precision))
+				Primitive::Number(number) => match number {
+					Number::Integer(integer) => integer.to_string(),
+					Number::Real(real) => {
+						let precision = env.borrow()
+							// Look up precision setting.
+							.lookup(&Symbol { name: "precision".to_string() })
+							// Interpret as an integer.
+							.and_then(|v| v.as_i64())
+							// Interpret as a non-negative integer.
+							.and_then(|v| if v < 0 { None } else { Some(v as u64) })
+							// If something failed, use default precision setting.
+							.unwrap_or(12);
+						format!("{}", real.with_prec(precision))
+					}
 				},
 				Primitive::String(s) => format!("\"{}\"", s),
 			},
@@ -162,13 +165,8 @@ impl Value {
 
 	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
 	fn as_i64(&self) -> Option<i64> {
-		if let Value::Primitive(Primitive::Number(number)) = self {
-			let (mantissa, exponent) = number.clone().into_bigint_and_exponent();
-			if exponent == 0 {
-				mantissa.to_i64()
-			} else {
-				None
-			}
+		if let Value::Primitive(Primitive::Number(Number::Integer(integer))) = self {
+			integer.to_i64()
 		} else {
 			None
 		}

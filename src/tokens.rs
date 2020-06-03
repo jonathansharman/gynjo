@@ -1,7 +1,7 @@
 use super::intrinsics::Intrinsic;
 use super::primitives::Primitive;
 use super::symbol::Symbol;
-/// Sum type of all valid Gynjo tokens.
+/// Gynjo tokens.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Token {
 	Import,
@@ -61,8 +61,8 @@ impl From<bool> for Token {
 	}
 }
 
-impl From<i32> for Token {
-	fn from(n: i32) -> Token {
+impl From<i64> for Token {
+	fn from(n: i64) -> Token {
 		Token::Primitive(Primitive::from(n))
 	}
 }

@@ -8,7 +8,7 @@ use itertools::Itertools;
 use std::boxed::Box;
 use std::collections::VecDeque;
 
-/// Sum type of binary Gynjo operators.
+/// Binary Gynjo operators.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum BinaryOp {
 	And,
@@ -42,7 +42,7 @@ impl BinaryOp {
 	}
 }
 
-/// Sum type of binary Gynjo expressions.
+/// Binary Gynjo expressions.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BinaryExpr {
 	pub op: BinaryOp,
@@ -136,7 +136,7 @@ impl Lambda {
 	}
 }
 
-/// Sum type of all Gynjo expressions.
+/// Gynjo expressions.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expr {
 	Cond {
