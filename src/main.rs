@@ -8,6 +8,7 @@ mod exprs;
 mod interpreter;
 mod intrinsics;
 mod lexer;
+mod number;
 mod parser;
 mod primitives;
 mod stmts;

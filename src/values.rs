@@ -1,6 +1,7 @@
 use super::env::Env;
 use super::exprs::Lambda;
-use super::primitives::{Primitive, Boolean, Number};
+use super::number::Number;
+use super::primitives::{Primitive, Boolean};
 use super::symbol::Symbol;
 
 use num_traits::cast::ToPrimitive;
@@ -114,6 +115,12 @@ impl From<Boolean> for Value {
 	}
 }
 
+impl From<Number> for Value {
+	fn from(number: Number) -> Value {
+		Value::Primitive(Primitive::Number(number))
+	}
+}
+
 impl From<i64> for Value {
 	fn from(n: i64) -> Value {
 		Value::Primitive(Primitive::from(n))
@@ -142,6 +149,7 @@ impl Value {
 				Primitive::Boolean(b) => b.to_string(),
 				Primitive::Number(number) => match number {
 					Number::Integer(integer) => integer.to_string(),
+					Number::Rational(rational) => rational.to_string(),
 					Number::Real(real) => {
 						let precision = env.borrow()
 							// Look up precision setting.
@@ -164,7 +172,7 @@ impl Value {
 	}
 
 	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
-	fn as_i64(&self) -> Option<i64> {
+	pub fn as_i64(&self) -> Option<i64> {
 		if let Value::Primitive(Primitive::Number(Number::Integer(integer))) = self {
 			integer.to_i64()
 		} else {

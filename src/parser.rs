@@ -186,6 +186,7 @@ fn parse_value(tokens: &[Token]) -> ParseExprResult {
 				Intrinsic::Push => vec!(Symbol::from("list"), Symbol::from("value")),
 				Intrinsic::Print => vec!(Symbol::from("value")),
 				Intrinsic::Read => vec!(),
+				Intrinsic::ToReal => vec!(Symbol::from("value")),
 			};
 			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(f.clone()) })))
 		},

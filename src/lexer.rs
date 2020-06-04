@@ -1,5 +1,6 @@
 use super::intrinsics::Intrinsic;
-use super::primitives::{Primitive, Boolean, Number};
+use super::number::Number;
+use super::primitives::{Primitive, Boolean};
 use super::tokens::Token;
 
 use bigdecimal::BigDecimal;
@@ -21,7 +22,7 @@ macro_rules! keyword {
 /// Lexes `input` into a vector of tokens, if possible.
 pub fn lex(input: &str) -> LexResult {
 	lazy_static! {
-		static ref SINGLE_LEXERS: [SingleLexer; 49] = [
+		static ref SINGLE_LEXERS: [SingleLexer; 50] = [
 			// Whitespace (ignored)
 			SingleLexer::new(r"^\s+", |_| None),
 			// Line comment (ignored)
@@ -69,6 +70,7 @@ pub fn lex(input: &str) -> LexResult {
 			SingleLexer::new(keyword!("push"), |_| Some(Token::Intrinsic(Intrinsic::Push))),
 			SingleLexer::new(keyword!("print"), |_| Some(Token::Intrinsic(Intrinsic::Print))),
 			SingleLexer::new(keyword!("read"), |_| Some(Token::Intrinsic(Intrinsic::Read))),
+			SingleLexer::new(keyword!("real"), |_| Some(Token::Intrinsic(Intrinsic::ToReal))),
 			// Keywords
 			SingleLexer::new(keyword!("import"), |_| Some(Token::Import)),
 			SingleLexer::new(keyword!("let"), |_| Some(Token::Let)),

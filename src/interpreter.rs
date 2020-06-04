@@ -2,12 +2,11 @@ use super::env::Env;
 use super::exprs::{Expr, BinaryOp, Cluster, ClusterConnector, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::lexer::lex;
-use super::primitives::{Primitive, Boolean, Number};
+use super::number::Number;
+use super::primitives::{Primitive, Boolean};
 use super::parser::{parse_expr, parse_stmt};
 use super::stmts::Stmt;
 use super::values::{Closure, Tuple, List, Value};
-
-use bigdecimal::BigDecimal;
 
 use std::cell::RefCell;
 use std::io;
@@ -79,50 +78,32 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 			BinaryOp::Lt => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "comparison", |a, b| {
-					Ok(Boolean::from(BigDecimal::from(a) < BigDecimal::from(b)).into())
-				})
+				bin_num_op(&env, left, right, "comparison", |a, b| Ok(Value::from(a < b)))
 			},
 			BinaryOp::Leq => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "comparison", |a, b| {
-					Ok(Boolean::from(BigDecimal::from(a) <= BigDecimal::from(b)).into())
-				})
+				bin_num_op(&env, left, right, "comparison", |a, b| Ok(Value::from(a <= b)))
 			},
 			BinaryOp::Gt => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "comparison", |a, b| {
-					Ok(Boolean::from(BigDecimal::from(a) > BigDecimal::from(b)).into())
-				})
+				bin_num_op(&env, left, right, "comparison", |a, b| Ok(Value::from(a > b)))
 			},
 			BinaryOp::Geq => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "comparison", |a, b| {
-					Ok(Boolean::from(BigDecimal::from(a) >= BigDecimal::from(b)).into())
-				})
+				bin_num_op(&env, left, right, "comparison", |a, b| Ok(Value::from(a >= b)))
 			},
 			BinaryOp::Add => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "addition", |a, b| {
-					Ok(Value::Primitive(Primitive::Number(match (a, b) {
-						(Number::Integer(a), Number::Integer(b)) => Number::Integer(a + b),
-						(a @ _, b @ _) => Number::Real(BigDecimal::from(a) + BigDecimal::from(b)),
-					})))
-				})
+				bin_num_op(&env, left, right, "addition", |a, b| Ok(Value::from(a + b)))
 			},
 			BinaryOp::Sub => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
-				bin_num_op(&env, left, right, "subtraction", |a, b| {
-					Ok(Value::Primitive(Primitive::Number(match (a, b) {
-						(Number::Integer(a), Number::Integer(b)) => Number::Integer(a - b),
-						(a @ _, b @ _) => Number::Real(BigDecimal::from(a) - BigDecimal::from(b)),
-					})))
-				})
+				bin_num_op(&env, left, right, "subtraction", |a, b| Ok(Value::from(a - b)))
 			},
 		},
 		Expr::Not { expr } => {
@@ -151,7 +132,7 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 			.map(|v| v.clone())
 			.ok_or(format!("'{}' is undefined", symbol.name)),
 		Expr::Primitive(primitive) => Ok(Value::Primitive(match primitive {
-			Primitive::Number(number) => Primitive::Number(number.to_integer_if_integral()),
+			Primitive::Number(number) => Primitive::Number(number.shrink_domain()),
 			primitive @ _ => primitive
 		})),
 	}
@@ -271,7 +252,7 @@ fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: Number, number_on_lef
 fn bin_num_op(env: &Rc<RefCell<Env>>, left: Value, right: Value, op_name: &str, op: fn(Number, Number) -> EvalResult) -> EvalResult {
 	match (left, right) {
 		// Number op Number
-		(Value::Primitive(Primitive::Number(left)), Value::Primitive(Primitive::Number(right))) => op(left, right),
+		(Value::Primitive(Primitive::Number(left)), Value::Primitive(Primitive::Number(right))) => Ok(op(left, right)?),
 		// List op Number
 		(Value::List(list), Value::Primitive(Primitive::Number(number))) => Ok(Value::List(list_num_op(env, list, number, false, op_name, op)?)),
 		// Number op List
@@ -291,12 +272,6 @@ struct EvaluatedClusterItem {
 
 fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
 	if cluster.len() > 1 {
-		//for each operation, in decreasing order of precedence
-		//	for each index, order of the current operation's associativity
-		//		if the current index has the current operation
-		//			evaluate at the current index
-		//			return to the top of the while loop
-
 		// Parenthesized applications
 		for idx in 0..cluster.len() - 1 {
 			if let Value::Closure(closure) = &cluster[idx].value {
@@ -335,12 +310,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 				ClusterConnector::AdjParen | ClusterConnector::AdjNonparen | ClusterConnector::Mul => {
 					let left = cluster[idx].value.clone();
 					let right = cluster[idx + 1].value.clone();
-					cluster[idx].value = bin_num_op(env, left, right, "multiplication", |a, b| {
-						Ok(Value::Primitive(Primitive::Number(match (a, b) {
-							(Number::Integer(a), Number::Integer(b)) => Number::Integer(a * b),
-							(a @ _, b @ _) => Number::Real(BigDecimal::from(a) * BigDecimal::from(b)).to_integer_if_integral(),
-						})))
-					})?;
+					cluster[idx].value = bin_num_op(env, left, right, "multiplication", |a, b| Ok(Value::from(a * b)))?;
 					cluster.remove(idx + 1);
 					return eval_evaluated_cluster(env, cluster);
 				},
@@ -348,20 +318,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 					let left = cluster[idx].value.clone();
 					let right = cluster[idx + 1].value.clone();
 					cluster[idx].value = bin_num_op(env, left, right, "division", |a, b| {
-						if BigDecimal::from(b.clone()) == BigDecimal::from(0) {
-							Err("division by zero".to_string())
-						} else {
-							Ok(Value::Primitive(Primitive::Number(match (a, b) {
-								(Number::Integer(a), Number::Integer(b)) => {
-									if a.clone() >= b.clone() && a.clone() % b.clone() == 0.into() {
-										Number::Integer(a / b)
-									} else {
-										Number::Real(BigDecimal::from(a) / BigDecimal::from(b))
-									}
-								}
-								(a @ _, b @ _) => Number::Real(BigDecimal::from(a) / BigDecimal::from(b)).to_integer_if_integral(),
-							})))
-						}
+						Ok(Value::from((a / b).ok_or("division by zero".to_string())?))
 					})?;
 					cluster.remove(idx + 1);
 					return eval_evaluated_cluster(env, cluster);
@@ -436,7 +393,11 @@ fn eval_application(c: Closure, args: Value) -> EvalResult {
 					let mut input = String::new();
 					io::stdin().read_line(&mut input).unwrap();
 					Ok(Value::from(input.trim().to_string()))
-				}
+				},
+				Intrinsic::ToReal => match local_env.borrow().lookup(&"value".into()).unwrap() {
+					Value::Primitive(Primitive::Number(number)) => Ok(Value::from(Number::Real(number.into()))),
+					arg @ _ => Err(format!("cannot convert {} to real", arg.to_string(&local_env))),
+				},
 			}
 		}
 	}
@@ -465,7 +426,8 @@ fn eval_negation(env: &Rc<RefCell<Env>>, value: Value) -> EvalResult {
 mod tests {
 	use crate::interpreter::{eval, exec};
 	use crate::env::Env;
-	use crate::primitives::{Primitive, Number};
+	use crate::number::Number;
+	use crate::primitives::Primitive;
 	use crate::values::{Value, Tuple, List};
 
 	use bigdecimal::BigDecimal;
@@ -551,8 +513,8 @@ mod tests {
 		#[test]
 		fn approx() -> Result<(), String> {
 			let mut env = Env::new(None);
-			assert_eq!(Value::from(true), eval(&mut env, "1/3 ~ 0.333333333333")?);
-			assert_eq!(Value::from(false), eval(&mut env, "1/3 ~ 0.333")?);
+			assert_eq!(Value::from(true), eval(&mut env, "real(1/3) ~ 0.333333333333")?);
+			assert_eq!(Value::from(false), eval(&mut env, "real(1/3) ~ 0.333")?);
 			Ok(())
 		}
 		#[test]
@@ -713,7 +675,8 @@ mod tests {
 		#[test]
 		fn division() -> Result<(), String> {
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2 / 1")?);
-			assert_eq!(Value::from(0.5), eval(&mut Env::new(None), "1 / 2")?);
+			assert_eq!(Value::from(Number::rational(1, 2)), eval(&mut Env::new(None), "1 / 2")?);
+			assert_eq!(Value::from(1), eval(&mut Env::new(None), "1 / 2 * 2")?);
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2.0 / 1")?);
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2 / 1.0")?);
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2.0 / 1.0")?);
@@ -995,5 +958,37 @@ mod tests {
 		")?;
 		assert_eq!(Value::from(6), eval(&mut env, "a")?);
 		Ok(())
+	}
+
+	mod intrinsics {
+		use super::*;
+		#[test]
+		fn top() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(1), eval(&mut env, "top([1])")?);
+			assert!(eval(&mut env, "top([])").is_err());
+			Ok(())
+		}
+		#[test]
+		fn pop() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::List(make_list!()), eval(&mut env, "pop([1])")?);
+			assert!(eval(&mut env, "pop([])").is_err());
+			Ok(())
+		}
+		#[test]
+		fn push() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::List(make_list!(Value::from(1))), eval(&mut env, "push([], 1)")?);
+			assert_eq!(Value::List(make_list!(Value::from(2), Value::from(1))), eval(&mut env, "push([1], 2)")?);
+			Ok(())
+		}
+		#[test]
+		fn to_real() -> Result<(), String> {
+			let mut env = Env::new(None);
+			assert_eq!(Value::from(1.0), eval(&mut env, "real(1)")?);
+			assert_eq!(Value::from(0.5), eval(&mut env, "real(1/2)")?);
+			Ok(())
+		}
 	}
 }

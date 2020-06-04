@@ -1,5 +1,4 @@
-use bigdecimal::BigDecimal;
-use num_bigint::BigInt;
+use super::number::Number;
 
 /// Boolean Gynjo type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -28,56 +27,6 @@ impl From<Boolean> for bool {
 impl From<bool> for Boolean {
 	fn from(boolean: bool) -> Self {
 		if boolean { Boolean::True } else { Boolean::False }
-	}
-}
-
-/// Numeric Gynjo types.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Number {
-	Integer(BigInt),
-	Real(BigDecimal),
-}
-
-impl Number {
-	/// Converts this number to a user-readable string.
-	pub fn to_string(&self) -> String {
-		match self {
-			Number::Integer(n) => n.to_string(),
-			Number::Real(n) => n.to_string(),
-		}
-	}
-
-	/// Converts this number to a `Number::Integer` if its value is integral.
-	pub fn to_integer_if_integral(self) -> Number {
-		match self {
-			Number::Integer(integer) => Number::Integer(integer),
-			Number::Real(real) => {
-				if real.is_integer() {
-					let (mut mantissa, exponent) = real.into_bigint_and_exponent();
-					if exponent > 0 {
-						for _ in 0..exponent {
-							mantissa /= 10;
-						}
-					} else {
-						for _ in 0..-exponent {
-							mantissa *= 10;
-						}
-					}
-					Number::Integer(mantissa)
-				} else {
-					Number::Real(real)
-				}
-			}
-		}
-	}
-}
-
-impl From<Number> for BigDecimal {
-	fn from(number: Number) -> BigDecimal {
-		match number {
-			Number::Integer(integer) => integer.into(),
-			Number::Real(real) => real,
-		}
 	}
 }
 

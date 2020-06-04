@@ -8,6 +8,8 @@ pub enum Intrinsic {
 	// I/O
 	Print,
 	Read,
+	// Type conversions
+	ToReal,
 }
 
 impl Intrinsic {
@@ -19,6 +21,7 @@ impl Intrinsic {
 			Intrinsic::Push => "push".to_string(),
 			Intrinsic::Print => "print".to_string(),
 			Intrinsic::Read => "read".to_string(),
+			Intrinsic::ToReal => "real".to_string(),
 		}
 	}
 }
