@@ -287,8 +287,8 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 			if cluster[idx + 1].connector == ClusterConnector::Exp {
 				let left = cluster[idx].value.clone();
 				let right = cluster[idx + 1].value.clone();
-				cluster[idx].value = bin_num_op(env, left, right, "exponentiation", |_, _| {
-					Err("BigDecimal does not support exponentiation yet".to_string())
+				cluster[idx].value = bin_num_op(env, left, right, "exponentiation", |a, b| {
+					Ok(Value::from(a.pow(b)?))
 				})?;
 				cluster.remove(idx + 1);
 				return eval_evaluated_cluster(env, cluster);
@@ -310,7 +310,9 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 				ClusterConnector::AdjParen | ClusterConnector::AdjNonparen | ClusterConnector::Mul => {
 					let left = cluster[idx].value.clone();
 					let right = cluster[idx + 1].value.clone();
-					cluster[idx].value = bin_num_op(env, left, right, "multiplication", |a, b| Ok(Value::from(a * b)))?;
+					cluster[idx].value = bin_num_op(env, left, right, "multiplication", |a, b| {
+						Ok(Value::from(a * b))
+					})?;
 					cluster.remove(idx + 1);
 					return eval_evaluated_cluster(env, cluster);
 				},
@@ -318,7 +320,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 					let left = cluster[idx].value.clone();
 					let right = cluster[idx + 1].value.clone();
 					cluster[idx].value = bin_num_op(env, left, right, "division", |a, b| {
-						Ok(Value::from((a / b).ok_or("division by zero".to_string())?))
+						Ok(Value::from((a / b)?))
 					})?;
 					cluster.remove(idx + 1);
 					return eval_evaluated_cluster(env, cluster);
@@ -335,7 +337,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 /// Evaluates a cluster expression.
 fn eval_cluster(env: &mut Rc<RefCell<Env>>, cluster: Cluster) -> EvalResult {
 	// First, evaluate the cluster items.
-	let mut evaluated_cluster: Vec<EvaluatedClusterItem> = Vec::with_capacity(cluster.items.len());
+	let mut evaluated_cluster = Vec::with_capacity(cluster.items.len());
 	for item in cluster.items {
 		let value = eval_expr(env, *item.expr)?;
 		evaluated_cluster.push(EvaluatedClusterItem {
@@ -343,8 +345,13 @@ fn eval_cluster(env: &mut Rc<RefCell<Env>>, cluster: Cluster) -> EvalResult {
 			connector: item.connector,
 		});
 	}
-	// Now that the items' types are known, evaluate down to a single value.
-	eval_evaluated_cluster(env, evaluated_cluster)
+	// Now that the items' types are known, evaluate down to a single value and negate if necessary.
+	let non_negated_result = eval_evaluated_cluster(env, evaluated_cluster)?;
+	if cluster.negated {
+		eval_negation(env, non_negated_result)
+	} else {
+		Ok(non_negated_result)
+	}
 }
 
 /// Evaluates a closure application.
@@ -678,8 +685,8 @@ mod tests {
 			assert_eq!(Value::from(Number::rational(1, 2)), eval(&mut Env::new(None), "1 / 2")?);
 			assert_eq!(Value::from(1), eval(&mut Env::new(None), "1 / 2 * 2")?);
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2.0 / 1")?);
-			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2 / 1.0")?);
-			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2.0 / 1.0")?);
+			assert_eq!(Value::from(2), eval(&mut Env::new(None), "3 / 1.5")?);
+			assert_eq!(Value::from(2.5), eval(&mut Env::new(None), "2.5 / 1.0")?);
 			assert_eq!(Value::from(2.5), eval(&mut Env::new(None), "2.5 / 1")?);
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "3 / 1.5")?);
 			assert_eq!(Value::from(1), eval(&mut Env::new(None), "1.5 / 1.5")?);
@@ -692,8 +699,7 @@ mod tests {
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2 ^ 1.0")?);
 			assert_eq!(Value::from(2), eval(&mut Env::new(None), "2.0 ^ 1.0")?);
 			assert_eq!(Value::from(2.5), eval(&mut Env::new(None), "2.5 ^ 1")?);
-			assert_eq!(Value::from(2), eval(&mut Env::new(None), "3 ^ 1.5")?);
-			assert_eq!(Value::from(1), eval(&mut Env::new(None), "1.5 ^ 1.5")?);
+			assert_eq!(Value::from(2), eval(&mut Env::new(None), "4 ^ 0.5")?);
 			Ok(())
 		}
 	}
@@ -812,7 +818,7 @@ mod tests {
 			let mut env = Env::new(None);
 			let expected = Value::List(make_list!(Value::from(1), Value::from(4), Value::from(16)));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 4]^2")?);
-			assert_eq!(expected, eval(&mut env, "2^[0, 1, 4]")?);
+			assert_eq!(expected, eval(&mut env, "2^[0, 2, 4]")?);
 			Ok(())
 		}
 	}
@@ -840,6 +846,11 @@ mod tests {
 		#[test]
 		fn exponentiation_before_non_parenthesized_function_call() -> Result<(), String> {
 			assert_eq!(Value::from(20), eval(&mut env_with_inc()?, "4inc 2^2")?);
+			Ok(())
+		}
+		#[test]
+		fn exponentiation_before_negation() -> Result<(), String> {
+			assert_eq!(Value::from(-9), eval(&mut Env::new(None), "-3^2")?);
 			Ok(())
 		}
 	}

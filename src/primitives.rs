@@ -57,13 +57,13 @@ impl From<bool> for Primitive {
 
 impl From<i64> for Primitive {
 	fn from(n: i64) -> Primitive {
-		Primitive::Number(Number::Integer(n.into()))
+		Primitive::Number(n.into())
 	}
 }
 
 impl From<f64> for Primitive {
 	fn from(n: f64) -> Primitive {
-		Primitive::Number(Number::Real(n.into()))
+		Primitive::Number(n.into())
 	}
 }
 

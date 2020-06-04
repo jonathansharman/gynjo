@@ -1,6 +1,7 @@
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 use num_rational::BigRational;
+use num_traits::cast::ToPrimitive;
 
 use std::cmp::{Ord, PartialOrd};
 use std::ops::Add;
@@ -60,6 +61,41 @@ impl Number {
 	/// Constructs a rational number from the given numerator and denominator.
 	pub fn rational<T: Into<BigInt>>(numer: T, denom: T) -> Number {
 		Number::Rational(BigRational::new(numer.into(), denom.into()))
+	}
+
+	/// Computes `self` to the power of `other`.
+	pub fn pow(self, other: Self) -> Result<Number, String> {
+		match (self, other) {
+			(base @ _, Number::Integer(exponent)) => {
+				match exponent.to_i64() {
+					Some(exponent) => {
+						let negative = exponent < 0;
+						let mut result = Number::from(1);
+						for _ in 0..exponent.abs() {
+							result = result * base.clone();
+						}
+						if negative {
+							result = (Number::from(1) / result)?;
+						}
+						Ok(result.into())
+					},
+					None => Err("exponent too large".to_string()),
+				}
+			},
+			_ => Err("non-integral exponents not yet supported".to_string()),
+		}
+	}
+}
+
+impl From<i64> for Number {
+	fn from(n: i64) -> Number {
+		Number::Integer(n.into())
+	}
+}
+
+impl From<f64> for Number {
+	fn from(n: f64) -> Number {
+		Number::Real(n.into())
 	}
 }
 
@@ -127,12 +163,12 @@ impl Mul for Number {
 }
 
 impl Div for Number {
-	type Output = Option<Number>;
+	type Output = Result<Number, String>;
 	fn div(self, rhs: Self) -> Self::Output {
 		if BigDecimal::from(rhs.clone()) == BigDecimal::from(0) {
-			None
+			Err("division by zero".to_string())
 		} else {
-			Some(match (self, rhs) {
+			Ok(match (self, rhs) {
 				(Number::Real(a), b @ _) => Number::Real(a / BigDecimal::from(b)).shrink_domain(),
 				(a @ _, Number::Real(b)) => Number::Real(BigDecimal::from(a) / b).shrink_domain(),
 				(Number::Rational(lhs), rhs @ _) => Number::Rational(lhs / BigRational::from(rhs)).shrink_domain(),

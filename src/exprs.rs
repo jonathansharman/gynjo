@@ -110,6 +110,7 @@ impl ClusterItem {
 /// operations requires type info.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Cluster {
+	pub negated: bool,
 	pub items: Vec<ClusterItem>,
 }
 

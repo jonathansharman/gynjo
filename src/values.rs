@@ -123,13 +123,13 @@ impl From<Number> for Value {
 
 impl From<i64> for Value {
 	fn from(n: i64) -> Value {
-		Value::Primitive(Primitive::from(n))
+		Value::Primitive(n.into())
 	}
 }
 
 impl From<f64> for Value {
 	fn from(n: f64) -> Value {
-		Value::Primitive(Primitive::from(n))
+		Value::Primitive(n.into())
 	}
 }
 

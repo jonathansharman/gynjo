@@ -244,11 +244,11 @@ fn parse_mandatory_cluster_item(tokens: &[Token], connector: ClusterConnector) -
 /// the interpreter once the required semantic info is available.
 fn parse_cluster(tokens: &[Token]) -> ParseExprResult {
 	// Parse the first cluster item.
-	let (tokens, first_negated) = parse_optional_token(tokens, &Token::Minus);
+	let (tokens, cluster_negated) = parse_optional_token(tokens, &Token::Minus);
 	let (tokens, first_expr) = parse_value(tokens)?;
 	let mut items = vec!(ClusterItem {
 		expr: Box::new(first_expr),
-		negated: first_negated,
+		negated: false,
 		connector: ClusterConnector::None,
 	});
 	// Parse subsequent cluster items.
@@ -292,11 +292,11 @@ fn parse_cluster(tokens: &[Token]) -> ParseExprResult {
 			},
 		}
 	}
-	if items.len() == 1 && !items[0].negated {
+	if items.len() == 1 && !cluster_negated {
 		// Found a single non-negated value. Just extract it here.
 		Ok((tokens, *items.remove(0).expr))
 	} else {
-		Ok((tokens, Expr::Cluster(Cluster { items })))
+		Ok((tokens, Expr::Cluster(Cluster { negated: cluster_negated, items })))
 	}
 }
 
