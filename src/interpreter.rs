@@ -8,6 +8,8 @@ use super::parser::{parse_expr, parse_stmt};
 use super::stmts::Stmt;
 use super::values::{Closure, Tuple, List, Value};
 
+use bigdecimal::BigDecimal;
+
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
@@ -74,7 +76,18 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 			},
 			BinaryOp::Eq => Ok(Boolean::from(eval_expr(env, *bin_expr.left)? == eval_expr(env, *bin_expr.right)?).into()),
 			BinaryOp::Neq => Ok(Boolean::from(eval_expr(env, *bin_expr.left)? != eval_expr(env, *bin_expr.right)?).into()),
-			BinaryOp::Approx => Ok(Boolean::from(eval_expr(env, *bin_expr.left)?.to_string(&env) == eval_expr(env, *bin_expr.right)?.to_string(&env)).into()),
+			BinaryOp::Approx => {
+				let left = eval_expr(env, *bin_expr.left)?;
+				let right = eval_expr(env, *bin_expr.right)?;
+				Ok(Value::from(match (left, right) {
+					(Value::Primitive(Primitive::Number(left)), Value::Primitive(Primitive::Number(right))) => {
+						let left = Value::from(Number::Real(BigDecimal::from(left))).to_string(&mut env);
+						let right = Value::from(Number::Real(BigDecimal::from(right))).to_string(&mut env);
+						left == right
+					},
+					(left @ _, right @ _) => left == right,
+				}))
+			},
 			BinaryOp::Lt => {
 				let left = eval_expr(&mut env, *bin_expr.left)?;
 				let right = eval_expr(&mut env, *bin_expr.right)?;
@@ -520,7 +533,9 @@ mod tests {
 		#[test]
 		fn approx() -> Result<(), String> {
 			let mut env = Env::new(None);
+			assert_eq!(Value::from(true), eval(&mut env, "true ~ true")?);
 			assert_eq!(Value::from(true), eval(&mut env, "real(1/3) ~ 0.333333333333")?);
+			assert_eq!(Value::from(true), eval(&mut env, "1/3 ~ 0.333333333333")?);
 			assert_eq!(Value::from(false), eval(&mut env, "real(1/3) ~ 0.333")?);
 			Ok(())
 		}
