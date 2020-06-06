@@ -1,5 +1,5 @@
 use super::exprs::Expr;
-use super::symbol::Symbol;
+use super::symbol::Sym;
 
 use std::boxed::Box;
 
@@ -9,7 +9,7 @@ pub enum Stmt {
 	Nop,
 	Import { filename: String },
 	Assign {
-		lhs: Symbol,
+		lhs: Sym,
 		rhs: Box<Expr>,
 	},
 	Branch {
@@ -22,7 +22,7 @@ pub enum Stmt {
 		body: Box<Stmt>,
 	},
 	ForLoop {
-		loop_var: Symbol,
+		loop_var: Sym,
 		range: Box<Expr>,
 		body: Box<Stmt>,
 	},

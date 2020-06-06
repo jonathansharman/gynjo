@@ -1,7 +1,7 @@
 use super::intrinsics::Intrinsic;
-use super::primitives::Primitive;
+use super::primitives::Prim;
 use super::stmts::Stmt;
-use super::symbol::Symbol;
+use super::symbol::Sym;
 
 use itertools::Itertools;
 
@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 
 /// Binary Gynjo operators.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum BinaryOp {
+pub enum BinOp {
 	And,
 	Or,
 	Eq,
@@ -24,33 +24,33 @@ pub enum BinaryOp {
 	Sub,
 }
 
-impl BinaryOp {
+impl BinOp {
 	pub fn to_string(&self) -> String {
 		match self {
-			BinaryOp::And => "and",
-			BinaryOp::Or => "or",
-			BinaryOp::Eq => "=",
-			BinaryOp::Neq => "!=",
-			BinaryOp::Approx => "~",
-			BinaryOp::Lt => "<",
-			BinaryOp::Leq => "<=",
-			BinaryOp::Gt => ">",
-			BinaryOp::Geq => ">=",
-			BinaryOp::Add => "+",
-			BinaryOp::Sub => "-",
+			BinOp::And => "and",
+			BinOp::Or => "or",
+			BinOp::Eq => "=",
+			BinOp::Neq => "!=",
+			BinOp::Approx => "~",
+			BinOp::Lt => "<",
+			BinOp::Leq => "<=",
+			BinOp::Gt => ">",
+			BinOp::Geq => ">=",
+			BinOp::Add => "+",
+			BinOp::Sub => "-",
 		}.to_string()
 	}
 }
 
 /// Binary Gynjo expressions.
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct BinaryExpr {
-	pub op: BinaryOp,
+pub struct BinExpr {
+	pub op: BinOp,
 	pub left: Box<Expr>,
 	pub right: Box<Expr>,
 }
 
-impl BinaryExpr {
+impl BinExpr {
 	pub fn to_string(&self) -> String {
 		format!("({} {} {})", self.left.to_string(), self.op.to_string(), self.right.to_string())
 	}
@@ -124,7 +124,7 @@ pub enum LambdaBody {
 /// A function expression.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Lambda {
-	pub params: Vec<Symbol>,
+	pub params: Vec<Sym>,
 	pub body: LambdaBody,
 }
 
@@ -146,14 +146,14 @@ pub enum Expr {
 		else_expr: Box<Expr>,
 	},
 	Block { stmts: Box<Vec<Stmt>> },
-	BinaryExpr(BinaryExpr),
+	BinaryExpr(BinExpr),
 	Not { expr: Box<Expr> },
 	Cluster(Cluster),
 	Lambda(Lambda),
 	TupleExpr(Box<Vec<Expr>>),
 	ListExpr(Box<VecDeque<Expr>>),
-	Symbol(Symbol),
-	Primitive(Primitive),
+	Sym(Sym),
+	Prim(Prim),
 }
 
 impl Expr {
@@ -169,8 +169,8 @@ impl Expr {
 			Expr::Lambda(f) => f.to_string(),
 			Expr::TupleExpr(exprs) => format!("({})", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::ListExpr(exprs) => format!("[{}]", exprs.iter().map(Expr::to_string).join(", ")),
-			Expr::Symbol(symbol) => symbol.to_string(),
-			Expr::Primitive(primitive) => primitive.to_string(),
+			Expr::Sym(symbol) => symbol.to_string(),
+			Expr::Prim(primitive) => primitive.to_string(),
 		}
 	}
 }

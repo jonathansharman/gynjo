@@ -1,14 +1,14 @@
 /// A Gynjo symbol, e.g. a variable name.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct Symbol { pub name: String }
+pub struct Sym { pub name: String }
 
-impl <S> From<S> for Symbol where S: Into<String> {
+impl <S> From<S> for Sym where S: Into<String> {
     fn from(name: S) -> Self {
-        Symbol { name: name.into() }
+        Sym { name: name.into() }
     }
 }
 
-impl Symbol {
+impl Sym {
     pub fn to_string(&self) -> String {
         self.name.clone()
     }

@@ -1,9 +1,9 @@
 use super::intrinsics::Intrinsic;
-use super::primitives::Primitive;
-use super::symbol::Symbol;
+use super::primitives::Prim;
+use super::symbol::Sym;
 /// Gynjo tokens.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Token {
+pub enum Tok {
 	Import,
 	Let,
 	// Branch
@@ -50,80 +50,80 @@ pub enum Token {
 	// Intrinsic function
 	Intrinsic(Intrinsic),
 	// Symbol
-	Symbol(Symbol),
+	Sym(Sym),
 	// Primitive
-	Primitive(Primitive),
+	Prim(Prim),
 }
 
-impl From<bool> for Token {
-	fn from(b: bool) -> Token {
-		Token::Primitive(Primitive::from(b))
+impl From<bool> for Tok {
+	fn from(b: bool) -> Tok {
+		Tok::Prim(Prim::from(b))
 	}
 }
 
-impl From<i64> for Token {
-	fn from(n: i64) -> Token {
-		Token::Primitive(Primitive::from(n))
+impl From<i64> for Tok {
+	fn from(n: i64) -> Tok {
+		Tok::Prim(Prim::from(n))
 	}
 }
 
-impl From<f64> for Token {
-	fn from(n: f64) -> Token {
-		Token::Primitive(Primitive::from(n))
+impl From<f64> for Tok {
+	fn from(n: f64) -> Tok {
+		Tok::Prim(Prim::from(n))
 	}
 }
 
-impl Token {
+impl Tok {
 	/// Converts this token to a user-readable string.
 	pub fn to_string(&self) -> String {
 		match self {
-			Token::Import => "import".to_string(),
-			Token::Let => "let".to_string(),
-			Token::If => "if".to_string(),
-			Token::Then => "then".to_string(),
-			Token::Else => "else".to_string(),
-			Token::While => "while".to_string(),
-			Token::For => "for".to_string(),
-			Token::In => "in".to_string(),
-			Token::Do => "do".to_string(),
-			Token::Return => "return".to_string(),
-			Token::And => "and".to_string(),
-			Token::Or => "or".to_string(),
-			Token::Not => "not".to_string(),
-			Token::Eq => "=".to_string(),
-			Token::Neq => "!=".to_string(),
-			Token::Approx => "~".to_string(),
-			Token::Lt => "<".to_string(),
-			Token::Leq => "<=".to_string(),
-			Token::Gt => ">".to_string(),
-			Token::Geq => ">=".to_string(),
-			Token::Plus => "+".to_string(),
-			Token::Minus => "-".to_string(),
-			Token::Mul => "*".to_string(),
-			Token::Div => "/".to_string(),
-			Token::Exp => "^".to_string(),
-			Token::Lparen => "(".to_string(),
-			Token::Rparen => ")".to_string(),
-			Token::Lsquare => "[".to_string(),
-			Token::Rsquare => "]".to_string(),
-			Token::Lcurly => "{".to_string(),
-			Token::Rcurly => "}".to_string(),
-			Token::Comma => ",".to_string(),
-			Token::Semicolon => ";".to_string(),
-			Token::Arrow => "->".to_string(),
-			Token::Question => "?".to_string(),
-			Token::Colon => ":".to_string(),
-			Token::Intrinsic(f) => f.name(),
-			Token::Symbol(symbol) => symbol.to_string(),
-			Token::Primitive(primitive) => primitive.to_string(),
+			Tok::Import => "import".to_string(),
+			Tok::Let => "let".to_string(),
+			Tok::If => "if".to_string(),
+			Tok::Then => "then".to_string(),
+			Tok::Else => "else".to_string(),
+			Tok::While => "while".to_string(),
+			Tok::For => "for".to_string(),
+			Tok::In => "in".to_string(),
+			Tok::Do => "do".to_string(),
+			Tok::Return => "return".to_string(),
+			Tok::And => "and".to_string(),
+			Tok::Or => "or".to_string(),
+			Tok::Not => "not".to_string(),
+			Tok::Eq => "=".to_string(),
+			Tok::Neq => "!=".to_string(),
+			Tok::Approx => "~".to_string(),
+			Tok::Lt => "<".to_string(),
+			Tok::Leq => "<=".to_string(),
+			Tok::Gt => ">".to_string(),
+			Tok::Geq => ">=".to_string(),
+			Tok::Plus => "+".to_string(),
+			Tok::Minus => "-".to_string(),
+			Tok::Mul => "*".to_string(),
+			Tok::Div => "/".to_string(),
+			Tok::Exp => "^".to_string(),
+			Tok::Lparen => "(".to_string(),
+			Tok::Rparen => ")".to_string(),
+			Tok::Lsquare => "[".to_string(),
+			Tok::Rsquare => "]".to_string(),
+			Tok::Lcurly => "{".to_string(),
+			Tok::Rcurly => "}".to_string(),
+			Tok::Comma => ",".to_string(),
+			Tok::Semicolon => ";".to_string(),
+			Tok::Arrow => "->".to_string(),
+			Tok::Question => "?".to_string(),
+			Tok::Colon => ":".to_string(),
+			Tok::Intrinsic(f) => f.name(),
+			Tok::Sym(symbol) => symbol.to_string(),
+			Tok::Prim(primitive) => primitive.to_string(),
 		}
 	}
 
-	pub fn from_string<S>(s: S) -> Token where S: Into<String> {
-		Token::Primitive(Primitive::from(s.into()))
+	pub fn from_string<S>(s: S) -> Tok where S: Into<String> {
+		Tok::Prim(Prim::from(s.into()))
 	}
 
-	pub fn from_symbol<S>(s: S) -> Token where S: Into<String> {
-		Token::Symbol(Symbol::from(s))
+	pub fn from_symbol<S>(s: S) -> Tok where S: Into<String> {
+		Tok::Sym(Sym::from(s))
 	}
 }

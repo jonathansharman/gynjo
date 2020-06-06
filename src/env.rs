@@ -1,6 +1,6 @@
 use super::interpreter::exec;
-use super::symbol::Symbol;
-use super::values::Value;
+use super::symbol::Sym;
+use super::values::Val;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -10,7 +10,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct Env {
 	/// Variables mappings created within the local scope.
-	local_vars: HashMap<Symbol, Value>,
+	local_vars: HashMap<Sym, Val>,
 	/// Reference to the parent environment, if any.
 	parent_env: Option<Rc<RefCell<Env>>>,
 }
@@ -33,12 +33,12 @@ impl Env {
 	}
 
 	/// Sets `variable` to `value` in this environment.
-	pub fn assign(&mut self, variable: Symbol, value: Value) {
+	pub fn assign(&mut self, variable: Sym, value: Val) {
 		self.local_vars.insert(variable, value);
 	}
 
 	/// Returns the value of the variable named `name` or `None` if the variable is undefined.
-	pub fn lookup(&self, variable: &Symbol) -> Option<Value> {
+	pub fn lookup(&self, variable: &Sym) -> Option<Val> {
 		self.local_vars
 			.get(variable)
 			.map(|v| v.clone())

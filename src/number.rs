@@ -11,34 +11,34 @@ use std::ops::Sub;
 
 /// Numeric Gynjo types.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Number {
+pub enum Num {
 	Integer(BigInt),
 	Rational(BigRational),
 	Real(BigDecimal),
 }
 
-impl Number {
+impl Num {
 	/// Converts this number to a user-readable string.
 	pub fn to_string(&self) -> String {
 		match self {
-			Number::Integer(n) => n.to_string(),
-			Number::Rational(n) => n.to_string(),
-			Number::Real(n) => n.to_string(),
+			Num::Integer(n) => n.to_string(),
+			Num::Rational(n) => n.to_string(),
+			Num::Real(n) => n.to_string(),
 		}
 	}
 
 	/// Converts this number to the smallest domain that can contain its value.
-	pub fn shrink_domain(self) -> Number {
+	pub fn shrink_domain(self) -> Num {
 		match self {
-			Number::Integer(integer) => Number::Integer(integer),
-			Number::Rational(rational) => {
+			Num::Integer(integer) => Num::Integer(integer),
+			Num::Rational(rational) => {
 				if rational.is_integer() {
-					Number::Integer(rational.numer().clone())
+					Num::Integer(rational.numer().clone())
 				} else {
-					Number::Rational(rational)
+					Num::Rational(rational)
 				}
 			}
-			Number::Real(real) => {
+			Num::Real(real) => {
 				if real.is_integer() {
 					let (mut mantissa, exponent) = real.into_bigint_and_exponent();
 					if exponent > 0 {
@@ -50,32 +50,32 @@ impl Number {
 							mantissa *= 10;
 						}
 					}
-					Number::Integer(mantissa)
+					Num::Integer(mantissa)
 				} else {
-					Number::Real(real)
+					Num::Real(real)
 				}
 			}
 		}
 	}
 
 	/// Constructs a rational number from the given numerator and denominator.
-	pub fn rational<T: Into<BigInt>>(numer: T, denom: T) -> Number {
-		Number::Rational(BigRational::new(numer.into(), denom.into()))
+	pub fn rational<T: Into<BigInt>>(numer: T, denom: T) -> Num {
+		Num::Rational(BigRational::new(numer.into(), denom.into()))
 	}
 
 	/// Computes `self` to the power of `other`.
-	pub fn pow(self, other: Self) -> Result<Number, String> {
+	pub fn pow(self, other: Self) -> Result<Num, String> {
 		match (self, other) {
-			(base @ _, Number::Integer(exponent)) => {
+			(base @ _, Num::Integer(exponent)) => {
 				match exponent.to_i64() {
 					Some(exponent) => {
 						let negative = exponent < 0;
-						let mut result = Number::from(1);
+						let mut result = Num::from(1);
 						for _ in 0..exponent.abs() {
 							result = result * base.clone();
 						}
 						if negative {
-							result = (Number::from(1) / result)?;
+							result = (Num::from(1) / result)?;
 						}
 						Ok(result.into())
 					},
@@ -87,114 +87,114 @@ impl Number {
 	}
 }
 
-impl From<i64> for Number {
-	fn from(n: i64) -> Number {
-		Number::Integer(n.into())
+impl From<i64> for Num {
+	fn from(n: i64) -> Num {
+		Num::Integer(n.into())
 	}
 }
 
-impl From<f64> for Number {
-	fn from(n: f64) -> Number {
-		Number::Real(n.into())
+impl From<f64> for Num {
+	fn from(n: f64) -> Num {
+		Num::Real(n.into())
 	}
 }
 
-impl PartialOrd for Number {
+impl PartialOrd for Num {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
 		match (self, other) {
-			(Number::Real(lhs), rhs @ _) => lhs.partial_cmp(&BigDecimal::from(rhs.clone())),
-			(lhs @ _, Number::Real(rhs)) => BigDecimal::from(lhs.clone()).partial_cmp(rhs),
-			(Number::Rational(lhs), rhs @ _) => lhs.partial_cmp(&BigRational::from(rhs.clone())),
-			(lhs @ _, Number::Rational(rhs)) => BigRational::from(lhs.clone()).partial_cmp(rhs),
-			(Number::Integer(lhs), Number::Integer(rhs)) => lhs.partial_cmp(rhs),
+			(Num::Real(lhs), rhs @ _) => lhs.partial_cmp(&BigDecimal::from(rhs.clone())),
+			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).partial_cmp(rhs),
+			(Num::Rational(lhs), rhs @ _) => lhs.partial_cmp(&BigRational::from(rhs.clone())),
+			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).partial_cmp(rhs),
+			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.partial_cmp(rhs),
 		}
     }
 }
 
-impl Ord for Number {
+impl Ord for Num {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
 		match (self, other) {
-			(Number::Real(lhs), rhs @ _) => lhs.cmp(&BigDecimal::from(rhs.clone())),
-			(lhs @ _, Number::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
-			(Number::Rational(lhs), rhs @ _) => lhs.cmp(&BigRational::from(rhs.clone())),
-			(lhs @ _, Number::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
-			(Number::Integer(lhs), Number::Integer(rhs)) => lhs.cmp(rhs),
+			(Num::Real(lhs), rhs @ _) => lhs.cmp(&BigDecimal::from(rhs.clone())),
+			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
+			(Num::Rational(lhs), rhs @ _) => lhs.cmp(&BigRational::from(rhs.clone())),
+			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
+			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.cmp(rhs),
 		}
     }
 }
 
-impl Add for Number {
-    type Output = Number;
+impl Add for Num {
+    type Output = Num;
     fn add(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
-			(Number::Real(lhs), rhs @ _) => Number::Real(lhs + BigDecimal::from(rhs)),
-			(lhs @ _, Number::Real(rhs)) => Number::Real(BigDecimal::from(lhs) + rhs),
-			(Number::Rational(lhs), rhs @ _) => Number::Rational(lhs + BigRational::from(rhs)),
-			(lhs @ _, Number::Rational(rhs)) => Number::Rational(BigRational::from(lhs) + rhs),
-			(Number::Integer(lhs), Number::Integer(rhs)) => Number::Integer(lhs + rhs),
+			(Num::Real(lhs), rhs @ _) => Num::Real(lhs + BigDecimal::from(rhs)),
+			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) + rhs),
+			(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs + BigRational::from(rhs)),
+			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) + rhs),
+			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs + rhs),
 		}
     }
 }
 
-impl Sub for Number {
-    type Output = Number;
+impl Sub for Num {
+    type Output = Num;
     fn sub(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
-			(Number::Real(lhs), rhs @ _) => Number::Real(lhs - BigDecimal::from(rhs)),
-			(lhs @ _, Number::Real(rhs)) => Number::Real(BigDecimal::from(lhs) - rhs),
-			(Number::Rational(lhs), rhs @ _) => Number::Rational(lhs - BigRational::from(rhs)),
-			(lhs @ _, Number::Rational(rhs)) => Number::Rational(BigRational::from(lhs) - rhs),
-			(Number::Integer(lhs), Number::Integer(rhs)) => Number::Integer(lhs - rhs),
+			(Num::Real(lhs), rhs @ _) => Num::Real(lhs - BigDecimal::from(rhs)),
+			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) - rhs),
+			(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs - BigRational::from(rhs)),
+			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) - rhs),
+			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs - rhs),
 		}
     }
 }
 
-impl Mul for Number {
-	type Output = Number;
+impl Mul for Num {
+	type Output = Num;
 	fn mul(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
-			(Number::Real(lhs), rhs @ _) => Number::Real(lhs * BigDecimal::from(rhs)).shrink_domain(),
-			(lhs @ _, Number::Real(rhs)) => Number::Real(BigDecimal::from(lhs) * rhs).shrink_domain(),
-			(Number::Rational(lhs), rhs @ _) => Number::Rational(lhs * BigRational::from(rhs)).shrink_domain(),
-			(lhs @ _, Number::Rational(rhs)) => Number::Rational(BigRational::from(lhs) * rhs).shrink_domain(),
-			(Number::Integer(lhs), Number::Integer(rhs)) => Number::Integer(lhs * rhs),
+			(Num::Real(lhs), rhs @ _) => Num::Real(lhs * BigDecimal::from(rhs)).shrink_domain(),
+			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) * rhs).shrink_domain(),
+			(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs * BigRational::from(rhs)).shrink_domain(),
+			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) * rhs).shrink_domain(),
+			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs * rhs),
 		}
 	}
 }
 
-impl Div for Number {
-	type Output = Result<Number, String>;
+impl Div for Num {
+	type Output = Result<Num, String>;
 	fn div(self, rhs: Self) -> Self::Output {
 		if BigDecimal::from(rhs.clone()) == BigDecimal::from(0) {
 			Err("division by zero".to_string())
 		} else {
 			Ok(match (self, rhs) {
-				(Number::Real(a), b @ _) => Number::Real(a / BigDecimal::from(b)).shrink_domain(),
-				(a @ _, Number::Real(b)) => Number::Real(BigDecimal::from(a) / b).shrink_domain(),
-				(Number::Rational(lhs), rhs @ _) => Number::Rational(lhs / BigRational::from(rhs)).shrink_domain(),
-				(lhs @ _, Number::Rational(rhs)) => Number::Rational(BigRational::from(lhs) / rhs).shrink_domain(),
-				(Number::Integer(a), Number::Integer(b)) => Number::rational(a, b).shrink_domain(),
+				(Num::Real(a), b @ _) => Num::Real(a / BigDecimal::from(b)).shrink_domain(),
+				(a @ _, Num::Real(b)) => Num::Real(BigDecimal::from(a) / b).shrink_domain(),
+				(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs / BigRational::from(rhs)).shrink_domain(),
+				(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) / rhs).shrink_domain(),
+				(Num::Integer(a), Num::Integer(b)) => Num::rational(a, b).shrink_domain(),
 			})
 		}
 	}
 }
 
-impl From<Number> for BigRational {
-	fn from(number: Number) -> BigRational {
+impl From<Num> for BigRational {
+	fn from(number: Num) -> BigRational {
 		match number {
-			Number::Integer(integer) => integer.into(),
-			Number::Rational(rational) => rational,
-			Number::Real(_) => panic!("attempted to convert real number to rational"),
+			Num::Integer(integer) => integer.into(),
+			Num::Rational(rational) => rational,
+			Num::Real(_) => panic!("attempted to convert real number to rational"),
 		}
 	}
 }
 
-impl From<Number> for BigDecimal {
-	fn from(number: Number) -> BigDecimal {
+impl From<Num> for BigDecimal {
+	fn from(number: Num) -> BigDecimal {
 		match number {
-			Number::Integer(integer) => integer.into(),
-			Number::Rational(rational) => BigDecimal::from(rational.numer().clone()) / BigDecimal::from(rational.denom().clone()),
-			Number::Real(real) => real,
+			Num::Integer(integer) => integer.into(),
+			Num::Rational(rational) => BigDecimal::from(rational.numer().clone()) / BigDecimal::from(rational.denom().clone()),
+			Num::Real(real) => real,
 		}
 	}
 }

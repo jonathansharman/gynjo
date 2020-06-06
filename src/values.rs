@@ -1,8 +1,8 @@
 use super::env::Env;
 use super::exprs::Lambda;
-use super::number::Number;
-use super::primitives::{Primitive, Boolean};
-use super::symbol::Symbol;
+use super::number::Num;
+use super::primitives::{Prim, Bool};
+use super::symbol::Sym;
 
 use num_traits::cast::ToPrimitive;
 use itertools::Itertools;
@@ -15,7 +15,7 @@ use std::rc::Rc;
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum List {
 	Empty,
-	Cons { head: Box<Value>, tail: Rc<List> },
+	Cons { head: Box<Val>, tail: Rc<List> },
 }
 
 impl List {
@@ -32,7 +32,7 @@ impl List {
 pub struct ListIter<'a>(&'a List);
 
 impl <'a> Iterator for ListIter<'a> {
-	type Item = &'a Value;
+	type Item = &'a Val;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		match self.0 {
@@ -59,14 +59,14 @@ macro_rules! make_list {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Tuple {
-	pub elems: Box<Vec<Value>>,
+	pub elems: Box<Vec<Val>>,
 }
 
 /// Convenience macro for turning a comma-separated list of values into a value tuple.
 #[macro_export]
 macro_rules! make_tuple {
 	($($exprs:expr),*) => {
-		Value::Tuple(Tuple { elems: Box::new(vec!($($exprs),*)) })
+		Val::Tuple(Tuple { elems: Box::new(vec!($($exprs),*)) })
 	}
 }
 
@@ -96,64 +96,64 @@ impl Eq for Closure {}
 
 /// Gynjo value types.
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum Value {
-	Primitive(Primitive),
+pub enum Val {
+	Prim(Prim),
 	Tuple(Tuple),
 	List(List),
 	Closure(Closure),
 }
 
-impl From<bool> for Value {
-	fn from(b: bool) -> Value {
-		Value::Primitive(Primitive::from(b))
+impl From<bool> for Val {
+	fn from(b: bool) -> Val {
+		Val::Prim(Prim::from(b))
 	}
 }
 
-impl From<Boolean> for Value {
-	fn from(boolean: Boolean) -> Value {
-		Value::Primitive(Primitive::Boolean(boolean))
+impl From<Bool> for Val {
+	fn from(boolean: Bool) -> Val {
+		Val::Prim(Prim::Bool(boolean))
 	}
 }
 
-impl From<Number> for Value {
-	fn from(number: Number) -> Value {
-		Value::Primitive(Primitive::Number(number))
+impl From<Num> for Val {
+	fn from(number: Num) -> Val {
+		Val::Prim(Prim::Num(number))
 	}
 }
 
-impl From<i64> for Value {
-	fn from(n: i64) -> Value {
-		Value::Primitive(n.into())
+impl From<i64> for Val {
+	fn from(n: i64) -> Val {
+		Val::Prim(n.into())
 	}
 }
 
-impl From<f64> for Value {
-	fn from(n: f64) -> Value {
-		Value::Primitive(n.into())
+impl From<f64> for Val {
+	fn from(n: f64) -> Val {
+		Val::Prim(n.into())
 	}
 }
 
-impl From<String> for Value {
-	fn from(s: String) -> Value {
-		Value::Primitive(Primitive::String(s))
+impl From<String> for Val {
+	fn from(s: String) -> Val {
+		Val::Prim(Prim::String(s))
 	}
 }
 
-impl Value {
+impl Val {
 	/// Converts this value to a user-readable string.
 	/// `env` - Used for values whose string representation is environment-dependent.
 	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
 		match self {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
-			Value::Primitive(primitive) => match primitive {
-				Primitive::Boolean(b) => b.to_string(),
-				Primitive::Number(number) => match number {
-					Number::Integer(integer) => integer.to_string(),
-					Number::Rational(rational) => rational.to_string(),
-					Number::Real(real) => {
+			Val::Prim(primitive) => match primitive {
+				Prim::Bool(b) => b.to_string(),
+				Prim::Num(number) => match number {
+					Num::Integer(integer) => integer.to_string(),
+					Num::Rational(rational) => rational.to_string(),
+					Num::Real(real) => {
 						let precision = env.borrow()
 							// Look up precision setting.
-							.lookup(&Symbol { name: "precision".to_string() })
+							.lookup(&Sym { name: "precision".to_string() })
 							// Interpret as an integer.
 							.and_then(|v| v.as_i64())
 							// Interpret as a non-negative integer.
@@ -163,17 +163,17 @@ impl Value {
 						format!("{}", real.with_prec(precision))
 					}
 				},
-				Primitive::String(s) => format!("\"{}\"", s),
+				Prim::String(s) => format!("\"{}\"", s),
 			},
-			Value::Tuple(tuple) => tuple.to_string(&env),
-			Value::List(list) => list.to_string(&env),
-			Value::Closure(c) => c.f.to_string(),
+			Val::Tuple(tuple) => tuple.to_string(&env),
+			Val::List(list) => list.to_string(&env),
+			Val::Closure(c) => c.f.to_string(),
 		}
 	}
 
 	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
 	pub fn as_i64(&self) -> Option<i64> {
-		if let Value::Primitive(Primitive::Number(Number::Integer(integer))) = self {
+		if let Val::Prim(Prim::Num(Num::Integer(integer))) = self {
 			integer.to_i64()
 		} else {
 			None

@@ -1,74 +1,74 @@
-use super::number::Number;
+use super::number::Num;
 
 /// Boolean Gynjo type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Boolean { True, False }
+pub enum Bool { True, False }
 
-impl Boolean {
+impl Bool {
 	pub fn to_string(&self) -> String {
 		match self {
-			Boolean::True => "true", 
-			Boolean::False => "false",
+			Bool::True => "true", 
+			Bool::False => "false",
 		}.to_string()
 	}
 }
 
 /// Gynjo boolean to Rust boolean.
-impl From<Boolean> for bool {
-	fn from(boolean: Boolean) -> Self {
+impl From<Bool> for bool {
+	fn from(boolean: Bool) -> Self {
 		match boolean {
-			Boolean::True => true,
-			Boolean::False => false,
+			Bool::True => true,
+			Bool::False => false,
 		}
 	}
 }
 
 /// Rust boolean to Gynjo boolean.
-impl From<bool> for Boolean {
+impl From<bool> for Bool {
 	fn from(boolean: bool) -> Self {
-		if boolean { Boolean::True } else { Boolean::False }
+		if boolean { Bool::True } else { Bool::False }
 	}
 }
 
 /// Primitive Gynjo value types.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Primitive {
-	Boolean(Boolean),
-	Number(Number),
+pub enum Prim {
+	Bool(Bool),
+	Num(Num),
 	String(String),
 }
 
-impl Primitive {
+impl Prim {
 	/// Converts this primitive to a user-readable string.
 	pub fn to_string(&self) -> String {
 		match self {
-			Primitive::Boolean(b) => b.to_string(),
-			Primitive::Number(n) => n.to_string(),
-			Primitive::String(s) => format!("\"{}\"", s),
+			Prim::Bool(b) => b.to_string(),
+			Prim::Num(n) => n.to_string(),
+			Prim::String(s) => format!("\"{}\"", s),
 		}
 	}
 }
 
-impl From<bool> for Primitive {
-	fn from(b: bool) -> Primitive {
-		Primitive::Boolean(Boolean::from(b))
+impl From<bool> for Prim {
+	fn from(b: bool) -> Prim {
+		Prim::Bool(Bool::from(b))
 	}
 }
 
-impl From<i64> for Primitive {
-	fn from(n: i64) -> Primitive {
-		Primitive::Number(n.into())
+impl From<i64> for Prim {
+	fn from(n: i64) -> Prim {
+		Prim::Num(n.into())
 	}
 }
 
-impl From<f64> for Primitive {
-	fn from(n: f64) -> Primitive {
-		Primitive::Number(n.into())
+impl From<f64> for Prim {
+	fn from(n: f64) -> Prim {
+		Prim::Num(n.into())
 	}
 }
 
-impl From<String> for Primitive {
-	fn from(s: String) -> Primitive {
-		Primitive::String(s)
+impl From<String> for Prim {
+	fn from(s: String) -> Prim {
+		Prim::String(s)
 	}
 }
