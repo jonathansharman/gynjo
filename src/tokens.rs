@@ -1,6 +1,9 @@
 use super::intrinsics::Intrinsic;
 use super::primitives::Prim;
 use super::symbol::Sym;
+
+use std::fmt;
+
 /// Gynjo tokens.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Tok {
@@ -74,51 +77,6 @@ impl From<f64> for Tok {
 }
 
 impl Tok {
-	/// Converts this token to a user-readable string.
-	pub fn to_string(&self) -> String {
-		match self {
-			Tok::Import => "import".to_string(),
-			Tok::Let => "let".to_string(),
-			Tok::If => "if".to_string(),
-			Tok::Then => "then".to_string(),
-			Tok::Else => "else".to_string(),
-			Tok::While => "while".to_string(),
-			Tok::For => "for".to_string(),
-			Tok::In => "in".to_string(),
-			Tok::Do => "do".to_string(),
-			Tok::Return => "return".to_string(),
-			Tok::And => "and".to_string(),
-			Tok::Or => "or".to_string(),
-			Tok::Not => "not".to_string(),
-			Tok::Eq => "=".to_string(),
-			Tok::Neq => "!=".to_string(),
-			Tok::Approx => "~".to_string(),
-			Tok::Lt => "<".to_string(),
-			Tok::Leq => "<=".to_string(),
-			Tok::Gt => ">".to_string(),
-			Tok::Geq => ">=".to_string(),
-			Tok::Plus => "+".to_string(),
-			Tok::Minus => "-".to_string(),
-			Tok::Mul => "*".to_string(),
-			Tok::Div => "/".to_string(),
-			Tok::Exp => "^".to_string(),
-			Tok::Lparen => "(".to_string(),
-			Tok::Rparen => ")".to_string(),
-			Tok::Lsquare => "[".to_string(),
-			Tok::Rsquare => "]".to_string(),
-			Tok::Lcurly => "{".to_string(),
-			Tok::Rcurly => "}".to_string(),
-			Tok::Comma => ",".to_string(),
-			Tok::Semicolon => ";".to_string(),
-			Tok::Arrow => "->".to_string(),
-			Tok::Question => "?".to_string(),
-			Tok::Colon => ":".to_string(),
-			Tok::Intrinsic(f) => f.name(),
-			Tok::Sym(symbol) => symbol.to_string(),
-			Tok::Prim(primitive) => primitive.to_string(),
-		}
-	}
-
 	pub fn from_string<S>(s: S) -> Tok where S: Into<String> {
 		Tok::Prim(Prim::from(s.into()))
 	}
@@ -126,4 +84,50 @@ impl Tok {
 	pub fn from_symbol<S>(s: S) -> Tok where S: Into<String> {
 		Tok::Sym(Sym::from(s))
 	}
+}
+
+impl fmt::Display for Tok {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Tok::Import => write!(f, "import"),
+			Tok::Let => write!(f, "let"),
+			Tok::If => write!(f, "if"),
+			Tok::Then => write!(f, "then"),
+			Tok::Else => write!(f, "else"),
+			Tok::While => write!(f, "while"),
+			Tok::For => write!(f, "for"),
+			Tok::In => write!(f, "in"),
+			Tok::Do => write!(f, "do"),
+			Tok::Return => write!(f, "return"),
+			Tok::And => write!(f, "and"),
+			Tok::Or => write!(f, "or"),
+			Tok::Not => write!(f, "not"),
+			Tok::Eq => write!(f, "="),
+			Tok::Neq => write!(f, "!="),
+			Tok::Approx => write!(f, "~"),
+			Tok::Lt => write!(f, "<"),
+			Tok::Leq => write!(f, "<="),
+			Tok::Gt => write!(f, ">"),
+			Tok::Geq => write!(f, ">="),
+			Tok::Plus => write!(f, "+"),
+			Tok::Minus => write!(f, "-"),
+			Tok::Mul => write!(f, "*"),
+			Tok::Div => write!(f, "/"),
+			Tok::Exp => write!(f, "^"),
+			Tok::Lparen => write!(f, "("),
+			Tok::Rparen => write!(f, ")"),
+			Tok::Lsquare => write!(f, "["),
+			Tok::Rsquare => write!(f, "]"),
+			Tok::Lcurly => write!(f, "{{"),
+			Tok::Rcurly => write!(f, "}}"),
+			Tok::Comma => write!(f, ","),
+			Tok::Semicolon => write!(f, ";"),
+			Tok::Arrow => write!(f, "->"),
+			Tok::Question => write!(f, "?"),
+			Tok::Colon => write!(f, ":"),
+			Tok::Intrinsic(intrinsic) => write!(f, "{}", intrinsic.name()),
+			Tok::Sym(symbol) => write!(f, "{}", symbol.to_string()),
+			Tok::Prim(primitive) => write!(f, "{}", primitive.to_string()),
+		}
+    }
 }

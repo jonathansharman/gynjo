@@ -1,3 +1,4 @@
+use super::error::LexError;
 use super::intrinsics::Intrinsic;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
@@ -10,7 +11,7 @@ use num_bigint::BigInt;
 use std::str::FromStr;
 
 /// Result of lexing: either a vector of tokens or an error message.
-type LexResult = Result<Vec<Tok>, String>;
+type LexResult = Result<Vec<Tok>, LexError>;
 
 /// Surrounds a keyword with regex to ensure it's at the start of the line and isn't followed by symbol characters.
 macro_rules! keyword {
@@ -22,6 +23,7 @@ macro_rules! keyword {
 /// Lexes `input` into a vector of tokens, if possible.
 pub fn lex(input: &str) -> LexResult {
 	lazy_static! {
+		static ref BAD_TOKEN_REGEX: Regex = Regex::new(r"\W+").unwrap();
 		static ref SINGLE_LEXERS: [SingleLexer; 50] = [
 			// Whitespace (ignored)
 			SingleLexer::new(r"^\s+", |_| None),
@@ -105,7 +107,7 @@ pub fn lex(input: &str) -> LexResult {
 			}
 		}
 		if no_matches {
-			return Err(format!("unrecognized token: '{}'", Regex::new(r"\W+").unwrap().find(next_input).unwrap().unwrap().as_str()));
+			return Err(LexError { unrecognized_token: BAD_TOKEN_REGEX.find(next_input).unwrap().unwrap().as_str().into() });
 		}
 	}
 	Ok(tokens)
@@ -128,11 +130,12 @@ impl SingleLexer {
 
 #[cfg(test)]
 mod tests {
+	use crate::error::LexError;
 	use crate::lexer::lex;
 	use crate::tokens::Tok;
 
 	#[test]
-	fn whitespace() -> Result<(), String> {
+	fn whitespace() -> Result<(), LexError> {
 		let expected: Vec<Tok> = vec!(Tok::from(1), Tok::Plus, Tok::from(2), Tok::Plus, Tok::from(3));
 		let actual = lex(" \t \n 1 \n + \t 2+3 \t \n ")?;
 		assert_eq!(expected, actual);
@@ -140,7 +143,7 @@ mod tests {
 	}
 
 	#[test]
-	fn numbers_operators_and_separators() -> Result<(), String> {
+	fn numbers_operators_and_separators() -> Result<(), LexError> {
 		let expected = vec!(
 			Tok::Let,
 			Tok::Eq,
@@ -175,7 +178,7 @@ mod tests {
 	}
 
 	#[test]
-	fn line_comments() -> Result<(), String> {
+	fn line_comments() -> Result<(), LexError> {
 		let expected = vec!(Tok::from(1), Tok::Plus, Tok::from(2));
 		let actual = lex("1+2 // This is a line comment.")?;
 		assert_eq!(expected, actual);
@@ -183,7 +186,7 @@ mod tests {
 	}
 
 	#[test]
-	fn key_words() -> Result<(), String> {
+	fn key_words() -> Result<(), LexError> {
 		let expected = vec!(
 			Tok::Import, Tok::from(1), Tok::from_symbol("imports"),
 			Tok::If, Tok::from(1), Tok::from_symbol("ifs"),
@@ -217,7 +220,7 @@ mod tests {
 	}
 
 	#[test]
-	fn valid_strings() -> Result<(), String> {
+	fn valid_strings() -> Result<(), LexError> {
 		assert_eq!(Tok::from_string(""), lex(r#""""#)?[0]);
 		assert_eq!(Tok::from_string("abc"), lex(r#""abc""#)?[0]);
 		assert_eq!(Tok::from_string(r#""abc""#), lex(r#""\"abc\"""#)?[0]);
@@ -226,7 +229,7 @@ mod tests {
 	}
 
 	#[test]
-	fn invalid_strings() -> Result<(), String> {
+	fn invalid_strings() -> Result<(), LexError> {
 		assert!(lex(r#"""#).is_err());
 		assert!(lex(r#"""""#).is_err());
 		assert!(lex(r#""\""#).is_err());

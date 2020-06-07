@@ -1,3 +1,4 @@
+use super::error::ParseError;
 use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::primitives::Prim;
@@ -9,24 +10,34 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 /// Result of expression parsing: (remaining tokens, parsed expression).
-type ParseExprResult<'a> = Result<(&'a [Tok], Expr), String>;
+type ParseExprResult<'a> = Result<(&'a [Tok], Expr), ParseError>;
 
 /// Result of statement parsing: (remaining tokens, parsed statement).
-type ParseStmtResult<'a> = Result<(&'a [Tok], Stmt), String>;
+type ParseStmtResult<'a> = Result<(&'a [Tok], Stmt), ParseError>;
+
+/// Parses an expression, requring all input to be consumed.
+pub fn parse_expr_with_all(tokens: &[Tok]) -> Result<Expr, ParseError> {
+	let (tokens, expr) = parse_expr(&tokens[..])?;
+	if tokens.is_empty() {
+		Ok(expr)
+	} else {
+		Err(ParseError::UnusedInput { first_unused: tokens.first().unwrap().clone() })
+	}
+}
 
 /// If possible, parses the next single expression from `tokens`.
 /// Returns a slice of the unused tokens along with the parsed expression.
-pub fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
+fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
 	let (tokens, negation_result) = parse_negation(&tokens)?;
 	// Check for conditional expression.
 	let (tokens, is_conditional_expr) = parse_optional_token(&tokens, &Tok::Question);
 	if is_conditional_expr {
 		// Parse expression if true.
-		let (tokens, then_expr) = parse_expr(tokens).map_err(|_| "expected true case in conditional expression")?;
+		let (tokens, then_expr) = parse_expr(tokens)?;
 		// Parse ":".
 		let tokens = parse_required_token(&tokens, &Tok::Colon, "conditional expression")?;
 		// Parse expression if false.
-		let (tokens, else_expr) = parse_expr(tokens).map_err(|_| "expected false case in conditional expression")?;
+		let (tokens, else_expr) = parse_expr(tokens)?;
 		Ok((tokens, Expr::Cond { test: Box::new(negation_result), then_expr: Box::new(then_expr), else_expr: Box::new(else_expr) }))
 	} else {
 		Ok((tokens, negation_result))
@@ -56,14 +67,17 @@ pub fn parse_stmt<'a>(tokens: &'a [Tok]) -> ParseStmtResult {
 fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		[Tok::Arrow, rest @ ..] => parse_expr(rest),
-		_ => Err("expected function body".to_string()),
+		_ => Err(ParseError::Expected { context: "lambda", expected: "function body".into() }),
 	}
 }
 
 /// Parses a Gynjo value.
 fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err("expected value".to_string()),
+		[] => Err(ParseError::Unexpected {
+			context: "value expression",
+			unexpected: "end of input".into(),
+		}),
 		// Tuple or lambda
 		[Tok::Lparen, after_lparen @ ..] => {
 			let mut elems: Vec<Expr> = Vec::new();
@@ -76,11 +90,14 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					let mut tokens = after_first_elem;
 					loop {
 						match tokens {
-							[] => return Err("expected ',' or ')' in tuple expression".to_string()),
+							[] => return Err(ParseError::Expected {
+								context: "tuple expression",
+								expected: "',' or ')'".into(),
+							}),
 							// Additional tuple element
 							[Tok::Comma, after_comma @ ..] => {
 								tokens = after_comma;
-								let (after_next_elem, next_elem) = parse_expr(tokens).map_err(|_| "expected expression after ',' in tuple expression")?;
+								let (after_next_elem, next_elem) = parse_expr(tokens)?;
 								tokens = after_next_elem;
 								elems.push(next_elem);
 							},
@@ -89,7 +106,11 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 								tokens = rest;
 								break;
 							},
-							[invalid @ _, ..] => return Err(format!("expected ',' or ')' in tuple expression, found {}", invalid.to_string())),
+							[invalid @ _, ..] => return Err(ParseError::Swapped {
+								context: "tuple expression",
+								expected: "',' or ')'".into(),
+								actual: invalid.to_string(),
+							}),
 						}
 					}
 					tokens
@@ -140,11 +161,14 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				// Try to parse additional comma-delimited expressions.
 				loop {
 					match tokens {
-						[] => return Err("expected ',' or ']' in list expression".to_string()),
+						[] => return Err(ParseError::Expected {
+							context: "list expression",
+							expected: "',' or ']'".into(),
+						}),
 						// Additional list element
 						[Tok::Comma, after_comma @ ..] => {
 							tokens = after_comma;
-							let (after_next_elem, next_elem) = parse_expr(tokens).map_err(|_| "expected expression after ',' in list expression")?;
+							let (after_next_elem, next_elem) = parse_expr(tokens)?;
 							tokens = after_next_elem;
 							elems.push_front(next_elem);
 						},
@@ -153,7 +177,11 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 							tokens = rest;
 							break;
 						},
-						[invalid @ _, ..] => return Err(format!("expected ',' or ']' in list expression, found {}", invalid.to_string())),
+						[invalid @ _, ..] => return Err(ParseError::Swapped {
+							context: "list expression",
+							expected: "',' or ']'".into(),
+							actual: invalid.to_string(),
+						}),
 					}
 				}
 			} else {
@@ -206,17 +234,27 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		},
 		// Primitive
 		[Tok::Prim(primitive), tokens @ ..] => Ok((tokens, Expr::Prim(primitive.clone()))),
-		[t, ..] => Err(format!("unexpected token in expression: {}", t.to_string())),
+		[t, ..] => Err(ParseError::Unexpected {
+			context: "value expression",
+			unexpected: t.to_string(),
+		}),
 	}
 }
 
 /// Parses a single `required` token from `tokens` and returns the remaining tokens.
 /// `context` - The expression in which the token is required, for the purpose of error reporting.
-fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], String> {
+fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseError> {
 	match tokens {
-		[] => Err(format!("expected '{}' in {}", required.to_string(), context)),
+		[] => Err(ParseError::Expected {
+			context,
+			expected: required.to_string(),
+		}),
 		[t, rest @ ..] if (t == required) => Ok(rest),
-		[invalid @ _, ..] => Err(format!("expected '{}' in {}, found {}", required.to_string(), context, invalid.to_string())),
+		[invalid @ _, ..] => Err(ParseError::Swapped {
+			context,
+			expected: required.to_string(),
+			actual: invalid.to_string(),
+		}),
 	}
 }
 
@@ -229,7 +267,7 @@ fn parse_optional_token<'a>(tokens: &'a [Tok], optional: &Tok) -> (&'a [Tok], bo
 }
 
 /// Parses a cluster item after an operator or parenthesis.
-fn parse_mandatory_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), String> {
+fn parse_mandatory_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), ParseError> {
 	let (after_minus, negated) = parse_optional_token(tokens, &Tok::Minus);
 	let (after_expr, expr) = parse_value(after_minus)?;
 	Ok((after_expr, ClusterItem {
@@ -309,8 +347,7 @@ fn parse_binary_expressions<'a>(tokens: &'a [Tok], subparse: fn(&'a [Tok]) -> Pa
 		match tokens.first() {
 			Some(token) => match op_map.get(token) {
 				Some(op) => {
-					let (after_expr, next_expr) = subparse(&tokens[1..])
-						.map_err(|_| format!("expected operand after '{}'", op.to_string()))?;
+					let (after_expr, next_expr) = subparse(&tokens[1..])?;
 					tokens = after_expr;
 					// Incorporate next expression into expression.
 					exprs = Expr::BinaryExpr(BinExpr {
@@ -358,7 +395,6 @@ fn parse_disjunctions(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a logical negation. Note that negation is right-associative.
 fn parse_negation(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err("expected expression".to_string()),
 		[Tok::Not, tokens @ ..] => {
 			let (tokens, expr) = parse_negation(tokens)?;
 			Ok((tokens, Expr::Not { expr: Box::new(expr) }))
@@ -369,7 +405,7 @@ fn parse_negation(tokens: &[Tok]) -> ParseExprResult {
 
 /// Parses a return statement, starting after "return".
 fn parse_ret(tokens: &[Tok]) -> ParseStmtResult {
-	let (tokens, expr) = parse_expr(tokens).map_err(|_| "expected return expression")?;
+	let (tokens, expr) = parse_expr(tokens)?;
 	Ok((tokens, Stmt::Return { result: Box::new(expr) }))
 }
 
@@ -379,7 +415,7 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseStmtResult {
 		// Parse loop variable and "in".
 		[Tok::Sym(loop_var), Tok::In, tokens @ ..] => {
 			// Parse range expression.
-			let (tokens, range) = parse_expr(tokens).map_err(|_| "expected range expression in for-loop")?;
+			let (tokens, range) = parse_expr(tokens)?;
 			// Parse "do".
 			let tokens = parse_required_token(tokens, &Tok::Do, "for-loop")?;
 			// Parse body.
@@ -387,18 +423,21 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseStmtResult {
 			// Assemble for-loop.
 			Ok((tokens, Stmt::ForLoop { loop_var: loop_var.clone(), range: Box::new(range), body: Box::new(body) }))
 		},
-		_ => Err("expected loop variable followed by \"in\" in for-loop".to_string()),
+		_ => Err(ParseError::Expected {
+			context: "for-loop",
+			expected: "\"<loop variable> in <body>\"".into(),
+		}),
 	}
 }
 
 /// Parses a while-loop, starting after "while".
 fn parse_while_loop(tokens: &[Tok]) -> ParseStmtResult {
 	// Parse test expression.
-	let (tokens, test_expr) = parse_expr(&tokens).map_err(|_| "expected test expression in while-loop")?;
+	let (tokens, test_expr) = parse_expr(&tokens)?;
 	// Parse "do".
 	let tokens = parse_required_token(&tokens, &Tok::Do, "while-loop")?;
 	// Parse body.
-	let (tokens, body_stmt) = parse_stmt(tokens).map_err(|_| "expected body in while-loop")?;
+	let (tokens, body_stmt) = parse_stmt(tokens)?;
 	// Assemble while-loop.
 	Ok((tokens, Stmt::WhileLoop {
 		test: Box::new(test_expr),
@@ -409,16 +448,16 @@ fn parse_while_loop(tokens: &[Tok]) -> ParseStmtResult {
 /// Parses a branch statment - if-then or if-then-else - starting after "if".
 fn parse_branch(tokens: &[Tok]) -> ParseStmtResult {
 	// Parse test expression.
-	let (tokens, test_expr) = parse_expr(&tokens).map_err(|_| "expected test expression in branch statment")?;
+	let (tokens, test_expr) = parse_expr(&tokens)?;
 	// Parse "then".
 	let tokens = parse_required_token(&tokens, &Tok::Then, "branch statement")?;
 	// Parse "then" branch.
-	let (tokens, then_stmt) = parse_stmt(&tokens).map_err(|_| "expected true case in branch statement")?;
+	let (tokens, then_stmt) = parse_stmt(&tokens)?;
 	// Check for "else" branch.
 	let (tokens, has_else_branch) = parse_optional_token(&tokens, &Tok::Else);
 	let (tokens, else_stmt) = if has_else_branch {
 		// Parse "else" branch.
-		parse_stmt(tokens).map_err(|_| "expected false case in branch statement")?
+		parse_stmt(tokens)?
 	} else {
 		// Missing else statement is a no-op.
 		(tokens, Stmt::Nop)
@@ -435,7 +474,10 @@ fn parse_branch(tokens: &[Tok]) -> ParseStmtResult {
 fn parse_assignment(tokens: &[Tok]) -> ParseStmtResult {
 	// Parse LHS.
 	match tokens {
-		[] => Err("expected assignment".to_string()),
+		[] => Err(ParseError::Expected {
+			context: "assignment",
+			expected: "\"<variable> = <value>\"".into(),
+		}),
 		[Tok::Sym(lhs), after_symbol @ ..] => {
 			// Parse "=".
 			let after_eq = parse_required_token(&after_symbol, &Tok::Eq, "assignment")?;
@@ -444,16 +486,27 @@ fn parse_assignment(tokens: &[Tok]) -> ParseStmtResult {
 			// Assemble assignment from symbol and RHS.
 			Ok((after_rhs, Stmt::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
 		},
-		[invalid @ _, ..] => Err(format!("expected loop variable in for-loop, found {}", invalid.to_string())),
+		[invalid @ _, ..] => Err(ParseError::Swapped {
+			context: "assignment",
+			expected: "variable".into(),
+			actual: invalid.to_string(),
+		}),
 	}
 }
 
 /// Parses an import statement, starting after "import".
 fn parse_import(tokens: &[Tok]) -> ParseStmtResult {
 	match tokens {
-		[] => Err("expected import target".to_string()),
+		[] => Err(ParseError::Expected {
+			context: "import statement",
+			expected: "import target".into(),
+		}),
 		[Tok::Sym(Sym { name }), tokens @ ..] => Ok((tokens, Stmt::Import { filename : name.clone() })),
 		[Tok::Prim(Prim::String(filename)), tokens @ ..] => Ok((tokens, Stmt::Import { filename: filename.clone() })),
-		[first, ..] => Err(format!("expected filename (symbol or string) in import statement, found {}", first.to_string())),
+		[first, ..] => Err(ParseError::Swapped {
+			context: "import statement",
+			expected: "import target (symbol or string)".into(),
+			actual: first.to_string(),
+		}),
 	}
 }

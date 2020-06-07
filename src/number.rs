@@ -4,10 +4,28 @@ use num_rational::BigRational;
 use num_traits::cast::ToPrimitive;
 
 use std::cmp::{Ord, PartialOrd};
+use std::fmt;
 use std::ops::Add;
 use std::ops::Div;
 use std::ops::Mul;
 use std::ops::Sub;
+
+#[derive(Debug)]
+pub enum NumError {
+	DivisionByZero,
+	ExponentTooLarge,
+	NonIntegralExponentsNotSupported,
+}
+
+impl fmt::Display for NumError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+			NumError::DivisionByZero => write!(f, "Division by zero"),
+			NumError::ExponentTooLarge => write!(f, "Exponent too large"),
+			NumError::NonIntegralExponentsNotSupported => write!(f, "Non-integral exponentiation not yet supported"),
+		}
+    }
+}
 
 /// Numeric Gynjo types.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -64,7 +82,7 @@ impl Num {
 	}
 
 	/// Computes `self` to the power of `other`.
-	pub fn pow(self, other: Self) -> Result<Num, String> {
+	pub fn pow(self, other: Self) -> Result<Num, NumError> {
 		match (self, other) {
 			(base @ _, Num::Integer(exponent)) => {
 				match exponent.to_i64() {
@@ -79,10 +97,10 @@ impl Num {
 						}
 						Ok(result.into())
 					},
-					None => Err("exponent too large".to_string()),
+					None => Err(NumError::ExponentTooLarge),
 				}
 			},
-			_ => Err("non-integral exponents not yet supported".to_string()),
+			_ => Err(NumError::NonIntegralExponentsNotSupported),
 		}
 	}
 }
@@ -163,10 +181,10 @@ impl Mul for Num {
 }
 
 impl Div for Num {
-	type Output = Result<Num, String>;
+	type Output = Result<Num, NumError>;
 	fn div(self, rhs: Self) -> Self::Output {
 		if BigDecimal::from(rhs.clone()) == BigDecimal::from(0) {
-			Err("division by zero".to_string())
+			Err(NumError::DivisionByZero)
 		} else {
 			Ok(match (self, rhs) {
 				(Num::Real(a), b @ _) => Num::Real(a / BigDecimal::from(b)).shrink_domain(),

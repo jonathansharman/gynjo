@@ -3,6 +3,7 @@ use super::exprs::Lambda;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
+use super::types::Type;
 
 use num_traits::cast::ToPrimitive;
 use itertools::Itertools;
@@ -140,6 +141,27 @@ impl From<String> for Val {
 }
 
 impl Val {
+	/// Retrives the type of this value.
+	pub fn get_type(&self) -> Type {
+		match self {
+			Val::Prim(prim) => match prim {
+				Prim::Bool(_) => Type::Boolean,
+				Prim::Num(number) => match number {
+					Num::Integer(_) => Type::Integer,
+					Num::Rational(_) => Type::Rational,
+					Num::Real(_) => Type::Real,
+				},
+				Prim::String(_) => Type::String,
+			},
+			Val::Tuple(_) => Type::Tuple,
+			Val::List(list) => match list {
+				List::Empty => Type::Empty,
+				List::Cons { .. } => Type::Cons,
+			},
+			Val::Closure(_) => Type::Closure,
+		}
+	}
+
 	/// Converts this value to a user-readable string.
 	/// `env` - Used for values whose string representation is environment-dependent.
 	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {

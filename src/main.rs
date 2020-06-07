@@ -4,6 +4,7 @@
 mod values;
 
 mod env;
+mod error;
 mod exprs;
 mod interpreter;
 mod intrinsics;
@@ -14,9 +15,13 @@ mod primitives;
 mod stmts;
 mod symbol;
 mod tokens;
+mod types;
 
 #[macro_use]
 extern crate lazy_static;
+
+use error::Error;
+use interpreter::{exec, eval};
 
 use std::io::{self, Write};
 
@@ -41,18 +46,25 @@ fn main() {
 			io::stdout().flush().unwrap();
 			io::stdin().read_line(&mut input).unwrap();
 		}
-		// First try to interpret the line as an expression.
-		let eval_result = interpreter::eval(&mut env, &input);
-		match eval_result {
-			Ok(value) => {
-				// Print the computed value.
-				println!("{}", value.to_string(&mut env));
-			},
-			Err(_) => {
-				// Invalid expression. Try a statement instead.
-				if let Err(err) = interpreter::exec(&mut env, &input) {
-					// Still didn't work; report statement error.
-					println!("{}", err);
+		// First try to execute the input as a statement.
+		if let Err(exec_error) = exec(&mut env, &input) {
+			// Execution failed. Try to evaluate the input as an expression.
+			match eval(&mut env, &input) {
+				Ok(value) => {
+					// Print the computed value.
+					println!("{}", value.to_string(&mut env));
+				},
+				Err(eval_error) => {
+					// Both failed. Display the highest-level error.
+					let error = match (exec_error, eval_error) {
+						(Error::Runtime(runtime_error), _) => Error::Runtime(runtime_error),
+						(_, Error::Runtime(runtime_error)) => Error::Runtime(runtime_error),
+						(Error::Parse(parse_error), _) => Error::Parse(parse_error),
+						(_, Error::Parse(parse_error)) => Error::Parse(parse_error),
+						// It's a tie. Display evaluation error by default.
+						(_, eval_error @ _) => eval_error,
+					};
+					println!("{}", error);
 				}
 			}
 		}

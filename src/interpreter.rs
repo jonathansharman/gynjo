@@ -1,11 +1,13 @@
 use super::env::Env;
+use super::error::{Error, RuntimeError};
 use super::exprs::{Expr, BinOp, Cluster, ClusterConnector, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::lexer::lex;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
-use super::parser::{parse_expr, parse_stmt};
+use super::parser::{parse_expr_with_all, parse_stmt};
 use super::stmts::Stmt;
+use super::types::Type;
 use super::values::{Closure, Tuple, List, Val};
 
 use bigdecimal::BigDecimal;
@@ -15,10 +17,10 @@ use std::io;
 use std::rc::Rc;
 
 /// Result of evaluating a Gynjo expression.
-type EvalResult = Result<Val, String>;
+type EvalResult = Result<Val, RuntimeError>;
 
 /// Result of executing a Gynjo statement.
-type ExecResult = Result<(), String>;
+type ExecResult = Result<(), RuntimeError>;
 
 /// If possible, computes the value of `expr` in the context of `env`.
 pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
@@ -27,7 +29,11 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 			eval_expr(&mut env, *test).and_then(|test_value| {
 				match test_value {
 					Val::Prim(Prim::Bool(boolean)) => eval_expr(&mut env, if boolean.into() { *then_expr } else { *else_expr }),
-					_ => Err(format!("expected boolean in conditional test, found {}", test_value.to_string(env))),
+					_ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "conditional test".into(),
+						expected: Type::Boolean,
+						actual: test_value.get_type()
+					}),
 				}
 			})
 		},
@@ -37,10 +43,8 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 				if let Stmt::Return { result } = stmt {
 					return eval_expr(&mut env, *result);
 				}
-				// Otherwise, just execute the statement and check for errors.
-				if let Err(error) = exec_stmt(&mut env, stmt) {
-					return Err(format!("in block statement: {}", error));
-				}
+				// Otherwise, just execute the statement.
+				exec_stmt(&mut env, stmt)?;
 			}
 			// Return nothing if there was no return statement.
 			Ok(Val::Tuple(Tuple::empty()))
@@ -51,13 +55,21 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 					Val::Prim(Prim::Bool(left)) => if left.into() {
 						match eval_expr(&mut env, *bin_expr.right)? {
 							Val::Prim(Prim::Bool(right)) => Ok(right.into()),
-							invalid @ _ => Err(format!("cannot take logical conjunction of non-boolean value {}", invalid.to_string(&env))),
+							invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
+								context: "logical conjunction",
+								expected: Type::Boolean,
+								actual: invalid.get_type(),
+							}),
 						}
 					} else {
 						// Short-circuit to false.
 						Ok(Bool::False.into())
 					},
-					invalid @ _ => Err(format!("cannot take logical conjunction of non-boolean value {}", invalid.to_string(&env))),
+					invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "logical conjunction",
+						expected: Type::Boolean,
+						actual: invalid.get_type(),
+					}),
 				}
 			},
 			BinOp::Or => {
@@ -68,10 +80,18 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 					} else {
 						match eval_expr(env, *bin_expr.right)? {
 							Val::Prim(Prim::Bool(right)) => Ok(right.into()),
-							invalid @ _ => Err(format!("cannot take logical disjunction of non-boolean value {}", invalid.to_string(&env))),
+							invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
+								context: "logical disjunction",
+								expected: Type::Boolean,
+								actual: invalid.get_type(),
+							}),
 						}
 					},
-					invalid @ _ => Err(format!("cannot take logical disjunction of non-boolean value {}", invalid.to_string(&env))),
+					invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "logical disjunction",
+						expected: Type::Boolean,
+						actual: invalid.get_type(),
+					}),
 				}
 			},
 			BinOp::Eq => Ok(Bool::from(eval_expr(env, *bin_expr.left)? == eval_expr(env, *bin_expr.right)?).into()),
@@ -122,7 +142,11 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 		Expr::Not { expr } => {
 			match eval_expr(env, *expr)? {
 				Val::Prim(Prim::Bool(b)) => Ok(Bool::from(!bool::from(b)).into()),
-				invalid @ _ => Err(format!("cannot take logical negation of {}", invalid.to_string(&env))),
+				invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
+					context: "logical negation",
+					expected: Type::Boolean,
+					actual: invalid.get_type(),
+				}),
 			}
 		},
 		Expr::Cluster(cluster) => eval_cluster(env, cluster),
@@ -143,7 +167,7 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 		},
 		Expr::Sym(symbol) => env.borrow().lookup(&symbol)
 			.map(|v| v.clone())
-			.ok_or(format!("'{}' is undefined", symbol.name)),
+			.ok_or(RuntimeError::Undefined(symbol.name)),
 		Expr::Prim(primitive) => Ok(Val::Prim(match primitive {
 			Prim::Num(number) => Prim::Num(number.shrink_domain()),
 			primitive @ _ => primitive
@@ -152,45 +176,51 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 }
 
 /// If possible, computes the value of the expression contained in `input` in the context of `env`.
-pub fn eval(env: &mut Rc<RefCell<Env>>, input: &str) -> EvalResult {
+pub fn eval(env: &mut Rc<RefCell<Env>>, input: &str) -> Result<Val, Error> {
 	// Lex.
-	let tokens = lex(input).map_err(|err| format!("(lex error) {}", err))?;
+	let tokens = lex(input).map_err(Error::lex)?;
 	// Parse.
-	let (tokens, expr) = parse_expr(&tokens[..]).map_err(|err| format!("(parse error) {}", err))?;
-	if !tokens.is_empty() {
-		Err(format!("(parse_error) unused tokens starting at {}", tokens.first().unwrap().to_string()))
-	} else {
-		// Evaluate.
-		eval_expr(env, expr)
-	}
+	let expr = parse_expr_with_all(&tokens[..]).map_err(Error::parse)?;
+	// Evaluate.
+	eval_expr(env, expr).map_err(Error::runtime)
 }
 
 /// If possible, executes `stmt` in the context of `env`.
-pub fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
+fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
 	match stmt {
 		Stmt::Nop => Ok(()),
 		Stmt::Import { filename } => {
-			let library_text = std::fs::read_to_string(&filename)
-				.map_err(|err| format!("failed to load library \"{}\" ({})", filename, err.to_string()))?;
-			exec(&mut env, &library_text)
+			let lib_text = std::fs::read_to_string(&filename)
+				.map_err(|err| RuntimeError::FileError {
+					filename: filename.clone(),
+					file_error: err.to_string(),
+				})?;
+			exec(&mut env, &lib_text).map_err(|err| RuntimeError::LibError {
+				lib_name: filename.clone(),
+				nested_error: Box::new(err),
+			})
 		},
 		Stmt::Assign { lhs, rhs } => {
-			let rhs_value = eval_expr(env, *rhs).map_err(|err| format!("in RHS of assignment: {}", err))?;
+			let rhs_value = eval_expr(env, *rhs)?;
 			// Perform the assignment, possibly overwriting the existing value.
 			env.borrow_mut().assign(lhs, rhs_value);
 			Ok(())
 		},
 		Stmt::Branch { test, then_stmt, else_stmt } => {
-			let test_value = eval_expr(env, *test).map_err(|err| format!("in branch test expression: {}", err))?;
+			let test_value = eval_expr(env, *test)?;
 			match test_value {
 				Val::Prim(Prim::Bool(b)) => exec_stmt(env, if b.into() { *then_stmt } else { *else_stmt }),
-				_ => Err(format!("expected boolean in conditional test, found {}", test_value.to_string(env))),
+				_ => Err(RuntimeError::UnaryTypeMismatch {
+					context: "conditional test",
+					expected: Type::Boolean,
+					actual: test_value.get_type(),
+				}),
 			}
 		},
 		Stmt::WhileLoop { test, body } => {
 			loop {
 				// Evaluate the test condition.
-				let test_value = eval_expr(env, (*test).clone()).map_err(|err| format!("in while-loop test expression: {}", err))?;
+				let test_value = eval_expr(env, (*test).clone())?;
 				match test_value {
 					Val::Prim(Prim::Bool(b)) => if b.into() {
 						// Execute next iteration.
@@ -211,43 +241,47 @@ pub fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
 						// Assign the loop variable to the current value in the range list.
 						env.borrow_mut().assign(loop_var.clone(), value.clone());
 						// Execute the loop body in this context.
-						exec_stmt(env, (*body).clone()).map_err(|err| format!("in body of for-loop: {}", err))?;
+						exec_stmt(env, (*body).clone())?;
 					}
 					Ok(())
 				},
-				_ => Err(format!("expected a list, found {}", range_value.to_string(env))),
+				_ => Err(RuntimeError::UnaryTypeMismatch {
+					context: "for-loop range".into(),
+					expected: Type::List,
+					actual: range_value.get_type()
+				}),
 			}
 		},
-		Stmt::Return { .. } => Err("cannot return outside statement block".to_string()),
+		Stmt::Return { .. } => Err(RuntimeError::ReturnOutsideBlock),
 		Stmt::ExprStmt(expr) => {
 			let value = eval_expr(env, *expr)?;
 			// Expression statements must evaluate to ().
 			match value {
 				Val::Tuple(Tuple { elems }) if (elems.is_empty()) => Ok(()),
-				_ => Err(format!("unused expression result: {}", value.to_string(env))),
+				_ => Err(RuntimeError::UnusedResult(value.to_string(env))),
 			}
 		}
 	}
 }
 
 /// If possible, executes the statements contained in `input` in the context of `env`.
-pub fn exec(env: &mut Rc<RefCell<Env>>, input: &str) -> ExecResult {
+pub fn exec(env: &mut Rc<RefCell<Env>>, input: &str) -> Result<(), Error> {
 	// Lex.
-	let tokens = lex(input)?;
+	let tokens = lex(input).map_err(Error::lex)?;
 	let mut token_slice = &tokens[..];
 	// While there is still input left, parse and execute.
 	while !token_slice.is_empty() {
 		// Parse.
-		let (remaining_tokens, stmt) = parse_stmt(token_slice).map_err(|err| format!("(parse error) {}", err))?;
+		let (remaining_tokens, stmt) = parse_stmt(token_slice).map_err(Error::parse)?;
 		token_slice = remaining_tokens;
 		// Execute.
-		exec_stmt(env, stmt).map_err(|err| format!("(runtime error) {}", err))?;
+		exec_stmt(env, stmt).map_err(Error::runtime)?;
 	}
 	Ok(())
 }
 
 /// Evaluates a numerical operation on a list and a number.
-fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: Num, number_on_left: bool, op_name: &str, op: fn(Num, Num) -> EvalResult) -> Result<List, String> {
+fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: Num, number_on_left: bool, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> Result<List, RuntimeError> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
@@ -262,16 +296,24 @@ fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: Num, number_on_left: 
 }
 
 /// Evaluates a numerical operation on two values.
-fn bin_num_op(env: &Rc<RefCell<Env>>, left: Val, right: Val, op_name: &str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
+fn bin_num_op(env: &Rc<RefCell<Env>>, left: Val, right: Val, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
 	match (left, right) {
 		// Number op Number
 		(Val::Prim(Prim::Num(left)), Val::Prim(Prim::Num(right))) => Ok(op(left, right)?),
 		// List op Number
-		(Val::List(list), Val::Prim(Prim::Num(number))) => Ok(Val::List(list_num_op(env, list, number, false, op_name, op)?)),
+		(Val::List(list), Val::Prim(Prim::Num(number))) => {
+			Ok(Val::List(list_num_op(env, list, number, false, op_name, op)?))
+		},
 		// Number op List
-		(Val::Prim(Prim::Num(number)), Val::List(list)) => Ok(Val::List(list_num_op(env, list, number, true, op_name, op)?)),
+		(Val::Prim(Prim::Num(number)), Val::List(list)) => {
+			Ok(Val::List(list_num_op(env, list, number, true, op_name, op)?))
+		},
 		// Invalid numeric operation
-		(left @ _, right @ _) => Err(format!("cannot perform {} with {} and {}", op_name, left.to_string(&env), right.to_string(&env))),
+		(left @ _, right @ _) => Err(RuntimeError::BinaryTypeMismatch {
+			context: op_name,
+			left: left.get_type(),
+			right: right.get_type(),
+		}),
 	}
 }
 
@@ -301,7 +343,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 				let left = cluster[idx].value.clone();
 				let right = cluster[idx + 1].value.clone();
 				cluster[idx].value = bin_num_op(env, left, right, "exponentiation", |a, b| {
-					Ok(Val::from(a.pow(b)?))
+					Ok(Val::from(a.pow(b).map_err(RuntimeError::numeric)?))
 				})?;
 				cluster.remove(idx + 1);
 				return eval_evaluated_cluster(env, cluster);
@@ -333,7 +375,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 					let left = cluster[idx].value.clone();
 					let right = cluster[idx + 1].value.clone();
 					cluster[idx].value = bin_num_op(env, left, right, "division", |a, b| {
-						Ok(Val::from((a / b)?))
+						Ok(Val::from((a / b).map_err(RuntimeError::numeric)?))
 					})?;
 					cluster.remove(idx + 1);
 					return eval_evaluated_cluster(env, cluster);
@@ -378,7 +420,10 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	};
 	// Ensure correct number of arguments.
 	if args.len() != c.f.params.len() {
-		return Err(format!("function requires {} argument{}, received {}", c.f.params.len(), if c.f.params.len() == 1 { "" } else { "s" }, args.len()));
+		return Err(RuntimeError::ArgCountMismatch {
+			required: c.f.params.len(),
+			received: args.len(),
+		});
 	}
 	// Assign arguments to parameters within a copy of the closure's environment.
 	let mut local_env = Env::new(Some(c.env.clone()));
@@ -392,18 +437,30 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 			match body {
 				Intrinsic::Top => match local_env.borrow().lookup(&"list".into()).unwrap() {
 					Val::List(List::Cons { head, .. }) => Ok((*head).clone()),
-					arg @ _ => Err(format!("top() expected a non-empty list, found {}", arg.to_string(&local_env))),
+					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "top()",
+						expected: Type::Cons,
+						actual: arg.get_type()
+					}),
 				},
 				Intrinsic::Pop => match local_env.borrow().lookup(&"list".into()).unwrap() {
 					Val::List(List::Cons { tail, .. }) => Ok(Val::List((*tail).clone())),
-					arg @ _ => Err(format!("pop() expected a non-empty list, found {}", arg.to_string(&local_env))),
+					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "pop()",
+						expected: Type::Cons,
+						actual: arg.get_type()
+					}),
 				},
 				Intrinsic::Push => match local_env.borrow().lookup(&"list".into()).unwrap() {
 					Val::List(list) => {
 						let value = local_env.borrow().lookup(&"value".into()).unwrap().clone();
 						Ok(Val::List(List::Cons { head: Box::new(value), tail: Rc::new(list.clone()) }))
 					},
-					arg @ _ => Err(format!("push() expected a list, found {}", arg.to_string(&local_env))),
+					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "push()",
+						expected: Type::List,
+						actual: arg.get_type()
+					}),
 				},
 				Intrinsic::Print => {
 					print!("{}", local_env.borrow().lookup(&"value".into()).unwrap().to_string(&local_env));
@@ -416,14 +473,18 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 				},
 				Intrinsic::ToReal => match local_env.borrow().lookup(&"value".into()).unwrap() {
 					Val::Prim(Prim::Num(number)) => Ok(Val::from(Num::Real(number.into()))),
-					arg @ _ => Err(format!("cannot convert {} to real", arg.to_string(&local_env))),
+					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
+						context: "real()",
+						expected: Type::Real,
+						actual: arg.get_type()
+					}),
 				},
 			}
 		}
 	}
 }
 
-fn negate_list(env: &Rc<RefCell<Env>>, list: List) -> Result<List, String> {
+fn negate_list(env: &Rc<RefCell<Env>>, list: List) -> Result<List, RuntimeError> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
@@ -438,14 +499,19 @@ fn eval_negation(env: &Rc<RefCell<Env>>, value: Val) -> EvalResult {
 		Val::Prim(Prim::Num(Num::Integer(integer))) => Ok(Val::Prim(Prim::Num(Num::Integer(-integer)))),
 		Val::Prim(Prim::Num(Num::Real(real))) => Ok(Val::Prim(Prim::Num(Num::Real(-real)))),
 		Val::List(list) => Ok(Val::List(negate_list(env, list)?)),
-		_ => Err(format!("cannot negate {}", value.to_string(env))),
+		_ => Err(RuntimeError::UnaryTypeMismatch {
+			context: "negation",
+			expected: Type::Boolean,
+			actual: value.get_type(),
+		}),
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use crate::interpreter::{eval, exec};
 	use crate::env::Env;
+	use crate::error::Error;
+	use crate::interpreter::{eval, exec};
 	use crate::number::Num;
 	use crate::primitives::Prim;
 	use crate::values::{Val, Tuple, List};
@@ -457,7 +523,7 @@ mod tests {
 	use std::str::FromStr;
 
 	#[test]
-	fn execution_of_empty_statement_returns_nothing() -> Result<(), String> {
+	fn execution_of_empty_statement_returns_nothing() -> Result<(), Error> {
 		assert_eq!((), exec(&mut Env::new(None), "")?);
 		Ok(())
 	}
@@ -465,7 +531,7 @@ mod tests {
 	mod logical_operators {
 		use super::*;
 		#[test]
-		fn and() -> Result<(), String> {
+		fn and() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "false and false")?);
 			assert_eq!(Val::from(false), eval(&mut env, "false and true")?);
@@ -474,7 +540,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn or() -> Result<(), String> {
+		fn or() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "false or false")?);
 			assert_eq!(Val::from(true), eval(&mut env, "false or true")?);
@@ -483,7 +549,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn not() -> Result<(), String> {
+		fn not() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "not true")?);
 			assert_eq!(Val::from(true), eval(&mut env, "not false")?);
@@ -491,21 +557,21 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn short_circuiting() -> Result<(), String> {
+		fn short_circuiting() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "false and 1/0")?);
 			assert_eq!(Val::from(true), eval(&mut env, "true or 1/0")?);
 			Ok(())
 		}
 		#[test]
-		fn and_precedes_or() -> Result<(), String> {
+		fn and_precedes_or() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "true or true and false")?);
 			assert_eq!(Val::from(true), eval(&mut env, "false and true or true")?);
 			Ok(())
 		}
 		#[test]
-		fn parenthesized() -> Result<(), String> {
+		fn parenthesized() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "(false) and true")?);
 			assert_eq!(Val::from(true), eval(&mut env, "false or ((true))")?);
@@ -517,21 +583,21 @@ mod tests {
 	mod comparisons {
 		use super::*;
 		#[test]
-		fn eq() -> Result<(), String> {
+		fn eq() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "1 = 1")?);
 			assert_eq!(Val::from(false), eval(&mut env, "1 = 2")?);
 			Ok(())
 		}
 		#[test]
-		fn neq() -> Result<(), String> {
+		fn neq() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "1 != 2")?);
 			assert_eq!(Val::from(false), eval(&mut env, "1 != 1")?);
 			Ok(())
 		}
 		#[test]
-		fn approx() -> Result<(), String> {
+		fn approx() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "true ~ true")?);
 			assert_eq!(Val::from(true), eval(&mut env, "real(1/3) ~ 0.333333333333")?);
@@ -540,7 +606,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn lt() -> Result<(), String> {
+		fn lt() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "1 < 2.0")?);
 			assert_eq!(Val::from(false), eval(&mut env, "1.0 < 1")?);
@@ -548,7 +614,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn leq() -> Result<(), String> {
+		fn leq() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "1 <= 2.0")?);
 			assert_eq!(Val::from(true), eval(&mut env, "1.0 <= 1")?);
@@ -556,7 +622,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn gt() -> Result<(), String> {
+		fn gt() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "1 > 2.0")?);
 			assert_eq!(Val::from(false), eval(&mut env, "1.0 > 1")?);
@@ -564,7 +630,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn geq() -> Result<(), String> {
+		fn geq() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "1 >= 2.0")?);
 			assert_eq!(Val::from(true), eval(&mut env, "1.0 >= 1")?);
@@ -572,7 +638,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn comparisons_and_logical_operators() -> Result<(), String> {
+		fn comparisons_and_logical_operators() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "1 = 1 and 2 = 2")?);
 			assert_eq!(Val::from(false), eval(&mut env, "1 = 1 and 2 = 3")?);
@@ -581,7 +647,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn non_numbers_are_equal_checkable_but_not_comparable() -> Result<(), String> {
+		fn non_numbers_are_equal_checkable_but_not_comparable() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			// Booleans and tuples can be equality-checked.
 			assert_eq!(Val::from(true), eval(&mut env, "true = true")?);
@@ -598,26 +664,26 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn different_types_compare_inequal() -> Result<(), String> {
+		fn different_types_compare_inequal() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(false), eval(&mut env, "[1, 2, 3] = (1, 2, 3)")?);
 			assert_eq!(Val::from(true), eval(&mut env, "(x -> x) != false")?);
 			Ok(())
 		}
 		#[test]
-		fn different_types_cannot_be_order_compared() -> Result<(), String> {
+		fn different_types_cannot_be_order_compared() -> Result<(), Error> {
 			assert!(eval(&mut Env::new(None), "(x -> x) < false").is_err());
 			Ok(())
 		}
 		#[test]
-		fn comparison_precedes_equality() -> Result<(), String> {
+		fn comparison_precedes_equality() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "1 < 2 = 2 < 3")?);
 			assert_eq!(Val::from(true), eval(&mut env, "1 > 2 != 2 < 3")?);
 			Ok(())
 		}
 		#[test]
-		fn parenthesized() -> Result<(), String> {
+		fn parenthesized() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "(1) = 1")?);
 			assert_eq!(Val::from(false), eval(&mut env, "1 != (1)")?);
@@ -632,25 +698,25 @@ mod tests {
 	mod conditional_expressions {
 		use super::*;
 		#[test]
-		fn true_is_lazy() -> Result<(), String> {
+		fn true_is_lazy() -> Result<(), Error> {
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "false ? 1/0 : 1")?);
 			Ok(())
 		}
 		#[test]
-		fn false_is_lazy() -> Result<(), String> {
+		fn false_is_lazy() -> Result<(), Error> {
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "true ? 1 : 1/0")?);
 			Ok(())
 		}
 	}
 
 	#[test]
-	fn subtraction_and_negation() -> Result<(), String> {
+	fn subtraction_and_negation() -> Result<(), Error> {
 		assert_eq!(Val::from(3), eval(&mut Env::new(None), "-1+-2*-2")?);
 		Ok(())
 	}
 
 	#[test]
-	fn simple_compound_expression_with_parentheses() -> Result<(), String> {
+	fn simple_compound_expression_with_parentheses() -> Result<(), Error> {
 		assert_eq!(Val::from(5), eval(&mut Env::new(None), "-5 *(1 +  -2)")?);
 		Ok(())
 	}
@@ -658,13 +724,13 @@ mod tests {
 	mod mixed_domain_math {
 		use super::*;
 		#[test]
-		fn real_literals_decay_to_integer() -> Result<(), String> {
+		fn real_literals_decay_to_integer() -> Result<(), Error> {
 			assert_eq!(Val::from(3), eval(&mut Env::new(None), "3.0")?);
 			assert_eq!(Val::from(4_000_000), eval(&mut Env::new(None), "4000000.0")?);
 			Ok(())
 		}
 		#[test]
-		fn addition() -> Result<(), String> {
+		fn addition() -> Result<(), Error> {
 			assert_eq!(Val::from(3), eval(&mut Env::new(None), "1 + 2")?);
 			assert_eq!(Val::from(3), eval(&mut Env::new(None), "1.0 + 2")?);
 			assert_eq!(Val::from(3), eval(&mut Env::new(None), "1 + 2.0")?);
@@ -674,7 +740,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn subtraction() -> Result<(), String> {
+		fn subtraction() -> Result<(), Error> {
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "2 - 1")?);
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "2.0 - 1")?);
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "2 - 1.0")?);
@@ -684,7 +750,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn multiplication() -> Result<(), String> {
+		fn multiplication() -> Result<(), Error> {
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2 * 1")?);
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2.0 * 1")?);
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2 * 1.0")?);
@@ -695,7 +761,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn division() -> Result<(), String> {
+		fn division() -> Result<(), Error> {
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2 / 1")?);
 			assert_eq!(Val::from(Num::rational(1, 2)), eval(&mut Env::new(None), "1 / 2")?);
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "1 / 2 * 2")?);
@@ -708,7 +774,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn exponentiation() -> Result<(), String> {
+		fn exponentiation() -> Result<(), Error> {
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2 ^ 1")?);
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2.0 ^ 1")?);
 			assert_eq!(Val::from(2), eval(&mut Env::new(None), "2 ^ 1.0")?);
@@ -720,13 +786,13 @@ mod tests {
 	}
 
 	#[test]
-	fn exponentiation_is_right_associative() -> Result<(), String> {
+	fn exponentiation_is_right_associative() -> Result<(), Error> {
 		assert_eq!(Val::from(262144), eval(&mut Env::new(None), "4^3^2")?);
 		Ok(())
 	}
 
 	#[test]
-	fn basic_assignment() -> Result<(), String> {
+	fn basic_assignment() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, "let x = 42")?;
 		assert_eq!(Val::from(42), eval(&mut env, "x")?);
@@ -736,18 +802,18 @@ mod tests {
 	mod tuples {
 		use super::*;
 		#[test]
-		fn singleton_collapses_into_contained_value() -> Result<(), String> {
+		fn singleton_collapses_into_contained_value() -> Result<(), Error> {
 			assert_eq!(Val::from(1), eval(&mut Env::new(None), "(1)")?);
 			Ok(())
 		}
 		#[test]
-		fn nested_tuple_of_numbers() -> Result<(), String> {
+		fn nested_tuple_of_numbers() -> Result<(), Error> {
 			let expected = make_tuple!(Val::from(1), make_tuple!(Val::from(2), Val::from(3)));
 			assert_eq!(expected, eval(&mut Env::new(None), "(1, (2, 3))")?);
 			Ok(())
 		}
 		#[test]
-		fn nested_tuple_of_numbers_and_booleans() -> Result<(), String> {
+		fn nested_tuple_of_numbers_and_booleans() -> Result<(), Error> {
 			let expected = make_tuple!(Val::from(true), make_tuple!(Val::from(2), Val::from(false)));
 			assert_eq!(expected, eval(&mut Env::new(None), "(1 < 2, (2, false))")?);
 			Ok(())
@@ -757,18 +823,18 @@ mod tests {
 	mod list_construction {
 		use super::*;
 		#[test]
-		fn singleton_list() -> Result<(), String> {
+		fn singleton_list() -> Result<(), Error> {
 			assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut Env::new(None), "[1]")?);
 			Ok(())
 		}
 		#[test]
-		fn nested_list_of_numbers() -> Result<(), String> {
+		fn nested_list_of_numbers() -> Result<(), Error> {
 			let expected = Val::List(make_list!(Val::from(1), Val::List(make_list!(Val::from(2), Val::from(3)))));
 			assert_eq!(expected, eval(&mut Env::new(None), "[1, [2, 3]]")?);
 			Ok(())
 		}
 		#[test]
-		fn nested_list_of_numbers_and_booleans() -> Result<(), String> {
+		fn nested_list_of_numbers_and_booleans() -> Result<(), Error> {
 			let expected = Val::List(make_list!(Val::from(true), Val::List(make_list!(Val::from(2), Val::from(false)))));
 			assert_eq!(expected, eval(&mut Env::new(None), "[1 < 2, [2, false]]")?);
 			Ok(())
@@ -791,13 +857,13 @@ mod tests {
 	mod math_operations_on_lists {
 		use super::*;
 		#[test]
-		fn negation() -> Result<(), String> {
+		fn negation() -> Result<(), Error> {
 			let expected = Val::List(make_list!(Val::from(-1), Val::from(-2), Val::from(-3)));
 			assert_eq!(expected, eval(&mut Env::new(None), "-[1, 2, 3]")?);
 			Ok(())
 		}
 		#[test]
-		fn addition() -> Result<(), String> {
+		fn addition() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			let expected = Val::List(make_list!(Val::from(2), Val::from(3), Val::from(4)));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 3] + 1")?);
@@ -805,7 +871,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn subtraction() -> Result<(), String> {
+		fn subtraction() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3)));
 			assert_eq!(expected, eval(&mut env, "[2, 3, 4]-1")?);
@@ -813,7 +879,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn multiplication() -> Result<(), String> {
+		fn multiplication() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			let expected = Val::List(make_list!(Val::from(2), Val::from(4), Val::from(6)));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 3]2")?);
@@ -821,7 +887,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn division() -> Result<(), String> {
+		fn division() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3)));
 			assert_eq!(expected, eval(&mut env, "[2, 4, 6]/2")?);
@@ -829,7 +895,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn exponentiation() -> Result<(), String> {
+		fn exponentiation() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			let expected = Val::List(make_list!(Val::from(1), Val::from(4), Val::from(16)));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 4]^2")?);
@@ -839,7 +905,7 @@ mod tests {
 	}
 
 	#[test]
-	fn simple_function_application() -> Result<(), String> {
+	fn simple_function_application() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, "let f = () -> 42")?;
 		assert_eq!(Val::from(42), eval(&mut env, "f()")?);
@@ -848,30 +914,30 @@ mod tests {
 
 	mod order_of_operations {
 		use super::*;
-		fn env_with_inc() -> Result<Rc<RefCell<Env>>, String> {
+		fn env_with_inc() -> Result<Rc<RefCell<Env>>, Error> {
 			let mut env = Env::new(None);
 			exec(&mut env, "let inc = a -> a + 1")?;
 			Ok(env)
 		}
 		#[test]
-		fn parenthesized_function_call_before_exponentiation() -> Result<(), String> {
+		fn parenthesized_function_call_before_exponentiation() -> Result<(), Error> {
 			assert_eq!(Val::from(36), eval(&mut env_with_inc()?, "4inc(2)^2")?);
 			Ok(())
 		}
 		#[test]
-		fn exponentiation_before_non_parenthesized_function_call() -> Result<(), String> {
+		fn exponentiation_before_non_parenthesized_function_call() -> Result<(), Error> {
 			assert_eq!(Val::from(20), eval(&mut env_with_inc()?, "4inc 2^2")?);
 			Ok(())
 		}
 		#[test]
-		fn exponentiation_before_negation() -> Result<(), String> {
+		fn exponentiation_before_negation() -> Result<(), Error> {
 			assert_eq!(Val::from(-9), eval(&mut Env::new(None), "-3^2")?);
 			Ok(())
 		}
 	}
 
 	#[test]
-	fn higher_order_functions() -> Result<(), String> {
+	fn higher_order_functions() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, "let apply = (f, a) -> f(a)")?;
 		assert_eq!(Val::from(42), eval(&mut env, "apply(a -> a, 42)")?);
@@ -879,7 +945,7 @@ mod tests {
 	}
 
 	#[test]
-	fn curried_function() -> Result<(), String> {
+	fn curried_function() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, "let sum = a -> b -> a + b")?;
 		assert_eq!(Val::from(3), eval(&mut env, "sum 1 2")?);
@@ -887,7 +953,7 @@ mod tests {
 	}
 
 	#[test]
-	fn environment_does_not_persist_between_function_chains() -> Result<(), String> {
+	fn environment_does_not_persist_between_function_chains() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, r"
 			let sum = a -> b -> a + b
@@ -899,7 +965,7 @@ mod tests {
 	}
 
 	#[test]
-	fn chained_application_with_and_without_parentheses() -> Result<(), String> {
+	fn chained_application_with_and_without_parentheses() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, r"
 			let sum = a -> b -> a + b
@@ -910,7 +976,7 @@ mod tests {
 	}
 
 	#[test]
-	fn chained_application_does_not_pollute_applications_higher_in_the_call_chain() -> Result<(), String> {
+	fn chained_application_does_not_pollute_applications_higher_in_the_call_chain() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, r"
 			let sum = a -> b -> a + b
@@ -921,7 +987,7 @@ mod tests {
 	}
 
 	#[test]
-	fn importing_core_constants() -> Result<(), String> {
+	fn importing_core_constants() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		let pi_str = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
 		let expected = Val::Prim(Prim::Num(Num::Real(BigDecimal::from_str(pi_str).unwrap())));
@@ -931,7 +997,7 @@ mod tests {
 	}
 
 	#[test]
-	fn blocks() -> Result<(), String> {
+	fn blocks() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		eval(&mut env, "{}")?;
 		eval(&mut env, "{ let a = 0 }")?;
@@ -943,28 +1009,28 @@ mod tests {
 	mod branch_statements {
 		use super::*;
 		#[test]
-		fn true_is_lazy() -> Result<(), String> {
+		fn true_is_lazy() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			exec(&mut env, "if false then let a = 1/0 else let a = 1")?;
 			assert_eq!(Val::from(1), eval(&mut env, "a")?);
 			Ok(())
 		}
 		#[test]
-		fn false_is_lazy() -> Result<(), String> {
+		fn false_is_lazy() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			exec(&mut env, "if true then let a = 1 else let a = 1/0")?;
 			assert_eq!(Val::from(1), eval(&mut env, "a")?);
 			Ok(())
 		}
 		#[test]
-		fn no_else_statement() -> Result<(), String> {
+		fn no_else_statement() -> Result<(), Error> {
 			assert_eq!((), exec(&mut Env::new(None), "if false then let a = 1/0")?);
 			Ok(())
 		}
 	}
 
 	#[test]
-	fn while_loops() -> Result<(), String> {
+	fn while_loops() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, r"
 			let a = 0
@@ -975,7 +1041,7 @@ mod tests {
 	}
 
 	#[test]
-	fn for_loops() -> Result<(), String> {
+	fn for_loops() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		exec(&mut env, r"
 			let a = 0
@@ -989,28 +1055,28 @@ mod tests {
 	mod intrinsics {
 		use super::*;
 		#[test]
-		fn top() -> Result<(), String> {
+		fn top() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(1), eval(&mut env, "top([1])")?);
 			assert!(eval(&mut env, "top([])").is_err());
 			Ok(())
 		}
 		#[test]
-		fn pop() -> Result<(), String> {
+		fn pop() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::List(make_list!()), eval(&mut env, "pop([1])")?);
 			assert!(eval(&mut env, "pop([])").is_err());
 			Ok(())
 		}
 		#[test]
-		fn push() -> Result<(), String> {
+		fn push() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut env, "push([], 1)")?);
 			assert_eq!(Val::List(make_list!(Val::from(2), Val::from(1))), eval(&mut env, "push([1], 2)")?);
 			Ok(())
 		}
 		#[test]
-		fn to_real() -> Result<(), String> {
+		fn to_real() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(1.0), eval(&mut env, "real(1)")?);
 			assert_eq!(Val::from(0.5), eval(&mut env, "real(1/2)")?);
