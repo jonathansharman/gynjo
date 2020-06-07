@@ -36,15 +36,6 @@ pub enum Num {
 }
 
 impl Num {
-	/// Converts this number to a user-readable string.
-	pub fn to_string(&self) -> String {
-		match self {
-			Num::Integer(n) => n.to_string(),
-			Num::Rational(n) => n.to_string(),
-			Num::Real(n) => n.to_string(),
-		}
-	}
-
 	/// Converts this number to the smallest domain that can contain its value.
 	pub fn shrink_domain(self) -> Num {
 		match self {
@@ -103,6 +94,16 @@ impl Num {
 			_ => Err(NumError::NonIntegralExponentsNotSupported),
 		}
 	}
+}
+
+impl fmt::Display for Num {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Num::Integer(n) => write!(f, "{}", n),
+			Num::Rational(n) => write!(f, "{}", n),
+			Num::Real(n) => write!(f, "{}", n),
+		}
+    }
 }
 
 impl From<i64> for Num {

@@ -7,6 +7,7 @@ use itertools::Itertools;
 
 use std::boxed::Box;
 use std::collections::VecDeque;
+use std::fmt;
 
 /// Binary Gynjo operators.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -24,22 +25,22 @@ pub enum BinOp {
 	Sub,
 }
 
-impl BinOp {
-	pub fn to_string(&self) -> String {
+impl fmt::Display for BinOp {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			BinOp::And => "and",
-			BinOp::Or => "or",
-			BinOp::Eq => "=",
-			BinOp::Neq => "!=",
-			BinOp::Approx => "~",
-			BinOp::Lt => "<",
-			BinOp::Leq => "<=",
-			BinOp::Gt => ">",
-			BinOp::Geq => ">=",
-			BinOp::Add => "+",
-			BinOp::Sub => "-",
-		}.to_string()
-	}
+			BinOp::And => write!(f, "and"),
+			BinOp::Or => write!(f, "or"),
+			BinOp::Eq => write!(f, "="),
+			BinOp::Neq => write!(f, "!="),
+			BinOp::Approx => write!(f, "~"),
+			BinOp::Lt => write!(f, "<"),
+			BinOp::Leq => write!(f, "<="),
+			BinOp::Gt => write!(f, ">"),
+			BinOp::Geq => write!(f, ">="),
+			BinOp::Add => write!(f, "+"),
+			BinOp::Sub => write!(f, "-"),
+		}
+    }
 }
 
 /// Binary Gynjo expressions.
@@ -50,10 +51,10 @@ pub struct BinExpr {
 	pub right: Box<Expr>,
 }
 
-impl BinExpr {
-	pub fn to_string(&self) -> String {
-		format!("({} {} {})", self.left.to_string(), self.op.to_string(), self.right.to_string())
-	}
+impl fmt::Display for BinExpr {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "({} {} {})", self.left, self.op, self.right)
+    }
 }
 
 /// The way in which a cluster item is attached to the preceding element of the cluster.
@@ -84,9 +85,10 @@ pub struct ClusterItem {
 	pub connector: ClusterConnector,
 }
 
-impl ClusterItem {
-	fn to_string(&self) -> String {
-		format!(
+impl fmt::Display for ClusterItem {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(
+			f,
 			"{}{}{}{}",
 			if self.negated { "-" } else { "" },
 			match self.connector {
@@ -98,9 +100,9 @@ impl ClusterItem {
 				ClusterConnector::Exp => " ^ ",
 			},
 			if let ClusterConnector::AdjParen = self.connector { ")" } else { "" },
-			self.expr.to_string()
+			self.expr
 		)
-	}
+    }
 }
 
 /// A cluster of function calls, exponentiations, (possibly implicit) multiplications, and/or divisions.
@@ -128,13 +130,13 @@ pub struct Lambda {
 	pub body: LambdaBody,
 }
 
-impl Lambda {
-	pub fn to_string(&self) -> String {
+impl fmt::Display for Lambda {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match &self.body {
-			LambdaBody::UserDefined(body) => format!("(({}) -> {})", self.params.iter().map(|s| s.name.clone()).join(", "), body.to_string()),
-			LambdaBody::Intrinsic(f) => f.name(),
+			LambdaBody::UserDefined(body) => write!(f, "(({}) -> {})", self.params.iter().map(|s| s.name.clone()).join(", "), body),
+			LambdaBody::Intrinsic(intrinsic) => write!(f, "{}", intrinsic),
 		}
-	}
+    }
 }
 
 /// Gynjo expressions.
@@ -156,21 +158,20 @@ pub enum Expr {
 	Prim(Prim),
 }
 
-impl Expr {
-	/// Converts this expression to a user-readable string.
-	pub fn to_string(&self) -> String {
+impl fmt::Display for Expr {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Expr::Cond { test, then_expr, else_expr } =>
-				format!("({} ? {} : {})", test.to_string(), then_expr.to_string(), else_expr.to_string()),
-			Expr::Block { stmts } => format!("{{ {} }}", stmts.iter().map(Stmt::to_string).join("; ")),
-			Expr::BinaryExpr(binary_expr) => binary_expr.to_string(),
-			Expr::Not { expr } => format!("(not {})", expr.to_string()),
-			Expr::Cluster(cluster) => format!("({})", cluster.items.iter().map(ClusterItem::to_string).join(" ")),
-			Expr::Lambda(f) => f.to_string(),
-			Expr::TupleExpr(exprs) => format!("({})", exprs.iter().map(Expr::to_string).join(", ")),
-			Expr::ListExpr(exprs) => format!("[{}]", exprs.iter().map(Expr::to_string).join(", ")),
-			Expr::Sym(symbol) => symbol.to_string(),
-			Expr::Prim(primitive) => primitive.to_string(),
+				write!(f, "({} ? {} : {})", test, then_expr, else_expr),
+			Expr::Block { stmts } => write!(f, "{{ {} }}", stmts.iter().map(Stmt::to_string).join("; ")),
+			Expr::BinaryExpr(binary_expr) => write!(f, "{}", binary_expr),
+			Expr::Not { expr } => write!(f, "(not {})", expr),
+			Expr::Cluster(cluster) => write!(f, "({})", cluster.items.iter().map(ClusterItem::to_string).join(" ")),
+			Expr::Lambda(lambda) => write!(f, "{}", lambda),
+			Expr::TupleExpr(exprs) => write!(f, "({})", exprs.iter().map(Expr::to_string).join(", ")),
+			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
+			Expr::Sym(symbol) => write!(f, "{}", symbol),
+			Expr::Prim(primitive) => write!(f, "{}", primitive),
 		}
-	}
+    }
 }

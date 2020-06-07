@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// Represents an intrinsic Gynjo function or its body, depending on context.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Intrinsic {
@@ -12,16 +14,15 @@ pub enum Intrinsic {
 	ToReal,
 }
 
-impl Intrinsic {
-	/// The intrinsic's user-readable name.
-	pub fn name(&self) -> String {
+impl fmt::Display for Intrinsic {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Intrinsic::Top => "top".to_string(),
-			Intrinsic::Pop => "pop".to_string(),
-			Intrinsic::Push => "push".to_string(),
-			Intrinsic::Print => "print".to_string(),
-			Intrinsic::Read => "read".to_string(),
-			Intrinsic::ToReal => "real".to_string(),
+			Intrinsic::Top => write!(f, "top"),
+			Intrinsic::Pop => write!(f, "pop"),
+			Intrinsic::Push => write!(f, "push"),
+			Intrinsic::Print => write!(f, "print"),
+			Intrinsic::Read => write!(f, "read"),
+			Intrinsic::ToReal => write!(f, "real"),
 		}
-	}
+    }
 }

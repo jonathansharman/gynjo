@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// A Gynjo symbol, e.g. a variable name.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Sym { pub name: String }
@@ -8,8 +10,8 @@ impl <S> From<S> for Sym where S: Into<String> {
     }
 }
 
-impl Sym {
-    pub fn to_string(&self) -> String {
-        self.name.clone()
+impl fmt::Display for Sym {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }

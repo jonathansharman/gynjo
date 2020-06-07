@@ -50,7 +50,7 @@ impl fmt::Display for ParseError {
                 write!(f, "Expected \"{}\" in {}, found \"{}\"", expected, context, actual)
             },
             ParseError::UnusedInput { first_unused } => {
-                write!(f, "Unused input starting at \"{}\"", first_unused.to_string())
+                write!(f, "Unused input starting at \"{}\"", first_unused)
             }
         }
     }

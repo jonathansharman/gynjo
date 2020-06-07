@@ -1,16 +1,18 @@
 use super::number::Num;
 
+use std::fmt;
+
 /// Boolean Gynjo type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Bool { True, False }
 
-impl Bool {
-	pub fn to_string(&self) -> String {
-		match self {
+impl fmt::Display for Bool {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", match self {
 			Bool::True => "true", 
 			Bool::False => "false",
-		}.to_string()
-	}
+		})
+    }
 }
 
 /// Gynjo boolean to Rust boolean.
@@ -38,15 +40,14 @@ pub enum Prim {
 	String(String),
 }
 
-impl Prim {
-	/// Converts this primitive to a user-readable string.
-	pub fn to_string(&self) -> String {
+impl fmt::Display for Prim {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Prim::Bool(b) => b.to_string(),
-			Prim::Num(n) => n.to_string(),
-			Prim::String(s) => format!("\"{}\"", s),
+			Prim::Bool(b) => write!(f, "{}", b),
+			Prim::Num(n) => write!(f, "{}", n),
+			Prim::String(s) => write!(f, "\"{}\"", s),
 		}
-	}
+    }
 }
 
 impl From<bool> for Prim {
