@@ -9,18 +9,17 @@ use num_traits::cast::ToPrimitive;
 use itertools::Itertools;
 
 use std::boxed::Box;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// Functional linked list of Gynjo values.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum List {
 	Empty,
-	Cons { head: Box<Val>, tail: Rc<List> },
+	Cons { head: Box<Val>, tail: Arc<List> },
 }
 
 impl List {
-	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
+	pub fn to_string(&self, env: &Arc<Mutex<Env>>) -> String {
 		format!("[{}]", self.iter().map(|elem| elem.to_string(&env)).join(", "))
 	}
 
@@ -53,7 +52,7 @@ macro_rules! make_list {
 	($head:expr $(, $tail:expr)*) => {
 		List::Cons {
 			head: Box::new($head),
-			tail: Rc::new(make_list!($($tail),*)),
+			tail: Arc::new(make_list!($($tail),*)),
 		}
 	}
 }
@@ -76,7 +75,7 @@ impl Tuple {
 		Tuple { elems: Box::new(Vec::new()) }
 	}
 
-	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
+	pub fn to_string(&self, env: &Arc<Mutex<Env>>) -> String {
 		format!("({})", self.elems.iter().map(|elem| elem.to_string(env)).join(", "))
 	}
 }
@@ -84,7 +83,7 @@ impl Tuple {
 #[derive(Clone, Debug)]
 pub struct Closure {
 	pub f: Lambda,
-	pub env: Rc<RefCell<Env>>,
+	pub env: Arc<Mutex<Env>>,
 }
 
 impl PartialEq for Closure {
@@ -164,7 +163,7 @@ impl Val {
 
 	/// Converts this value to a user-readable string.
 	/// `env` - Used for values whose string representation is environment-dependent.
-	pub fn to_string(&self, env: &Rc<RefCell<Env>>) -> String {
+	pub fn to_string(&self, env: &Arc<Mutex<Env>>) -> String {
 		match self {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
 			Val::Prim(primitive) => match primitive {
@@ -173,7 +172,7 @@ impl Val {
 					Num::Integer(integer) => integer.to_string(),
 					Num::Rational(rational) => rational.to_string(),
 					Num::Real(real) => {
-						let precision = env.borrow()
+						let precision = env.lock().unwrap()
 							// Look up precision setting.
 							.lookup(&Sym { name: "precision".to_string() })
 							// Interpret as an integer.

@@ -22,6 +22,7 @@ extern crate lazy_static;
 
 use error::Error;
 use interpreter::{exec, eval};
+use values::{Val, Tuple};
 
 use std::io::{self, Write};
 
@@ -52,10 +53,12 @@ fn main() {
 			// Execution failed. Try to evaluate the input as an expression.
 			match eval(&mut env, &input) {
 				Ok(value) => {
-					// Print the computed value.
-					println!("{}", value.to_string(&mut env));
-					// Assign the value to "ans".
-					env.borrow_mut().assign("ans".into(), value);
+					if value != Val::Tuple(Tuple::empty()) {
+						// Print the computed value.
+						println!("{}", value.to_string(&mut env));
+						// Assign the value to "ans".
+						env.lock().unwrap().assign("ans".into(), value);
+					}
 				},
 				Err(eval_error) => {
 					// Both failed. Display the highest-level error.

@@ -12,9 +12,8 @@ use super::values::{Closure, Tuple, List, Val};
 
 use bigdecimal::BigDecimal;
 
-use std::cell::RefCell;
 use std::io;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// Result of evaluating a Gynjo expression.
 type EvalResult = Result<Val, RuntimeError>;
@@ -23,7 +22,7 @@ type EvalResult = Result<Val, RuntimeError>;
 type ExecResult = Result<(), RuntimeError>;
 
 /// If possible, computes the value of `expr` in the context of `env`.
-pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
+pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 	match expr {
 		Expr::Cond { test, then_expr, else_expr } => {
 			eval_expr(&mut env, *test).and_then(|test_value| {
@@ -161,11 +160,11 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 		Expr::ListExpr(expr_elems) => {
 			let mut list = List::Empty;
 			for expr_elem in expr_elems.into_iter() {
-				list = List::Cons { head: Box::new(eval_expr(&mut env, expr_elem)?), tail: Rc::new(list) };
+				list = List::Cons { head: Box::new(eval_expr(&mut env, expr_elem)?), tail: Arc::new(list) };
 			}
 			Ok(Val::List(list))
 		},
-		Expr::Sym(symbol) => env.borrow().lookup(&symbol)
+		Expr::Sym(symbol) => env.lock().unwrap().lookup(&symbol)
 			.map(|v| v.clone())
 			.ok_or(RuntimeError::Undefined(symbol.name)),
 		Expr::Prim(primitive) => Ok(Val::Prim(match primitive {
@@ -176,7 +175,7 @@ pub fn eval_expr(mut env: &mut Rc<RefCell<Env>>, expr: Expr) -> EvalResult {
 }
 
 /// If possible, computes the value of the expression contained in `input` in the context of `env`.
-pub fn eval(env: &mut Rc<RefCell<Env>>, input: &str) -> Result<Val, Error> {
+pub fn eval(env: &mut Arc<Mutex<Env>>, input: &str) -> Result<Val, Error> {
 	// Lex.
 	let tokens = lex(input).map_err(Error::lex)?;
 	// Parse.
@@ -186,7 +185,7 @@ pub fn eval(env: &mut Rc<RefCell<Env>>, input: &str) -> Result<Val, Error> {
 }
 
 /// If possible, executes `stmt` in the context of `env`.
-fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
+fn exec_stmt(mut env: &mut Arc<Mutex<Env>>, stmt: Stmt) -> ExecResult {
 	match stmt {
 		Stmt::Nop => Ok(()),
 		Stmt::Import { filename } => {
@@ -203,7 +202,7 @@ fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
 		Stmt::Assign { lhs, rhs } => {
 			let rhs_value = eval_expr(env, *rhs)?;
 			// Perform the assignment, possibly overwriting the existing value.
-			env.borrow_mut().assign(lhs, rhs_value);
+			env.lock().unwrap().assign(lhs, rhs_value);
 			Ok(())
 		},
 		Stmt::Branch { test, then_stmt, else_stmt } => {
@@ -239,7 +238,7 @@ fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
 				Val::List(range_list) => {
 					for value in range_list.iter() {
 						// Assign the loop variable to the current value in the range list.
-						env.borrow_mut().assign(loop_var.clone(), value.clone());
+						env.lock().unwrap().assign(loop_var.clone(), value.clone());
 						// Execute the loop body in this context.
 						exec_stmt(env, (*body).clone())?;
 					}
@@ -265,7 +264,7 @@ fn exec_stmt(mut env: &mut Rc<RefCell<Env>>, stmt: Stmt) -> ExecResult {
 }
 
 /// If possible, executes the statements contained in `input` in the context of `env`.
-pub fn exec(env: &mut Rc<RefCell<Env>>, input: &str) -> Result<(), Error> {
+pub fn exec(env: &mut Arc<Mutex<Env>>, input: &str) -> Result<(), Error> {
 	// Lex.
 	let tokens = lex(input).map_err(Error::lex)?;
 	let mut token_slice = &tokens[..];
@@ -281,7 +280,7 @@ pub fn exec(env: &mut Rc<RefCell<Env>>, input: &str) -> Result<(), Error> {
 }
 
 /// Evaluates a numerical operation on a list and a number.
-fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: Num, number_on_left: bool, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> Result<List, RuntimeError> {
+fn list_num_op(env: &Arc<Mutex<Env>>, list: List, number: Num, number_on_left: bool, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> Result<List, RuntimeError> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
@@ -290,13 +289,13 @@ fn list_num_op(env: &Rc<RefCell<Env>>, list: List, number: Num, number_on_left: 
 			} else {
 				Box::new(bin_num_op(env, *head, Val::Prim(Prim::Num(number.clone())), op_name, op)?)
 			},
-			tail: Rc::new(list_num_op(env, (*tail).clone(), number, number_on_left, op_name, op)?),
+			tail: Arc::new(list_num_op(env, (*tail).clone(), number, number_on_left, op_name, op)?),
 		}),
 	}
 }
 
 /// Evaluates a numerical operation on two values.
-fn bin_num_op(env: &Rc<RefCell<Env>>, left: Val, right: Val, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
+fn bin_num_op(env: &Arc<Mutex<Env>>, left: Val, right: Val, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
 	match (left, right) {
 		// Number op Number
 		(Val::Prim(Prim::Num(left)), Val::Prim(Prim::Num(right))) => Ok(op(left, right)?),
@@ -325,7 +324,7 @@ struct EvaluatedClusterItem {
 	connector: ClusterConnector,
 }
 
-fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
+fn eval_evaluated_cluster(env: &mut Arc<Mutex<Env>>, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
 	if cluster.len() > 1 {
 		// Parenthesized applications
 		for idx in 0..cluster.len() - 1 {
@@ -390,7 +389,7 @@ fn eval_evaluated_cluster(env: &mut Rc<RefCell<Env>>, mut cluster: Vec<Evaluated
 }
 
 /// Evaluates a cluster expression.
-fn eval_cluster(env: &mut Rc<RefCell<Env>>, cluster: Cluster) -> EvalResult {
+fn eval_cluster(env: &mut Arc<Mutex<Env>>, cluster: Cluster) -> EvalResult {
 	// First, evaluate the cluster items.
 	let mut evaluated_cluster = Vec::with_capacity(cluster.items.len());
 	for item in cluster.items {
@@ -428,14 +427,14 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	// Assign arguments to parameters within a copy of the closure's environment.
 	let mut local_env = Env::new(Some(c.env.clone()));
 	for (variable, value) in c.f.params.into_iter().zip(args.into_iter()) {
-		local_env.borrow_mut().assign(variable, value);
+		local_env.lock().unwrap().assign(variable, value);
 	}
 	// Evaluate function body within the application environment.
 	match c.f.body {
 		LambdaBody::UserDefined(body) => eval_expr(&mut local_env, *body),
 		LambdaBody::Intrinsic(body) => {
 			match body {
-				Intrinsic::Top => match local_env.borrow().lookup(&"list".into()).unwrap() {
+				Intrinsic::Top => match local_env.lock().unwrap().lookup(&"list".into()).unwrap() {
 					Val::List(List::Cons { head, .. }) => Ok((*head).clone()),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "top()",
@@ -443,7 +442,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 						actual: arg.get_type()
 					}),
 				},
-				Intrinsic::Pop => match local_env.borrow().lookup(&"list".into()).unwrap() {
+				Intrinsic::Pop => match local_env.lock().unwrap().lookup(&"list".into()).unwrap() {
 					Val::List(List::Cons { tail, .. }) => Ok(Val::List((*tail).clone())),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "pop()",
@@ -451,19 +450,22 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 						actual: arg.get_type()
 					}),
 				},
-				Intrinsic::Push => match local_env.borrow().lookup(&"list".into()).unwrap() {
-					Val::List(list) => {
-						let value = local_env.borrow().lookup(&"value".into()).unwrap().clone();
-						Ok(Val::List(List::Cons { head: Box::new(value), tail: Rc::new(list.clone()) }))
-					},
-					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
-						context: "push()",
-						expected: Type::List,
-						actual: arg.get_type()
-					}),
+				Intrinsic::Push => {
+					let locked_env = local_env.lock().unwrap();
+					match locked_env.lookup(&"list".into()).unwrap() {
+						Val::List(list) => {
+							let value = locked_env.lookup(&"value".into()).unwrap().clone();
+							Ok(Val::List(List::Cons { head: Box::new(value), tail: Arc::new(list.clone()) }))
+						},
+						arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
+							context: "push()",
+							expected: Type::List,
+							actual: arg.get_type()
+						}),
+					}
 				},
 				Intrinsic::Print => {
-					print!("{}", local_env.borrow().lookup(&"value".into()).unwrap().to_string(&local_env));
+					println!("{}", local_env.lock().unwrap().lookup(&"value".into()).unwrap().to_string(&local_env));
 					Ok(Val::Tuple(Tuple::empty()))
 				},
 				Intrinsic::Read => {
@@ -471,7 +473,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					io::stdin().read_line(&mut input).unwrap();
 					Ok(Val::from(input.trim().to_string()))
 				},
-				Intrinsic::ToReal => match local_env.borrow().lookup(&"value".into()).unwrap() {
+				Intrinsic::ToReal => match local_env.lock().unwrap().lookup(&"value".into()).unwrap() {
 					Val::Prim(Prim::Num(number)) => Ok(Val::from(Num::Real(number.into()))),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "real()",
@@ -484,17 +486,17 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	}
 }
 
-fn negate_list(env: &Rc<RefCell<Env>>, list: List) -> Result<List, RuntimeError> {
+fn negate_list(env: &Arc<Mutex<Env>>, list: List) -> Result<List, RuntimeError> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
 			head: Box::new(eval_negation(env, *head)?),
-			tail: Rc::new(negate_list(env, (*tail).clone())?),
+			tail: Arc::new(negate_list(env, (*tail).clone())?),
 		}),
 	}
 }
 
-fn eval_negation(env: &Rc<RefCell<Env>>, value: Val) -> EvalResult {
+fn eval_negation(env: &Arc<Mutex<Env>>, value: Val) -> EvalResult {
 	match value {
 		Val::Prim(Prim::Num(Num::Integer(integer))) => Ok(Val::Prim(Prim::Num(Num::Integer(-integer)))),
 		Val::Prim(Prim::Num(Num::Real(real))) => Ok(Val::Prim(Prim::Num(Num::Real(-real)))),
@@ -518,9 +520,8 @@ mod tests {
 
 	use bigdecimal::BigDecimal;
 
-	use std::cell::RefCell;
-	use std::rc::Rc;
 	use std::str::FromStr;
+	use std::sync::{Arc, Mutex};
 
 	#[test]
 	fn execution_of_empty_statement_returns_nothing() -> Result<(), Error> {
@@ -914,7 +915,7 @@ mod tests {
 
 	mod order_of_operations {
 		use super::*;
-		fn env_with_inc() -> Result<Rc<RefCell<Env>>, Error> {
+		fn env_with_inc() -> Result<Arc<Mutex<Env>>, Error> {
 			let mut env = Env::new(None);
 			exec(&mut env, "let inc = a -> a + 1")?;
 			Ok(env)
@@ -1083,4 +1084,126 @@ mod tests {
 			Ok(())
 		}
 	}
+
+	mod core_libs {
+		use super::*;
+		mod basic_math {
+			use super::*;
+			#[test]
+			fn absolute_value() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::from(5), eval(&mut env, "abs 5")?);
+				assert_eq!(Val::from(5), eval(&mut env, "abs(-5)")?);
+				Ok(())
+			}
+		}
+		mod combinatorics {
+			use super::*;
+			#[test]
+			fn factorial() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::from(120), eval(&mut env, "fact 5")?);
+				Ok(())
+			}
+			#[test]
+			fn permutations() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::from(60), eval(&mut env, "nPk(5, 3)")?);
+				Ok(())
+			}
+			#[test]
+			fn combinations() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				// Using an epsilon here because of the division.
+				assert_eq!(Val::from(true), eval(&mut env, "abs(nCk(5, 3) - 10) < 10**-50")?);
+				Ok(())
+			}
+		}
+		mod list_ops {
+			use super::*;
+			#[test]
+			fn len() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::from(0), eval(&mut env, "len []")?);
+				assert_eq!(Val::from(3), eval(&mut env, "len [1, 2, 3]")?);
+				Ok(())
+			}
+			#[test]
+			fn nth() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert!(eval(&mut env, "nth([], 0)").is_err());
+				assert_eq!(Val::from(2), eval(&mut env, "nth([1, 2, 3], 1)")?);
+				Ok(())
+			}
+			#[test]
+			fn append() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3))), eval(&mut env, "append([1, 2], 3)")?);
+				Ok(())
+			}
+			#[test]
+			fn reverse() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(3), Val::from(2), Val::from(1))), eval(&mut env, "reverse [1, 2, 3]")?);
+				Ok(())
+			}
+			#[test]
+			fn concat() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3), Val::from(4)));
+				assert_eq!(expected, eval(&mut env, "concat([1, 2], [3, 4])")?);
+				Ok(())
+			}
+			#[test]
+			fn insert_into_non_empty() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3)));
+				assert_eq!(expected, eval(&mut env, "insert([1, 3], 1, 2)")?);
+				Ok(())
+			}
+			#[test]
+			fn insert_into_empty() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut env, "insert([], 0, 1)")?);
+				Ok(())
+			}
+			#[test]
+			fn remove_from_middle() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(3))), eval(&mut env, "remove([1, 2, 3], 1)")?);
+				Ok(())
+			}
+			#[test]
+			fn remove_from_beginning() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(2), Val::from(3))), eval(&mut env, "remove([1, 2, 3], 0)")?);
+				Ok(())
+			}
+			#[test]
+			fn map() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(4), Val::from(9))), eval(&mut env, "map([1, 2, 3], x -> x^2)")?);
+				Ok(())
+			}
+			#[test]
+			fn reduce() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::from(6), eval(&mut env, "reduce([1, 2, 3], 0, (a, b) -> a + b)")?);
+				Ok(())
+			}
+			#[test]
+			fn flatmap() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				let expected = Val::List(make_list!(Val::from(1), Val::from(1), Val::from(2), Val::from(2)));
+				assert_eq!(expected, eval(&mut env, "flatmap([1, 2], x -> [x, x])")?);
+				Ok(())
+			}
+			#[test]
+			fn range() -> Result<(), Error> {
+				let mut env = Env::with_core_libs();
+				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3))), eval(&mut env, "range(1, 3)")?);
+				Ok(())
+			}
+		}
+	}	
 }
