@@ -38,6 +38,7 @@ fn main() {
 		io::stdout().flush().unwrap();
 		let mut input = String::new();
 		io::stdin().read_line(&mut input).unwrap();
+		input = input.trim().into();
 		while let Some('\\') = input.chars().last() {
 			// Continue line. Add a space to ensure new token on next line.
 			input.pop();
