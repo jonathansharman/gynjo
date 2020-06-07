@@ -53,6 +53,8 @@ fn main() {
 				Ok(value) => {
 					// Print the computed value.
 					println!("{}", value.to_string(&mut env));
+					// Assign the value to "ans".
+					env.borrow_mut().assign("ans".into(), value);
 				},
 				Err(eval_error) => {
 					// Both failed. Display the highest-level error.
