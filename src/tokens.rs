@@ -1,61 +1,124 @@
 use super::intrinsics::Intrinsic;
-use super::primitives::Prim;
+use super::number::Num;
+use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
 
+use bigdecimal::BigDecimal;
+use logos::Logos;
+use num_bigint::BigInt;
+
 use std::fmt;
+use std::str::FromStr;
 
 /// Gynjo tokens.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Logos, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Tok {
+	#[token("import")]
 	Import,
+	#[token("let")]
 	Let,
 	// Branch
+	#[token("if")]
 	If,
+	#[token("then")]
 	Then,
+	#[token("else")]
 	Else,
 	// Loops/blocks
+	#[token("while")]
 	While,
+	#[token("for")]
 	For,
+	#[token("in")]
 	In,
+	#[token("do")]
 	Do,
+	#[token("return")]
 	Return,
 	// Boolean ops
+	#[token("and")]
 	And,
+	#[token("or")]
 	Or,
+	#[token("not")]
 	Not,
 	// Comparison ops
+	#[token("=")]
 	Eq,
+	#[token("!=")]
 	Neq,
+	#[token("<")]
 	Lt,
+	#[token("<=")]
 	Leq,
+	#[token(">")]
 	Gt,
+	#[token(">=")]
 	Geq,
+	#[token("~")]
 	Approx,
 	// Arithmetic ops
+	#[token("+")]
 	Plus,
+	#[token("-")]
 	Minus,
+	#[token("*")]
 	Mul,
+	#[token("/")]
 	Div,
+	#[regex(r"(\*\*)|\^")]
 	Exp,
 	// Brackets
+	#[token("(")]
 	Lparen,
+	#[token(")")]
 	Rparen,
+	#[token("[")]
 	Lsquare,
+	#[token("]")]
 	Rsquare,
+	#[token("{")]
 	Lcurly,
+	#[token("}")]
 	Rcurly,
 	// Punctuation
+	#[token(",")]
 	Comma,
+	#[token(";")]
 	Semicolon,
+	#[token("->")]
 	Arrow,
+	#[token("?")]
 	Question,
+	#[token(":")]
 	Colon,
 	// Intrinsic function
+	#[token("top", |_| Some(Intrinsic::Top))]
+	#[token("pop", |_| Some(Intrinsic::Pop))]
+	#[token("push", |_| Some(Intrinsic::Push))]
+	#[token("print", |_| Some(Intrinsic::Print))]
+	#[token("read", |_| Some(Intrinsic::Read))]
+	#[token("real", |_| Some(Intrinsic::ToReal))]
 	Intrinsic(Intrinsic),
 	// Symbol
+	#[regex("[a-zA-Z_]+", |lex| Some(Sym::from(lex.slice())))]
 	Sym(Sym),
 	// Primitive
+	#[token("true", |_| Some(Prim::Bool(Bool::True)))]
+	#[token("false", |_| Some(Prim::Bool(Bool::False)))]
+	#[regex(r"(0|([1-9]\d*))?\.\d+", |lex| Some(Prim::Num(Num::Real(BigDecimal::from_str(lex.slice()).unwrap()))))]
+	#[regex(r"0|([1-9]\d*)", |lex| Some(Prim::Num(Num::Integer(BigInt::from_str(lex.slice()).unwrap()))))]
+	#[regex(r#""([^"\\]|\\["\\])*""#, |lex| {
+		// Strip enclosing quotes and escape characters.
+		Some(Prim::from(lex.slice()[1..lex.slice().len() - 1].replace(r#"\""#, r#"""#).replace(r"\\", r"\")))
+	})]
 	Prim(Prim),
+	#[error]
+	// Whitespace (ignored)
+	#[regex(r"\s+", logos::skip)]
+	// Line comment (ignored)
+	#[regex(r"//.*", logos::skip)]
+	Error,
 }
 
 impl From<bool> for Tok {
@@ -73,16 +136,6 @@ impl From<i64> for Tok {
 impl From<f64> for Tok {
 	fn from(n: f64) -> Tok {
 		Tok::Prim(Prim::from(n))
-	}
-}
-
-impl Tok {
-	pub fn from_string<S>(s: S) -> Tok where S: Into<String> {
-		Tok::Prim(Prim::from(s.into()))
-	}
-
-	pub fn from_symbol<S>(s: S) -> Tok where S: Into<String> {
-		Tok::Sym(Sym::from(s))
 	}
 }
 
@@ -128,6 +181,7 @@ impl fmt::Display for Tok {
 			Tok::Intrinsic(intrinsic) => write!(f, "{}", intrinsic),
 			Tok::Sym(symbol) => write!(f, "{}", symbol),
 			Tok::Prim(primitive) => write!(f, "{}", primitive),
+		    Tok::Error => write!(f, "error"),
 		}
     }
 }

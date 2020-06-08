@@ -216,7 +216,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				Intrinsic::Read => vec!(),
 				Intrinsic::ToReal => vec!(Sym::from("value")),
 			};
-			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(f.clone()) })))
+			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(*f) })))
 		},
 		// Symbol or lambda
 		[Tok::Sym(symbol), tokens @ ..] => {
@@ -425,7 +425,7 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseStmtResult {
 		},
 		_ => Err(ParseError::Expected {
 			context: "for-loop",
-			expected: "\"<loop variable> in <body>\"".into(),
+			expected: "<loop variable> in <body>".into(),
 		}),
 	}
 }
@@ -476,7 +476,7 @@ fn parse_assignment(tokens: &[Tok]) -> ParseStmtResult {
 	match tokens {
 		[] => Err(ParseError::Expected {
 			context: "assignment",
-			expected: "\"<variable> = <value>\"".into(),
+			expected: "<variable> = <value>".into(),
 		}),
 		[Tok::Sym(lhs), after_symbol @ ..] => {
 			// Parse "=".
