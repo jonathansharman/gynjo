@@ -1,9 +1,17 @@
-use super::interpreter::exec;
+use super::interpreter::eval;
 use super::symbol::Sym;
 use super::values::Val;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+macro_rules! import_core_lib {
+	($env:ident, $core_lib:literal) => {
+		if let Err(err) = eval(&mut $env, include_str!($core_lib)) {
+			println!("Error importing core library \"{}\": {}", $core_lib, err);
+		}
+	};
+}
 
 /// A chained set of variable mappings.
 #[derive(Debug)]
@@ -28,8 +36,8 @@ impl Env {
 		lazy_static! {
 			static ref CORE_LIBS: Arc<Mutex<Env>> = {
 				let mut parent = Env::new(None);
-				import_lib(&mut parent, r#""core/constants.gynj""#);
-				import_lib(&mut parent, r#""core/core.gynj""#);
+				import_core_lib!(parent, "../core/constants.gynj");
+				import_core_lib!(parent, "../core/core.gynj");
 				parent
 			};
 		}
@@ -50,9 +58,9 @@ impl Env {
 	}
 }
 
-/// Attempts to import `lib` into `env`. Displays an error message on failure.
-pub fn import_lib(env: &mut Arc<Mutex<Env>>, lib: &str) {
-	if let Err(err) = exec(env, &format!("import {}", lib)) {
-		println!("Error while importing {}: {}", lib, err);
+/// Attempts to import library at `filename` into `env`. Displays an error message on failure.
+pub fn import_lib_from_path(env: &mut Arc<Mutex<Env>>, filename: &str) {
+	if let Err(err) = eval(env, &format!("import {}", filename)) {
+		println!("Error importing {}: {}", filename, err);
 	}
 }

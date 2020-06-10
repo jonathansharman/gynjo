@@ -2,7 +2,6 @@ use super::error::ParseError;
 use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::primitives::Prim;
-use super::stmts::Stmt;
 use super::symbol::Sym;
 use super::tokens::Tok;
 
@@ -11,9 +10,6 @@ use std::collections::VecDeque;
 
 /// Result of expression parsing: (remaining tokens, parsed expression).
 type ParseExprResult<'a> = Result<(&'a [Tok], Expr), ParseError>;
-
-/// Result of statement parsing: (remaining tokens, parsed statement).
-type ParseStmtResult<'a> = Result<(&'a [Tok], Stmt), ParseError>;
 
 /// Parses an expression, requring all input to be consumed.
 pub fn parse_expr_with_all(tokens: &[Tok]) -> Result<Expr, ParseError> {
@@ -28,38 +24,15 @@ pub fn parse_expr_with_all(tokens: &[Tok]) -> Result<Expr, ParseError> {
 /// If possible, parses the next single expression from `tokens`.
 /// Returns a slice of the unused tokens along with the parsed expression.
 fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
-	let (tokens, negation_result) = parse_negation(&tokens)?;
-	// Check for conditional expression.
-	let (tokens, is_conditional_expr) = parse_optional_token(&tokens, &Tok::Question);
-	if is_conditional_expr {
-		// Parse expression if true.
-		let (tokens, then_expr) = parse_expr(tokens)?;
-		// Parse ":".
-		let tokens = parse_required_token(&tokens, &Tok::Colon, "conditional expression")?;
-		// Parse expression if false.
-		let (tokens, else_expr) = parse_expr(tokens)?;
-		Ok((tokens, Expr::Cond { test: Box::new(negation_result), then_expr: Box::new(then_expr), else_expr: Box::new(else_expr) }))
-	} else {
-		Ok((tokens, negation_result))
-	}
-}
-
-/// If possible, parses the next single statement from `tokens`.
-/// Returns an iterator to the next unused token along with the parsed statement, or an error message.
-pub fn parse_stmt<'a>(tokens: &'a [Tok]) -> ParseStmtResult {
 	match tokens {
-		[] => Ok((tokens, Stmt::Nop)),
+		[] => Ok((tokens, Expr::TupleExpr(Box::new(Vec::new())))),
 		[Tok::Import, rest @ ..] => parse_import(rest),
 		[Tok::Let, rest @ ..] => parse_assignment(rest),
 		[Tok::If, rest @ ..] => parse_branch(rest),
 		[Tok::While, rest @ ..] => parse_while_loop(rest),
 		[Tok::For, rest @ ..] => parse_for_loop(rest),
 		[Tok::Return, rest @ ..] => parse_ret(rest),
-		_ => {
-			let (tokens, expr) = parse_expr(tokens)?;
-			let tokens = parse_required_token(&tokens, &Tok::Semicolon, "expression statement")?;
-			Ok((tokens, Stmt::ExprStmt(Box::new(expr))))
-		},
+		_ => parse_logical_negation(tokens),
 	}
 }
 
@@ -193,19 +166,31 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		// Block
 		[Tok::Lcurly, after_lcurly @ ..] => {
 			let mut tokens = after_lcurly;
-			let mut stmts = Box::new(Vec::new());
-			// Parse statements.
+			let mut exprs = Box::new(Vec::new());
+			// Parse expressions.
+			let mut final_semicolon = false;
 			loop {
-				if let Ok((after_stmt, stmt)) = parse_stmt(tokens) {
-					tokens = after_stmt;
-					stmts.push(stmt);
-				} else {
-					break;
+				match tokens {
+					[Tok::Semicolon, after_semicolon @ ..] => {
+						// Semicolons optionally separate block expressions.
+						tokens = after_semicolon;
+						final_semicolon = true;
+					},
+					[Tok::Rcurly, after_rclurly @ ..] => {
+						// End of block. If block ended with a semicolon, the result is ().
+						if final_semicolon {
+							exprs.push(Expr::TupleExpr(Box::new(Vec::new())));
+						}
+						return Ok((after_rclurly, Expr::Block { exprs }))
+					},
+					_ => {
+						let (after_expr, expr) = parse_expr(tokens)?;
+						tokens = after_expr;
+						exprs.push(expr);
+						final_semicolon = false;
+					},
 				}
 			}
-			// Parse close curly brace.
-			tokens = parse_required_token(&tokens, &Tok::Rcurly, "block")?;
-			return Ok((tokens, Expr::Block { stmts: stmts }));
 		},
 		// Intrinsic function
 		[Tok::Intrinsic(f), tokens @ ..] => {
@@ -350,7 +335,7 @@ fn parse_binary_expressions<'a>(tokens: &'a [Tok], subparse: fn(&'a [Tok]) -> Pa
 					let (after_expr, next_expr) = subparse(&tokens[1..])?;
 					tokens = after_expr;
 					// Incorporate next expression into expression.
-					exprs = Expr::BinaryExpr(BinExpr {
+					exprs = Expr::BinExpr(BinExpr {
 						op: *op,
 						left: Box::new(exprs),
 						right: Box::new(next_expr),
@@ -393,10 +378,10 @@ fn parse_disjunctions(tokens: &[Tok]) -> ParseExprResult {
 }
 
 /// Parses a logical negation. Note that negation is right-associative.
-fn parse_negation(tokens: &[Tok]) -> ParseExprResult {
+fn parse_logical_negation(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		[Tok::Not, tokens @ ..] => {
-			let (tokens, expr) = parse_negation(tokens)?;
+			let (tokens, expr) = parse_logical_negation(tokens)?;
 			Ok((tokens, Expr::Not { expr: Box::new(expr) }))
 		},
 		_ => parse_disjunctions(tokens),
@@ -404,13 +389,13 @@ fn parse_negation(tokens: &[Tok]) -> ParseExprResult {
 }
 
 /// Parses a return statement, starting after "return".
-fn parse_ret(tokens: &[Tok]) -> ParseStmtResult {
+fn parse_ret(tokens: &[Tok]) -> ParseExprResult {
 	let (tokens, expr) = parse_expr(tokens)?;
-	Ok((tokens, Stmt::Return { result: Box::new(expr) }))
+	Ok((tokens, Expr::Return { result: Box::new(expr) }))
 }
 
 /// Parses a for-loop, starting after "for".
-fn parse_for_loop(tokens: &[Tok]) -> ParseStmtResult {
+fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		// Parse loop variable and "in".
 		[Tok::Sym(loop_var), Tok::In, tokens @ ..] => {
@@ -419,9 +404,9 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseStmtResult {
 			// Parse "do".
 			let tokens = parse_required_token(tokens, &Tok::Do, "for-loop")?;
 			// Parse body.
-			let (tokens, body) = parse_stmt(tokens)?;
+			let (tokens, body) = parse_expr(tokens)?;
 			// Assemble for-loop.
-			Ok((tokens, Stmt::ForLoop { loop_var: loop_var.clone(), range: Box::new(range), body: Box::new(body) }))
+			Ok((tokens, Expr::ForLoop { loop_var: loop_var.clone(), range: Box::new(range), body: Box::new(body) }))
 		},
 		_ => Err(ParseError::Expected {
 			context: "for-loop",
@@ -431,47 +416,47 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseStmtResult {
 }
 
 /// Parses a while-loop, starting after "while".
-fn parse_while_loop(tokens: &[Tok]) -> ParseStmtResult {
+fn parse_while_loop(tokens: &[Tok]) -> ParseExprResult {
 	// Parse test expression.
 	let (tokens, test_expr) = parse_expr(&tokens)?;
 	// Parse "do".
 	let tokens = parse_required_token(&tokens, &Tok::Do, "while-loop")?;
 	// Parse body.
-	let (tokens, body_stmt) = parse_stmt(tokens)?;
+	let (tokens, body_expr) = parse_expr(tokens)?;
 	// Assemble while-loop.
-	Ok((tokens, Stmt::WhileLoop {
+	Ok((tokens, Expr::WhileLoop {
 		test: Box::new(test_expr),
-		body: Box::new(body_stmt),
+		body: Box::new(body_expr),
 	}))
 }
 
 /// Parses a branch statment - if-then or if-then-else - starting after "if".
-fn parse_branch(tokens: &[Tok]) -> ParseStmtResult {
+fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 	// Parse test expression.
 	let (tokens, test_expr) = parse_expr(&tokens)?;
 	// Parse "then".
 	let tokens = parse_required_token(&tokens, &Tok::Then, "branch statement")?;
 	// Parse "then" branch.
-	let (tokens, then_stmt) = parse_stmt(&tokens)?;
+	let (tokens, then_expr) = parse_expr(&tokens)?;
 	// Check for "else" branch.
 	let (tokens, has_else_branch) = parse_optional_token(&tokens, &Tok::Else);
-	let (tokens, else_stmt) = if has_else_branch {
+	let (tokens, else_expr) = if has_else_branch {
 		// Parse "else" branch.
-		parse_stmt(tokens)?
+		parse_expr(tokens)?
 	} else {
-		// Missing else statement is a no-op.
-		(tokens, Stmt::Nop)
+		// Missing else branch is equivalent to ().
+		(tokens, Expr::TupleExpr(Box::new(Vec::new())))
 	};
 	// Assemble branch statement.
-	Ok((tokens, Stmt::Branch {
+	Ok((tokens, Expr::Branch {
 		test: Box::new(test_expr),
-		then_stmt: Box::new(then_stmt),
-		else_stmt: Box::new(else_stmt),
+		then_expr: Box::new(then_expr),
+		else_expr: Box::new(else_expr),
 	}))
 }
 
 /// Parses an assignment operation, starting after "let".
-fn parse_assignment(tokens: &[Tok]) -> ParseStmtResult {
+fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 	// Parse LHS.
 	match tokens {
 		[] => Err(ParseError::Expected {
@@ -484,7 +469,7 @@ fn parse_assignment(tokens: &[Tok]) -> ParseStmtResult {
 			// Parse RHS.
 			let (after_rhs, rhs) = parse_expr(after_eq)?;
 			// Assemble assignment from symbol and RHS.
-			Ok((after_rhs, Stmt::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
+			Ok((after_rhs, Expr::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
 		},
 		[invalid @ _, ..] => Err(ParseError::Swapped {
 			context: "assignment",
@@ -495,14 +480,14 @@ fn parse_assignment(tokens: &[Tok]) -> ParseStmtResult {
 }
 
 /// Parses an import statement, starting after "import".
-fn parse_import(tokens: &[Tok]) -> ParseStmtResult {
+fn parse_import(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		[] => Err(ParseError::Expected {
 			context: "import statement",
 			expected: "import target".into(),
 		}),
-		[Tok::Sym(Sym { name }), tokens @ ..] => Ok((tokens, Stmt::Import { filename : name.clone() })),
-		[Tok::Prim(Prim::String(filename)), tokens @ ..] => Ok((tokens, Stmt::Import { filename: filename.clone() })),
+		[Tok::Sym(Sym { name }), tokens @ ..] => Ok((tokens, Expr::Import { filename : name.clone() })),
+		[Tok::Prim(Prim::String(filename)), tokens @ ..] => Ok((tokens, Expr::Import { filename: filename.clone() })),
 		[first, ..] => Err(ParseError::Swapped {
 			context: "import statement",
 			expected: "import target (symbol or string)".into(),

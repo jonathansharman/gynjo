@@ -12,7 +12,6 @@ mod lexer;
 mod number;
 mod parser;
 mod primitives;
-mod stmts;
 mod symbol;
 mod tokens;
 mod types;
@@ -20,9 +19,8 @@ mod types;
 #[macro_use]
 extern crate lazy_static;
 
-use error::Error;
-use interpreter::{exec, eval};
-use values::{Val, Tuple};
+use interpreter::eval;
+use values::Val;
 
 use std::io::{self, Write};
 
@@ -31,10 +29,11 @@ fn main() {
 	let mut env = env::Env::with_core_libs();
 
 	// Try to load user's profile script.
-	env::import_lib(&mut env, "\"profile.gynj\"");
+	env::import_lib_from_path(&mut env, "\"profile.gynj\"");
 
 	// REPL
 	loop {
+		// Read input.
 		print!(">> ");
 		io::stdout().flush().unwrap();
 		let mut input = String::new();
@@ -48,31 +47,17 @@ fn main() {
 			io::stdout().flush().unwrap();
 			io::stdin().read_line(&mut input).unwrap();
 		}
-		// First try to execute the input as a statement.
-		if let Err(exec_error) = exec(&mut env, &input) {
-			// Execution failed. Try to evaluate the input as an expression.
-			match eval(&mut env, &input) {
-				Ok(value) => {
-					if value != Val::Tuple(Tuple::empty()) {
-						// Print the computed value.
-						println!("{}", value.to_string(&mut env));
-						// Assign the value to "ans".
-						env.lock().unwrap().assign("ans".into(), value);
-					}
-				},
-				Err(eval_error) => {
-					// Both failed. Display the highest-level error.
-					let error = match (exec_error, eval_error) {
-						(Error::Runtime(runtime_error), _) => Error::Runtime(runtime_error),
-						(_, Error::Runtime(runtime_error)) => Error::Runtime(runtime_error),
-						(Error::Parse(parse_error), _) => Error::Parse(parse_error),
-						(_, Error::Parse(parse_error)) => Error::Parse(parse_error),
-						// It's a tie. Display evaluation error by default.
-						(_, eval_error @ _) => eval_error,
-					};
-					println!("{}", error);
+		// Evaluate.
+		match eval(&mut env, &input) {
+			Ok(value) => {
+				if value != Val::empty() {
+					// Print the computed value.
+					println!("{}", value.to_string(&mut env));
+					// Assign the value to "ans".
+					env.lock().unwrap().assign("ans".into(), value);
 				}
-			}
+			},
+			Err(error) => println!("{}", error),
 		}
 	}
 }

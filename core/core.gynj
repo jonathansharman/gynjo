@@ -1,116 +1,118 @@
-// List operations
+{
+	// List operations
 
-let len = list -> {
-	let result = 0
-	while list != [] do {
-		let result = result + 1
-		let list = pop(list)
-	};
-	return result
-}
-
-let nth = (list, n) -> {
-	while n > 0 do {
-		let n = n - 1
-		let list = pop(list)
-	};
-	return top(list)
-}
-
-let append = (list, value) ->
-	list = []
-		? [value]
-		: push(append(pop(list), value), top(list))
-
-let reverse = list -> {
-	let result = []
-	while list != [] do {
-		let result = push(result, top(list))
-		let list = pop(list)
-	};
-	return result
-}
-
-let concat = (left_list, right_list) ->
-	left_list = []
-		? right_list
-		: push(concat(pop(left_list), right_list), top(left_list))
-
-let insert = (list, index, value) ->
-	index = 0 ? push(list, value) : {
-		let result = []
-		let i = 0
+	let len = list -> {
+		let result = 0;
 		while list != [] do {
-			if i = index then let result = push(result, value)
-			let result = push(result, top(list))
-			let list = pop(list)
-			let i = i + 1
+			let result = result + 1;
+			let list = pop(list);
 		};
-		return reverse(result)
-	}
+		result
+	};
 
-let remove = (list, index) ->
-	index = 0 ? pop(list) : {
-		let result = []
-		let i = 0
+	let nth = (list, n) -> {
+		while n > 0 do {
+			let n = n - 1;
+			let list = pop(list);
+		};
+		top(list)
+	};
+
+	let append = (list, value) ->
+		if list = []
+			then [value]
+			else push(append(pop(list), value), top(list));
+
+	let reverse = list -> {
+		let result = [];
 		while list != [] do {
-			if i != index then let result = push(result, top(list))
-			let list = pop(list)
-			let i = i + 1
+			let result = push(result, top(list));
+			let list = pop(list);
 		};
-		return reverse(result)
-	}
-
-let map = (list, f) -> {
-	let result = []
-	while list != [] do {
-		let result = push(result, f(top(list)))
-		let list = pop(list)
+		result
 	};
-	return reverse(result)
-}
 
-let reduce = (list, acc, f) -> {
-	while list != [] do {
-		let acc = f(acc, top(list))
-		let list = pop(list)
+	let concat = (left_list, right_list) ->
+		if left_list = []
+			then right_list
+			else push(concat(pop(left_list), right_list), top(left_list));
+
+	let insert = (list, index, value) ->
+		if index = 0 then push(list, value) else {
+			let result = [];
+			let i = 0;
+			while list != [] do {
+				if i = index then let result = push(result, value);
+				let result = push(result, top(list));
+				let list = pop(list);
+				let i = i + 1;
+			};
+			reverse(result)
+		};
+
+	let remove = (list, index) ->
+		if index = 0 then pop(list) else {
+			let result = [];
+			let i = 0;
+			while list != [] do {
+				if i != index then let result = push(result, top(list));
+				let list = pop(list);
+				let i = i + 1;
+			};
+			reverse(result)
+		};
+
+	let map = (list, f) -> {
+		let result = [];
+		while list != [] do {
+			let result = push(result, f(top(list)));
+			let list = pop(list);
+		};
+		reverse(result)
 	};
-	return acc
-}
 
-let flatmap = (list, f) -> reduce(map(list, f), [], concat)
-
-let range = (start, end) -> {
-	let result = []
-	while end >= start do {
-		let result = push(result, end)
-		let end = end - 1
+	let reduce = (list, acc, f) -> {
+		while list != [] do {
+			let acc = f(acc, top(list));
+			let list = pop(list);
+		};
+		acc
 	};
-	return result
-}
 
-// Basic math
+	let flatmap = (list, f) -> reduce(map(list, f), [], concat);
 
-let abs = x -> x < 0 ? -x : x
-let sqrt = x -> x^(1/2)
-let cbrt = x -> x^(1/3)
-
-// Combinatorics
-
-let fact = n -> {
-	let result = 1
-	while n > 1 do {
-		let result = n result
-		let n = n - 1
+	let range = (start, end) -> {
+		let result = [];
+		while end >= start do {
+			let result = push(result, end);
+			let end = end - 1;
+		};
+		result
 	};
-	return result
+
+	// Basic math
+
+	let abs = x -> if x < 0 then -x else x;
+	let sqrt = x -> x^(1/2);
+	let cbrt = x -> x^(1/3);
+
+	// Combinatorics
+
+	let fact = n -> {
+		let result = 1;
+		while n > 1 do {
+			let result = n result;
+			let n = n - 1;
+		};
+		result
+	};
+
+	let nPk = (n, k) -> if k = 0 then 1 else n nPk(n-1, k-1);
+
+	let nCk = (n, k) -> nPk(n, k) / fact(k);
+
+	// Temperature conversion
+
+	let ftoc = f -> 5/9(f - 32);
+	let ctof = c -> 9/5c + 32;
 }
-
-let nPk = (n, k) -> k = 0 ? 1 : n nPk(n-1, k-1)
-
-let nCk = (n, k) -> nPk(n, k) / fact(k)
-
-// Temperature conversion
-
-let ftoc = f -> 5/9(f - 32)
-let ctof = c -> 9/5c + 32

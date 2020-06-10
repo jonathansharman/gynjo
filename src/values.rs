@@ -140,6 +140,11 @@ impl From<String> for Val {
 }
 
 impl Val {
+	/// An empty tuple value.
+	pub fn empty() -> Val {
+		Val::Tuple(Tuple::empty())
+	}
+
 	/// Retrives the type of this value.
 	pub fn get_type(&self) -> Type {
 		match self {

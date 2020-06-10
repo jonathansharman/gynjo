@@ -5,8 +5,7 @@ use super::intrinsics::Intrinsic;
 use super::lexer::lex;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
-use super::parser::{parse_expr_with_all, parse_stmt};
-use super::stmts::Stmt;
+use super::parser::parse_expr_with_all;
 use super::types::Type;
 use super::values::{Closure, Tuple, List, Val};
 
@@ -18,37 +17,26 @@ use std::sync::{Arc, Mutex};
 /// Result of evaluating a Gynjo expression.
 type EvalResult = Result<Val, RuntimeError>;
 
-/// Result of executing a Gynjo statement.
-type ExecResult = Result<(), RuntimeError>;
-
 /// If possible, computes the value of `expr` in the context of `env`.
 pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 	match expr {
-		Expr::Cond { test, then_expr, else_expr } => {
-			eval_expr(&mut env, *test).and_then(|test_value| {
-				match test_value {
-					Val::Prim(Prim::Bool(boolean)) => eval_expr(&mut env, if boolean.into() { *then_expr } else { *else_expr }),
-					_ => Err(RuntimeError::UnaryTypeMismatch {
-						context: "conditional test".into(),
-						expected: Type::Boolean,
-						actual: test_value.get_type()
-					}),
+		Expr::Block { exprs } => {
+			let mut result = Val::empty();
+			for expr in exprs.into_iter() {
+				// Check for unused result of previous iteration.
+				if result != Val::empty() {
+					return Err(RuntimeError::UnusedResult(result.to_string(&mut env)));
 				}
-			})
-		},
-		Expr::Block { stmts } => {
-			for stmt in stmts.into_iter() {
 				// A return statement exits the block early and produces a value.
-				if let Stmt::Return { result } = stmt {
+				if let Expr::Return { result } = expr {
 					return eval_expr(&mut env, *result);
 				}
-				// Otherwise, just execute the statement.
-				exec_stmt(&mut env, stmt)?;
+				// Otherwise, evaluate the expression and store its result.
+				result = eval_expr(&mut env, expr)?;
 			}
-			// Return nothing if there was no return statement.
-			Ok(Val::Tuple(Tuple::empty()))
+			Ok(result)
 		},
-		Expr::BinaryExpr(bin_expr) => match bin_expr.op {
+		Expr::BinExpr(bin_expr) => match bin_expr.op {
 			BinOp::And => {
 				match eval_expr(&mut env, *bin_expr.left)? {
 					Val::Prim(Prim::Bool(left)) => if left.into() {
@@ -171,6 +159,70 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 			Prim::Num(number) => Prim::Num(number.shrink_domain()),
 			primitive @ _ => primitive
 		})),
+		Expr::Import { filename } => {
+			let lib_text = std::fs::read_to_string(&filename)
+				.map_err(|err| RuntimeError::CouldNotOpenFile {
+					filename: filename.clone(),
+					file_error: err.to_string(),
+				})?;
+			eval(&mut env, &lib_text).map_err(|err| RuntimeError::LibError {
+				lib_name: filename.clone(),
+				nested_error: Box::new(err),
+			})
+		},
+		Expr::Assign { lhs, rhs } => {
+			let rhs_value = eval_expr(env, *rhs)?;
+			// Perform the assignment, possibly overwriting the existing value.
+			env.lock().unwrap().assign(lhs, rhs_value);
+			Ok(Val::empty())
+		},
+		Expr::Branch { test, then_expr, else_expr } => {
+			let test_value = eval_expr(env, *test)?;
+			match test_value {
+				Val::Prim(Prim::Bool(b)) => eval_expr(env, if b.into() { *then_expr } else { *else_expr }),
+				_ => Err(RuntimeError::UnaryTypeMismatch {
+					context: "conditional test",
+					expected: Type::Boolean,
+					actual: test_value.get_type(),
+				}),
+			}
+		},
+		Expr::WhileLoop { test, body } => {
+			loop {
+				// Evaluate the test condition.
+				let test_value = eval_expr(env, (*test).clone())?;
+				match test_value {
+					Val::Prim(Prim::Bool(b)) => if b.into() {
+						// Evaluate next iteration.
+						eval_expr(env, (*body).clone())?;
+					} else {
+						// End of loop.
+						return Ok(Val::empty());
+					},
+					_ => print!("while-loop test value must be boolean, found {}", test_value.to_string(&env)),
+				}
+			}
+		},
+		Expr::ForLoop { loop_var, range, body } => {
+			let range_value = eval_expr(&mut env, *range)?;
+			match range_value {
+				Val::List(range_list) => {
+					for value in range_list.iter() {
+						// Assign the loop variable to the current value in the range list.
+						env.lock().unwrap().assign(loop_var.clone(), value.clone());
+						// Evaluate the loop body in this context.
+						eval_expr(env, (*body).clone())?;
+					}
+					Ok(Val::empty())
+				},
+				_ => Err(RuntimeError::UnaryTypeMismatch {
+					context: "for-loop range".into(),
+					expected: Type::List,
+					actual: range_value.get_type()
+				}),
+			}
+		},
+		Expr::Return { .. } => Err(RuntimeError::ReturnOutsideBlock),
 	}
 }
 
@@ -182,101 +234,6 @@ pub fn eval(env: &mut Arc<Mutex<Env>>, input: &str) -> Result<Val, Error> {
 	let expr = parse_expr_with_all(&tokens[..]).map_err(Error::parse)?;
 	// Evaluate.
 	eval_expr(env, expr).map_err(Error::runtime)
-}
-
-/// If possible, executes `stmt` in the context of `env`.
-fn exec_stmt(mut env: &mut Arc<Mutex<Env>>, stmt: Stmt) -> ExecResult {
-	match stmt {
-		Stmt::Nop => Ok(()),
-		Stmt::Import { filename } => {
-			let lib_text = std::fs::read_to_string(&filename)
-				.map_err(|err| RuntimeError::FileError {
-					filename: filename.clone(),
-					file_error: err.to_string(),
-				})?;
-			exec(&mut env, &lib_text).map_err(|err| RuntimeError::LibError {
-				lib_name: filename.clone(),
-				nested_error: Box::new(err),
-			})
-		},
-		Stmt::Assign { lhs, rhs } => {
-			let rhs_value = eval_expr(env, *rhs)?;
-			// Perform the assignment, possibly overwriting the existing value.
-			env.lock().unwrap().assign(lhs, rhs_value);
-			Ok(())
-		},
-		Stmt::Branch { test, then_stmt, else_stmt } => {
-			let test_value = eval_expr(env, *test)?;
-			match test_value {
-				Val::Prim(Prim::Bool(b)) => exec_stmt(env, if b.into() { *then_stmt } else { *else_stmt }),
-				_ => Err(RuntimeError::UnaryTypeMismatch {
-					context: "conditional test",
-					expected: Type::Boolean,
-					actual: test_value.get_type(),
-				}),
-			}
-		},
-		Stmt::WhileLoop { test, body } => {
-			loop {
-				// Evaluate the test condition.
-				let test_value = eval_expr(env, (*test).clone())?;
-				match test_value {
-					Val::Prim(Prim::Bool(b)) => if b.into() {
-						// Execute next iteration.
-						exec_stmt(env, (*body).clone())?;
-					} else {
-						// End of loop.
-						return Ok(());
-					},
-					_ => print!("while-loop test value must be boolean, found {}", test_value.to_string(&env)),
-				}
-			}
-		},
-		Stmt::ForLoop { loop_var, range, body } => {
-			let range_value = eval_expr(&mut env, *range)?;
-			match range_value {
-				Val::List(range_list) => {
-					for value in range_list.iter() {
-						// Assign the loop variable to the current value in the range list.
-						env.lock().unwrap().assign(loop_var.clone(), value.clone());
-						// Execute the loop body in this context.
-						exec_stmt(env, (*body).clone())?;
-					}
-					Ok(())
-				},
-				_ => Err(RuntimeError::UnaryTypeMismatch {
-					context: "for-loop range".into(),
-					expected: Type::List,
-					actual: range_value.get_type()
-				}),
-			}
-		},
-		Stmt::Return { .. } => Err(RuntimeError::ReturnOutsideBlock),
-		Stmt::ExprStmt(expr) => {
-			let value = eval_expr(env, *expr)?;
-			// Expression statements must evaluate to ().
-			match value {
-				Val::Tuple(Tuple { elems }) if (elems.is_empty()) => Ok(()),
-				_ => Err(RuntimeError::UnusedResult(value.to_string(env))),
-			}
-		}
-	}
-}
-
-/// If possible, executes the statements contained in `input` in the context of `env`.
-pub fn exec(env: &mut Arc<Mutex<Env>>, input: &str) -> Result<(), Error> {
-	// Lex.
-	let tokens = lex(input).map_err(Error::lex)?;
-	let mut token_slice = &tokens[..];
-	// While there is still input left, parse and execute.
-	while !token_slice.is_empty() {
-		// Parse.
-		let (remaining_tokens, stmt) = parse_stmt(token_slice).map_err(Error::parse)?;
-		token_slice = remaining_tokens;
-		// Execute.
-		exec_stmt(env, stmt).map_err(Error::runtime)?;
-	}
-	Ok(())
 }
 
 /// Evaluates a numerical operation on a list and a number.
@@ -466,7 +423,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 				},
 				Intrinsic::Print => {
 					println!("{}", local_env.lock().unwrap().lookup(&"value".into()).unwrap().to_string(&local_env));
-					Ok(Val::Tuple(Tuple::empty()))
+					Ok(Val::empty())
 				},
 				Intrinsic::Read => {
 					let mut input = String::new();
@@ -513,7 +470,7 @@ fn eval_negation(env: &Arc<Mutex<Env>>, value: Val) -> EvalResult {
 mod tests {
 	use crate::env::Env;
 	use crate::error::Error;
-	use crate::interpreter::{eval, exec};
+	use crate::interpreter::eval;
 	use crate::number::Num;
 	use crate::primitives::Prim;
 	use crate::values::{Val, Tuple, List};
@@ -525,7 +482,7 @@ mod tests {
 
 	#[test]
 	fn execution_of_empty_statement_returns_nothing() -> Result<(), Error> {
-		assert_eq!((), exec(&mut Env::new(None), "")?);
+		assert_eq!(Val::empty(), eval(&mut Env::new(None), "")?);
 		Ok(())
 	}
 
@@ -696,20 +653,6 @@ mod tests {
 		}
 	}
 
-	mod conditional_expressions {
-		use super::*;
-		#[test]
-		fn true_is_lazy() -> Result<(), Error> {
-			assert_eq!(Val::from(1), eval(&mut Env::new(None), "false ? 1/0 : 1")?);
-			Ok(())
-		}
-		#[test]
-		fn false_is_lazy() -> Result<(), Error> {
-			assert_eq!(Val::from(1), eval(&mut Env::new(None), "true ? 1 : 1/0")?);
-			Ok(())
-		}
-	}
-
 	#[test]
 	fn subtraction_and_negation() -> Result<(), Error> {
 		assert_eq!(Val::from(3), eval(&mut Env::new(None), "-1+-2*-2")?);
@@ -795,7 +738,7 @@ mod tests {
 	#[test]
 	fn basic_assignment() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, "let x = 42")?;
+		eval(&mut env, "let x = 42")?;
 		assert_eq!(Val::from(42), eval(&mut env, "x")?);
 		Ok(())
 	}
@@ -844,14 +787,14 @@ mod tests {
 
 	#[test]
 	fn list_destruction_does_not_cause_stack_overflow() {
-		let result = exec(&mut Env::new(None), r"(
-			let i = 0
-			let l = []
+		let result = eval(&mut Env::new(None), r"(
+			let i = 0;
+			let l = [];
 			while i < 1000 do {
-				let l = push(l, i)
-				let i = i + 1
-			};
-			)");
+				let l = push(l, i);
+				let i = i + 1;
+			}
+		)");
 		assert!(result.is_ok());
 	}
 
@@ -908,7 +851,7 @@ mod tests {
 	#[test]
 	fn simple_function_application() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, "let f = () -> 42")?;
+		eval(&mut env, "let f = () -> 42")?;
 		assert_eq!(Val::from(42), eval(&mut env, "f()")?);
 		Ok(())
 	}
@@ -917,7 +860,7 @@ mod tests {
 		use super::*;
 		fn env_with_inc() -> Result<Arc<Mutex<Env>>, Error> {
 			let mut env = Env::new(None);
-			exec(&mut env, "let inc = a -> a + 1")?;
+			eval(&mut env, "let inc = a -> a + 1")?;
 			Ok(env)
 		}
 		#[test]
@@ -940,7 +883,7 @@ mod tests {
 	#[test]
 	fn higher_order_functions() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, "let apply = (f, a) -> f(a)")?;
+		eval(&mut env, "let apply = (f, a) -> f(a)")?;
 		assert_eq!(Val::from(42), eval(&mut env, "apply(a -> a, 42)")?);
 		Ok(())
 	}
@@ -948,7 +891,7 @@ mod tests {
 	#[test]
 	fn curried_function() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, "let sum = a -> b -> a + b")?;
+		eval(&mut env, "let sum = a -> b -> a + b")?;
 		assert_eq!(Val::from(3), eval(&mut env, "sum 1 2")?);
 		Ok(())
 	}
@@ -956,10 +899,10 @@ mod tests {
 	#[test]
 	fn environment_does_not_persist_between_function_chains() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, r"
-			let sum = a -> b -> a + b
-			let get_a = () -> a
-		")?;
+		eval(&mut env, r"{
+			let sum = a -> b -> a + b;
+			let get_a = () -> a;
+		}")?;
 		// "a" should be undefined.
 		assert!(eval(&mut env, "sum (1) (2) get_a ()").is_err());
 		Ok(())
@@ -968,10 +911,10 @@ mod tests {
 	#[test]
 	fn chained_application_with_and_without_parentheses() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, r"
-			let sum = a -> b -> a + b
-			let inc = a -> a + 1
-		")?;
+		eval(&mut env, r"{
+			let sum = a -> b -> a + b;
+			let inc = a -> a + 1;
+		}")?;
 		assert_eq!(Val::from(3), eval(&mut env, "sum (1) 2")?);
 		Ok(())
 	}
@@ -979,10 +922,10 @@ mod tests {
 	#[test]
 	fn chained_application_does_not_pollute_applications_higher_in_the_call_chain() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, r"
-			let sum = a -> b -> a + b
-			let inc = b -> b + 1
-		")?;
+		eval(&mut env, r"{
+			let sum = a -> b -> a + b;
+			let inc = b -> b + 1;
+		}")?;
 		assert_eq!(Val::from(8), eval(&mut env, "sum (inc 5) 2")?);
 		Ok(())
 	}
@@ -992,19 +935,39 @@ mod tests {
 		let mut env = Env::new(None);
 		let pi_str = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
 		let expected = Val::Prim(Prim::Num(Num::Real(BigDecimal::from_str(pi_str).unwrap())));
-		exec(&mut env, "import \"core/constants.gynj\"")?;
+		eval(&mut env, "import \"core/constants.gynj\"")?;
 		assert_eq!(expected, eval(&mut env, "PI")?);
 		Ok(())
 	}
 
-	#[test]
-	fn blocks() -> Result<(), Error> {
-		let mut env = Env::new(None);
-		eval(&mut env, "{}")?;
-		eval(&mut env, "{ let a = 0 }")?;
-		eval(&mut env, "{ let b = { let a = a + 1 return a } }")?;
-		assert_eq!(Val::from(1), eval(&mut env, "b")?);
-		Ok(())
+	mod blocks {
+		use super::*;
+		#[test]
+		fn empty_block() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::empty(), eval(&mut env, "{}")?);
+			assert_eq!(Val::empty(), eval(&mut env, "{;;;}")?);
+			Ok(())
+		}
+		#[test]
+		fn compound_block() -> Result<(), Error> {
+			assert_eq!(Val::from(1), eval(&mut Env::new(None), "{();();1}")?);
+			Ok(())
+		}
+		#[test]
+		fn unused_result() -> Result<(), Error> {
+			assert!(eval(&mut Env::new(None), "{1;2}").is_err());
+			assert!(eval(&mut Env::new(None), "{1;}").is_err());
+			Ok(())
+		}
+		#[test]
+		fn nested_blocks() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			eval(&mut env, "{ let a = 0 }")?;
+			eval(&mut env, "{ let b = { let a = a + 1 return a } }")?;
+			assert_eq!(Val::from(1), eval(&mut env, "b")?);
+			Ok(())
+		}
 	}
 
 	mod branch_statements {
@@ -1012,20 +975,20 @@ mod tests {
 		#[test]
 		fn true_is_lazy() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			exec(&mut env, "if false then let a = 1/0 else let a = 1")?;
+			eval(&mut env, "if false then let a = 1/0 else let a = 1")?;
 			assert_eq!(Val::from(1), eval(&mut env, "a")?);
 			Ok(())
 		}
 		#[test]
 		fn false_is_lazy() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			exec(&mut env, "if true then let a = 1 else let a = 1/0")?;
+			eval(&mut env, "if true then let a = 1 else let a = 1/0")?;
 			assert_eq!(Val::from(1), eval(&mut env, "a")?);
 			Ok(())
 		}
 		#[test]
 		fn no_else_statement() -> Result<(), Error> {
-			assert_eq!((), exec(&mut Env::new(None), "if false then let a = 1/0")?);
+			assert_eq!(Val::empty(), eval(&mut Env::new(None), "if false then let a = 1/0")?);
 			Ok(())
 		}
 	}
@@ -1033,10 +996,10 @@ mod tests {
 	#[test]
 	fn while_loops() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, r"
-			let a = 0
-			while a < 3 do let a = a + 1
-		")?;
+		eval(&mut env, r"{
+			let a = 0;
+			while a < 3 do let a = a + 1;
+		}")?;
 		assert_eq!(Val::from(3), eval(&mut env, "a")?);
 		Ok(())
 	}
@@ -1044,11 +1007,11 @@ mod tests {
 	#[test]
 	fn for_loops() -> Result<(), Error> {
 		let mut env = Env::new(None);
-		exec(&mut env, r"
-			let a = 0
-			for x in [1, 2, 3] do let a = a + x
-			for x in [] do let a = 10
-		")?;
+		eval(&mut env, r"{
+			let a = 0;
+			for x in [1, 2, 3] do let a = a + x;
+			for x in [] do let a = 10;
+		}")?;
 		assert_eq!(Val::from(6), eval(&mut env, "a")?);
 		Ok(())
 	}

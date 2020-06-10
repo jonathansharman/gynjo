@@ -5,7 +5,7 @@ use super::types::Type;
 use std::fmt;
 
 /// An error that occurs while lexing a string into Gynjo tokens.
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub struct LexError {
     pub unrecognized_token: String,
 }
@@ -17,7 +17,7 @@ impl fmt::Display for LexError {
 }
 
 /// An error that occurs while parsing tokens into a Gynjo AST.
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum ParseError {
     Expected {
         context: &'static str,
@@ -57,7 +57,7 @@ impl fmt::Display for ParseError {
 }
 
 /// An error that occurs while evaluating a Gynjo AST.
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum RuntimeError {
     Numeric(NumError),
     UnaryTypeMismatch {
@@ -77,7 +77,7 @@ pub enum RuntimeError {
     Undefined(String),
     UnusedResult(String),
     ReturnOutsideBlock,
-    FileError {
+    CouldNotOpenFile {
         filename: String,
         file_error: String,
     },
@@ -96,7 +96,7 @@ impl RuntimeError {
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RuntimeError::Numeric(err) => write!(f, "{}", err),
+            RuntimeError::Numeric(err) => err.fmt(f),
             RuntimeError::UnaryTypeMismatch { context, expected, actual } => {
                 write!(f, "Expected {} in {}, found {}", expected, context, actual)
             },
@@ -109,8 +109,8 @@ impl fmt::Display for RuntimeError {
             RuntimeError::Undefined(name) => write!(f, "\"{}\" is undefined", name),
             RuntimeError::UnusedResult(value) => write!(f, "Unused result: {}", value),
             RuntimeError::ReturnOutsideBlock => write!(f, "Cannot return outside statement block"),
-            RuntimeError::FileError { filename, file_error } => {
-                write!(f, "Error with file \"{}\" ({})", filename, file_error)
+            RuntimeError::CouldNotOpenFile { filename, file_error } => {
+                write!(f, "Could not open \"{}\" ({})", filename, file_error)
             },
             RuntimeError::LibError { lib_name, nested_error } => {
                 write!(f, "Error in library \"{}\": {}", lib_name, nested_error)
@@ -120,7 +120,7 @@ impl fmt::Display for RuntimeError {
 }
 
 /// A lex, parse, or runtime error.
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum Error {
     Lex(LexError),
     Parse(ParseError),
@@ -144,9 +144,9 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Lex(lex_error) => write!(f, "(Lex error) {}", lex_error),
-            Error::Parse(parse_error) => write!(f, "(Parse error) {}", parse_error),
-            Error::Runtime(runtime_error) => write!(f, "(Runtime error) {}", runtime_error),
+            Error::Lex(lex_error) => write!(f, "(lex error) {}", lex_error),
+            Error::Parse(parse_error) => write!(f, "(parse error) {}", parse_error),
+            Error::Runtime(runtime_error) => write!(f, "(runtime error) {}", runtime_error),
         }
     }
 }

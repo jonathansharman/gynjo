@@ -10,7 +10,7 @@ use std::ops::Div;
 use std::ops::Mul;
 use std::ops::Sub;
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum NumError {
 	DivisionByZero,
 	ExponentTooLarge,
@@ -99,9 +99,9 @@ impl Num {
 impl fmt::Display for Num {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Num::Integer(n) => write!(f, "{}", n),
-			Num::Rational(n) => write!(f, "{}", n),
-			Num::Real(n) => write!(f, "{}", n),
+			Num::Integer(n) => n.fmt(f),
+			Num::Rational(n) => n.fmt(f),
+			Num::Real(n) => n.fmt(f),
 		}
     }
 }

@@ -1,6 +1,5 @@
 use super::intrinsics::Intrinsic;
 use super::primitives::Prim;
-use super::stmts::Stmt;
 use super::symbol::Sym;
 
 use itertools::Itertools;
@@ -134,7 +133,7 @@ impl fmt::Display for Lambda {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match &self.body {
 			LambdaBody::UserDefined(body) => write!(f, "(({}) -> {})", self.params.iter().map(|s| s.name.clone()).join(", "), body),
-			LambdaBody::Intrinsic(intrinsic) => write!(f, "{}", intrinsic),
+			LambdaBody::Intrinsic(intrinsic) => intrinsic.fmt(f),
 		}
     }
 }
@@ -142,13 +141,8 @@ impl fmt::Display for Lambda {
 /// Gynjo expressions.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expr {
-	Cond {
-		test: Box<Expr>,
-		then_expr: Box<Expr>,
-		else_expr: Box<Expr>,
-	},
-	Block { stmts: Box<Vec<Stmt>> },
-	BinaryExpr(BinExpr),
+	Block { exprs: Box<Vec<Expr>> },
+	BinExpr(BinExpr),
 	Not { expr: Box<Expr> },
 	Cluster(Cluster),
 	Lambda(Lambda),
@@ -156,22 +150,50 @@ pub enum Expr {
 	ListExpr(Box<VecDeque<Expr>>),
 	Sym(Sym),
 	Prim(Prim),
+	Import { filename: String },
+	Assign {
+		lhs: Sym,
+		rhs: Box<Expr>,
+	},
+	Branch {
+		test: Box<Expr>,
+		then_expr: Box<Expr>,
+		else_expr: Box<Expr>,
+	},
+	WhileLoop {
+		test: Box<Expr>,
+		body: Box<Expr>,
+	},
+	ForLoop {
+		loop_var: Sym,
+		range: Box<Expr>,
+		body: Box<Expr>,
+	},
+	Return { result: Box<Expr> },
 }
 
 impl fmt::Display for Expr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Expr::Cond { test, then_expr, else_expr } =>
-				write!(f, "({} ? {} : {})", test, then_expr, else_expr),
-			Expr::Block { stmts } => write!(f, "{{ {} }}", stmts.iter().map(Stmt::to_string).join("; ")),
-			Expr::BinaryExpr(binary_expr) => write!(f, "{}", binary_expr),
+			Expr::Block { exprs } => write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; ")),
+			Expr::BinExpr(binary_expr) => binary_expr.fmt(f),
 			Expr::Not { expr } => write!(f, "(not {})", expr),
 			Expr::Cluster(cluster) => write!(f, "({})", cluster.items.iter().map(ClusterItem::to_string).join(" ")),
-			Expr::Lambda(lambda) => write!(f, "{}", lambda),
+			Expr::Lambda(lambda) => lambda.fmt(f),
 			Expr::TupleExpr(exprs) => write!(f, "({})", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
-			Expr::Sym(symbol) => write!(f, "{}", symbol),
-			Expr::Prim(primitive) => write!(f, "{}", primitive),
+			Expr::Sym(symbol) => symbol.fmt(f),
+			Expr::Prim(primitive) => primitive.fmt(f),
+			Expr::Import { filename } => write!(f, "import \"{}\"", filename),
+			Expr::Assign { lhs, rhs } => write!(f, "let {} = {}", lhs.name, rhs),
+			Expr::Branch { test, then_expr, else_expr } => {
+				write!(f, "if {} then {} else {}", test, then_expr, else_expr)
+			},
+			Expr::WhileLoop { test, body } => write!(f, "while {} do {}", test, body),
+			Expr::ForLoop { loop_var, range, body } => {
+				write!(f, "for {} in {} do {}", loop_var.name, range, body)
+			},
+			Expr::Return { result } => write!(f, "return {}", result),
 		}
     }
 }

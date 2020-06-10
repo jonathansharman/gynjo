@@ -12,6 +12,6 @@ impl <S> From<S> for Sym where S: Into<String> {
 
 impl fmt::Display for Sym {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
+        self.name.fmt(f)
     }
 }

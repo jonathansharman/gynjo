@@ -8,10 +8,10 @@ pub enum Bool { True, False }
 
 impl fmt::Display for Bool {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", match self {
-			Bool::True => "true", 
-			Bool::False => "false",
-		})
+		match self {
+			Bool::True => "true".fmt(f), 
+			Bool::False => "false".fmt(f),
+		}
     }
 }
 
@@ -43,8 +43,8 @@ pub enum Prim {
 impl fmt::Display for Prim {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Prim::Bool(b) => write!(f, "{}", b),
-			Prim::Num(n) => write!(f, "{}", n),
+			Prim::Bool(b) => b.fmt(f),
+			Prim::Num(n) => n.fmt(f),
 			Prim::String(s) => write!(f, "\"{}\"", s),
 		}
     }

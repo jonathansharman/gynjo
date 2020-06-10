@@ -17,17 +17,17 @@ pub enum Type {
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            Type::Boolean => "boolean",
-            Type::Integer => "integer",
-            Type::Rational => "rational",
-            Type::Real => "real",
-            Type::String => "string",
-            Type::Tuple => "tuple",
-            Type::List => "list",
-            Type::Empty => "empty list",
-            Type::Cons => "non-empty list",
-            Type::Closure => "closure",
-        })
+        match self {
+            Type::Boolean => "boolean".fmt(f),
+            Type::Integer => "integer".fmt(f),
+            Type::Rational => "rational".fmt(f),
+            Type::Real => "real".fmt(f),
+            Type::String => "string".fmt(f),
+            Type::Tuple => "tuple".fmt(f),
+            Type::List => "list".fmt(f),
+            Type::Empty => "empty list".fmt(f),
+            Type::Cons => "non-empty list".fmt(f),
+            Type::Closure => "closure".fmt(f),
+        }
     }
 }

@@ -178,9 +178,9 @@ impl fmt::Display for Tok {
 			Tok::Arrow => write!(f, "->"),
 			Tok::Question => write!(f, "?"),
 			Tok::Colon => write!(f, ":"),
-			Tok::Intrinsic(intrinsic) => write!(f, "{}", intrinsic),
-			Tok::Sym(symbol) => write!(f, "{}", symbol),
-			Tok::Prim(primitive) => write!(f, "{}", primitive),
+			Tok::Intrinsic(intrinsic) => intrinsic.fmt(f),
+			Tok::Sym(symbol) => symbol.fmt(f),
+			Tok::Prim(primitive) => primitive.fmt(f),
 		    Tok::Error => write!(f, "error"),
 		}
     }
