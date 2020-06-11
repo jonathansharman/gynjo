@@ -996,6 +996,25 @@ mod tests {
 			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return 1")?);
 			Ok(())
 		}
+		#[test]
+		fn return_from_nested_expr() -> Result<(), Error> {
+			assert_eq!(Val::from(1), eval(&mut Env::new(None), r"{
+				if true then {
+					return 1
+				};
+				2
+			}")?);
+			Ok(())
+		}
+		#[test]
+		fn return_from_called_function() -> Result<(), Error> {
+			assert_eq!(Val::from(1), eval(&mut Env::new(None), r"{
+				let f = () -> return 1;
+				f();
+				2
+			}")?);
+			Ok(())
+		}
 	}
 
 	mod branch_statements {
