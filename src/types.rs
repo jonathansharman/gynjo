@@ -10,8 +10,8 @@ pub enum ListType {
 impl fmt::Display for ListType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ListType::Empty => "empty list".fmt(f),
-            ListType::Cons => "non-empty list".fmt(f),
+            ListType::Empty => "empty_list".fmt(f),
+            ListType::Cons => "nonempty_list".fmt(f),
         }
     }
 }
@@ -28,7 +28,7 @@ pub enum Type {
     Tuple,
     List(ListType),
     Closure,
-    Returned(Box<Type>),
+    Returned,
 }
 
 impl fmt::Display for Type {
@@ -43,7 +43,7 @@ impl fmt::Display for Type {
             Type::Tuple => "tuple".fmt(f),
             Type::List(list_type) => list_type.fmt(f),
             Type::Closure => "closure".fmt(f),
-            Type::Returned(val) => write!(f, "returned({})", val),
+            Type::Returned => "returned_value".fmt(f),
         }
     }
 }

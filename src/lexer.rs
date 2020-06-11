@@ -26,6 +26,7 @@ mod tests {
 	use crate::primitives::Prim;
 	use crate::symbol::Sym;
 	use crate::tokens::Tok;
+	use crate::types::{Type, ListType};
 
 	impl Tok {
 		fn from_string<S>(s: S) -> Tok where S: Into<String> {
@@ -103,6 +104,17 @@ mod tests {
 			Tok::And, Tok::from(1), Tok::from_symbol("ands"),
 			Tok::Or, Tok::from(1), Tok::from_symbol("ors"),
 			Tok::Not, Tok::from(1), Tok::from_symbol("nots"),
+			Tok::Prim(Prim::Type(Type::Type)), Tok::from(1), Tok::from_symbol("types"),
+			Tok::Prim(Prim::Type(Type::Boolean)), Tok::from(1), Tok::from_symbol("booleans"),
+			Tok::Prim(Prim::Type(Type::Integer)), Tok::from(1), Tok::from_symbol("integers"),
+			Tok::Prim(Prim::Type(Type::Rational)), Tok::from(1), Tok::from_symbol("rationals"),
+			Tok::Prim(Prim::Type(Type::Real)), Tok::from(1), Tok::from_symbol("reals"),
+			Tok::Prim(Prim::Type(Type::String)), Tok::from(1), Tok::from_symbol("strings"),
+			Tok::Prim(Prim::Type(Type::Tuple)), Tok::from(1), Tok::from_symbol("tuples"),
+			Tok::Prim(Prim::Type(Type::List(ListType::Empty))), Tok::from(1), Tok::from_symbol("empty_lists"),
+			Tok::Prim(Prim::Type(Type::List(ListType::Cons))), Tok::from(1), Tok::from_symbol("nonempty_lists"),
+			Tok::Prim(Prim::Type(Type::Closure)), Tok::from(1), Tok::from_symbol("closures"),
+			Tok::Prim(Prim::Type(Type::Returned)), Tok::from(1), Tok::from_symbol("returned_values"),
 		);
 		let actual = lex(r#"
 			import1 imports
@@ -117,6 +129,17 @@ mod tests {
 			and1 ands
 			or1 ors
 			not1 nots
+			type1 types
+			boolean1 booleans
+			integer1 integers
+			rational1 rationals
+			real1 reals
+			string1 strings
+			tuple1 tuples
+			empty_list1 empty_lists
+			nonempty_list1 nonempty_lists
+			closure1 closures
+			returned_value1 returned_values
 		"#)?;
 		assert_eq!(expected, actual);
 		Ok(())

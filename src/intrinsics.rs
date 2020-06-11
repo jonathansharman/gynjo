@@ -24,7 +24,7 @@ impl fmt::Display for Intrinsic {
 			Intrinsic::Print => write!(f, "print"),
 			Intrinsic::Read => write!(f, "read"),
 			Intrinsic::GetType => write!(f, "get_type"),
-			Intrinsic::ToReal => write!(f, "real"),
+			Intrinsic::ToReal => write!(f, "to_real"),
 		}
     }
 }

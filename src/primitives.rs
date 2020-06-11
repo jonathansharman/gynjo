@@ -1,4 +1,5 @@
 use super::number::Num;
+use super::types::Type;
 
 use std::fmt;
 
@@ -38,6 +39,7 @@ pub enum Prim {
 	Bool(Bool),
 	Num(Num),
 	String(String),
+	Type(Type),
 }
 
 impl fmt::Display for Prim {
@@ -46,6 +48,7 @@ impl fmt::Display for Prim {
 			Prim::Bool(b) => b.fmt(f),
 			Prim::Num(n) => n.fmt(f),
 			Prim::String(s) => write!(f, "\"{}\"", s),
+			Prim::Type(t) => t.fmt(f),
 		}
     }
 }

@@ -2,6 +2,7 @@ use super::intrinsics::Intrinsic;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
+use super::types::{Type, ListType};
 
 use bigdecimal::BigDecimal;
 use logos::Logos;
@@ -99,16 +100,31 @@ pub enum Tok {
 	#[token("print", |_| Some(Intrinsic::Print))]
 	#[token("read", |_| Some(Intrinsic::Read))]
 	#[token("get_type", |_| Some(Intrinsic::GetType))]
-	#[token("real", |_| Some(Intrinsic::ToReal))]
+	#[token("to_real", |_| Some(Intrinsic::ToReal))]
 	Intrinsic(Intrinsic),
 	// Symbol
 	#[regex("[a-zA-Z_]+", |lex| Some(Sym::from(lex.slice())))]
 	Sym(Sym),
-	// Primitive
+	// Boolean
 	#[token("true", |_| Some(Prim::Bool(Bool::True)))]
 	#[token("false", |_| Some(Prim::Bool(Bool::False)))]
+	// Type
+	#[token("type", |_| Some(Prim::Type(Type::Type)))]
+	#[token("boolean", |_| Some(Prim::Type(Type::Boolean)))]
+	#[token("integer", |_| Some(Prim::Type(Type::Integer)))]
+	#[token("rational", |_| Some(Prim::Type(Type::Rational)))]
+	#[token("real", |_| Some(Prim::Type(Type::Real)))]
+	#[token("string", |_| Some(Prim::Type(Type::String)))]
+	#[token("tuple", |_| Some(Prim::Type(Type::Tuple)))]
+	#[token("empty_list", |_| Some(Prim::Type(Type::List(ListType::Empty))))]
+	#[token("nonempty_list", |_| Some(Prim::Type(Type::List(ListType::Cons))))]
+	#[token("closure", |_| Some(Prim::Type(Type::Closure)))]
+	#[token("returned_value", |_| Some(Prim::Type(Type::Returned)))]
+	// Real
 	#[regex(r"(0|([1-9]\d*))?\.\d+", |lex| Some(Prim::Num(Num::Real(BigDecimal::from_str(lex.slice()).unwrap()))))]
+	// Integer
 	#[regex(r"0|([1-9]\d*)", |lex| Some(Prim::Num(Num::Integer(BigInt::from_str(lex.slice()).unwrap()))))]
+	// String
 	#[regex(r#""([^"\\]|\\["\\])*""#, |lex| {
 		// Strip enclosing quotes and escape characters.
 		Some(Prim::from(lex.slice()[1..lex.slice().len() - 1].replace(r#"\""#, r#"""#).replace(r"\\", r"\")))

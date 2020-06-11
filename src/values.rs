@@ -102,7 +102,6 @@ pub enum Val {
 	List(List),
 	Closure(Closure),
 	Returned { result: Box<Val> },
-	Type(Type),
 }
 
 impl From<bool> for Val {
@@ -158,6 +157,7 @@ impl Val {
 					Num::Real(_) => Type::Real,
 				},
 				Prim::String(_) => Type::String,
+				Prim::Type(_) => Type::Type,
 			},
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(list) => match list {
@@ -165,8 +165,7 @@ impl Val {
 				List::Cons { .. } => Type::List(ListType::Cons),
 			},
 			Val::Closure(_) => Type::Closure,
-			Val::Returned { result } => Type::Returned(Box::new(result.get_type())),
-		    Val::Type(_) => Type::Type,
+			Val::Returned { .. } => Type::Returned,
 		}
 	}
 
@@ -191,15 +190,15 @@ impl Val {
 							// If something failed, use default precision setting.
 							.unwrap_or(12);
 						format!("{}", real.with_prec(precision))
-					}
+					},
 				},
 				Prim::String(s) => format!("\"{}\"", s),
+				Prim::Type(t) => t.to_string(),
 			},
 			Val::Tuple(tuple) => tuple.to_string(&env),
 			Val::List(list) => list.to_string(&env),
 			Val::Closure(c) => c.f.to_string(),
 			Val::Returned { result } => format!("(result: {})", result.to_string(&env)),
-			Val::Type(type_val) => format!("{}", type_val),
 		}
 	}
 

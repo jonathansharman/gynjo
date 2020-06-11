@@ -438,11 +438,11 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					io::stdin().read_line(&mut input).unwrap();
 					Ok(Val::from(input.trim().to_string()))
 				},
-				Intrinsic::GetType => Ok(Val::Type(local_env.lock().unwrap().lookup(&"value".into()).unwrap().get_type())),
+				Intrinsic::GetType => Ok(Val::Prim(Prim::Type(local_env.lock().unwrap().lookup(&"value".into()).unwrap().get_type()))),
 				Intrinsic::ToReal => match local_env.lock().unwrap().lookup(&"value".into()).unwrap() {
 					Val::Prim(Prim::Num(number)) => Ok(Val::from(Num::Real(number.into()))),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
-						context: "real()",
+						context: "to_real()",
 						expected: vec!(Type::Real),
 						actual: arg.get_type()
 					}),
@@ -568,9 +568,9 @@ mod tests {
 		fn approx() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::from(true), eval(&mut env, "true ~ true")?);
-			assert_eq!(Val::from(true), eval(&mut env, "real(1/3) ~ 0.333333333333")?);
+			assert_eq!(Val::from(true), eval(&mut env, "to_real(1/3) ~ 0.333333333333")?);
 			assert_eq!(Val::from(true), eval(&mut env, "1/3 ~ 0.333333333333")?);
-			assert_eq!(Val::from(false), eval(&mut env, "real(1/3) ~ 0.333")?);
+			assert_eq!(Val::from(false), eval(&mut env, "to_real(1/3) ~ 0.333")?);
 			Ok(())
 		}
 		#[test]
@@ -1091,18 +1091,18 @@ mod tests {
 		#[test]
 		fn get_type() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			assert_eq!(Val::Type(Type::Integer), eval(&mut env, "get_type 1")?);
-			assert_eq!(Val::Type(Type::Real), eval(&mut env, "get_type 1.5")?);
-			assert_eq!(Val::Type(Type::List(ListType::Empty)), eval(&mut env, "get_type []")?);
-			assert_eq!(Val::Type(Type::List(ListType::Cons)), eval(&mut env, "get_type [1]")?);
-			assert_eq!(Val::Type(Type::Type), eval(&mut env, "get_type(get_type(1))")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::Integer)), eval(&mut env, "get_type 1")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::Real)), eval(&mut env, "get_type 1.5")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::List(ListType::Empty))), eval(&mut env, "get_type []")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::List(ListType::Cons))), eval(&mut env, "get_type [1]")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::Type)), eval(&mut env, "get_type(get_type(1))")?);
 			Ok(())
 		}
 		#[test]
 		fn to_real() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			assert_eq!(Val::from(1.0), eval(&mut env, "real(1)")?);
-			assert_eq!(Val::from(0.5), eval(&mut env, "real(1/2)")?);
+			assert_eq!(Val::from(1.0), eval(&mut env, "to_real(1)")?);
+			assert_eq!(Val::from(0.5), eval(&mut env, "to_real(1/2)")?);
 			Ok(())
 		}
 	}
