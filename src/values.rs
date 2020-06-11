@@ -102,6 +102,7 @@ pub enum Val {
 	List(List),
 	Closure(Closure),
 	Returned { result: Box<Val> },
+	Type(Type),
 }
 
 impl From<bool> for Val {
@@ -165,6 +166,7 @@ impl Val {
 			},
 			Val::Closure(_) => Type::Closure,
 			Val::Returned { result } => Type::Returned(Box::new(result.get_type())),
+		    Val::Type(_) => Type::Type,
 		}
 	}
 
@@ -197,6 +199,7 @@ impl Val {
 			Val::List(list) => list.to_string(&env),
 			Val::Closure(c) => c.f.to_string(),
 			Val::Returned { result } => format!("(result: {})", result.to_string(&env)),
+			Val::Type(type_val) => format!("{}", type_val),
 		}
 	}
 

@@ -19,6 +19,7 @@ impl fmt::Display for ListType {
 /// Gynjo type values.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Type {
+    Type,
     Boolean,
     Integer,
     Rational,
@@ -33,6 +34,7 @@ pub enum Type {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Type::Type => "type".fmt(f),
             Type::Boolean => "boolean".fmt(f),
             Type::Integer => "integer".fmt(f),
             Type::Rational => "rational".fmt(f),

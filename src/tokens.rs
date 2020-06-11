@@ -98,6 +98,7 @@ pub enum Tok {
 	#[token("push", |_| Some(Intrinsic::Push))]
 	#[token("print", |_| Some(Intrinsic::Print))]
 	#[token("read", |_| Some(Intrinsic::Read))]
+	#[token("get_type", |_| Some(Intrinsic::GetType))]
 	#[token("real", |_| Some(Intrinsic::ToReal))]
 	Intrinsic(Intrinsic),
 	// Symbol

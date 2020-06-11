@@ -10,7 +10,8 @@ pub enum Intrinsic {
 	// I/O
 	Print,
 	Read,
-	// Type conversions
+	// Type operations
+	GetType,
 	ToReal,
 }
 
@@ -22,6 +23,7 @@ impl fmt::Display for Intrinsic {
 			Intrinsic::Push => write!(f, "push"),
 			Intrinsic::Print => write!(f, "print"),
 			Intrinsic::Read => write!(f, "read"),
+			Intrinsic::GetType => write!(f, "get_type"),
 			Intrinsic::ToReal => write!(f, "real"),
 		}
     }

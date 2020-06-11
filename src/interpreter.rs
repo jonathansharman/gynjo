@@ -438,6 +438,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					io::stdin().read_line(&mut input).unwrap();
 					Ok(Val::from(input.trim().to_string()))
 				},
+				Intrinsic::GetType => Ok(Val::Type(local_env.lock().unwrap().lookup(&"value".into()).unwrap().get_type())),
 				Intrinsic::ToReal => match local_env.lock().unwrap().lookup(&"value".into()).unwrap() {
 					Val::Prim(Prim::Num(number)) => Ok(Val::from(Num::Real(number.into()))),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
@@ -481,6 +482,7 @@ mod tests {
 	use crate::interpreter::eval;
 	use crate::number::Num;
 	use crate::primitives::Prim;
+	use crate::types::{Type, ListType};
 	use crate::values::{Val, Tuple, List};
 
 	use bigdecimal::BigDecimal;
@@ -1084,6 +1086,16 @@ mod tests {
 			let mut env = Env::new(None);
 			assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut env, "push([], 1)")?);
 			assert_eq!(Val::List(make_list!(Val::from(2), Val::from(1))), eval(&mut env, "push([1], 2)")?);
+			Ok(())
+		}
+		#[test]
+		fn get_type() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::Type(Type::Integer), eval(&mut env, "get_type 1")?);
+			assert_eq!(Val::Type(Type::Real), eval(&mut env, "get_type 1.5")?);
+			assert_eq!(Val::Type(Type::List(ListType::Empty)), eval(&mut env, "get_type []")?);
+			assert_eq!(Val::Type(Type::List(ListType::Cons)), eval(&mut env, "get_type [1]")?);
+			assert_eq!(Val::Type(Type::Type), eval(&mut env, "get_type(get_type(1))")?);
 			Ok(())
 		}
 		#[test]

@@ -199,6 +199,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				Intrinsic::Push => vec!(Sym::from("list"), Sym::from("value")),
 				Intrinsic::Print => vec!(Sym::from("value")),
 				Intrinsic::Read => vec!(),
+				Intrinsic::GetType => vec!(Sym::from("value")),
 				Intrinsic::ToReal => vec!(Sym::from("value")),
 			};
 			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(*f) })))
