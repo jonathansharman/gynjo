@@ -6,7 +6,7 @@ use super::lexer::lex;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
 use super::parser::parse_expr_with_all;
-use super::types::Type;
+use super::types::{Type, ListType};
 use super::values::{Closure, Tuple, List, Val};
 
 use bigdecimal::BigDecimal;
@@ -20,21 +20,29 @@ type EvalResult = Result<Val, RuntimeError>;
 /// If possible, computes the value of `expr` in the context of `env`.
 pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 	match expr {
-		Expr::Block { exprs } => {
-			let mut result = Val::empty();
-			for expr in exprs.into_iter() {
-				// Check for unused result of previous iteration.
-				if result != Val::empty() {
-					return Err(RuntimeError::UnusedResult(result.to_string(&mut env)));
+		Expr::Block { mut exprs } => {
+			let last = exprs.pop();
+			if let Some(last) = last {
+				for expr in exprs.into_iter() {
+					match eval_expr(&mut env, expr)? {
+						Val::Tuple(Tuple { elems }) if elems.is_empty() => {
+							// Non-final empty results are okay.
+						},
+						Val::Returned { result } => {
+							// Return non-final result.
+							return Ok(*result)
+						},
+						unused @ _ => {
+							// Non-final, non-returned, non-empty results are errors.
+							return Err(RuntimeError::UnusedResult(unused.to_string(&mut env)));
+						},
+					}
 				}
-				// A return statement exits the block early and produces a value.
-				if let Expr::Return { result } = expr {
-					return eval_expr(&mut env, *result);
-				}
-				// Otherwise, evaluate the expression and store its result.
-				result = eval_expr(&mut env, expr)?;
+				// No early return. Return final value.
+				Ok(eval_expr(&mut env, last)?)
+			} else {
+				Ok(Val::empty())
 			}
-			Ok(result)
 		},
 		Expr::BinExpr(bin_expr) => match bin_expr.op {
 			BinOp::And => {
@@ -44,7 +52,7 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 							Val::Prim(Prim::Bool(right)) => Ok(right.into()),
 							invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 								context: "logical conjunction",
-								expected: Type::Boolean,
+								expected: vec!(Type::Boolean),
 								actual: invalid.get_type(),
 							}),
 						}
@@ -54,7 +62,7 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 					},
 					invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "logical conjunction",
-						expected: Type::Boolean,
+						expected: vec!(Type::Boolean),
 						actual: invalid.get_type(),
 					}),
 				}
@@ -69,14 +77,14 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 							Val::Prim(Prim::Bool(right)) => Ok(right.into()),
 							invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 								context: "logical disjunction",
-								expected: Type::Boolean,
+								expected: vec!(Type::Boolean),
 								actual: invalid.get_type(),
 							}),
 						}
 					},
 					invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "logical disjunction",
-						expected: Type::Boolean,
+						expected: vec!(Type::Boolean),
 						actual: invalid.get_type(),
 					}),
 				}
@@ -131,7 +139,7 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 				Val::Prim(Prim::Bool(b)) => Ok(Bool::from(!bool::from(b)).into()),
 				invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 					context: "logical negation",
-					expected: Type::Boolean,
+					expected: vec!(Type::Boolean),
 					actual: invalid.get_type(),
 				}),
 			}
@@ -182,7 +190,7 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 				Val::Prim(Prim::Bool(b)) => eval_expr(env, if b.into() { *then_expr } else { *else_expr }),
 				_ => Err(RuntimeError::UnaryTypeMismatch {
 					context: "conditional test",
-					expected: Type::Boolean,
+					expected: vec!(Type::Boolean),
 					actual: test_value.get_type(),
 				}),
 			}
@@ -217,12 +225,12 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 				},
 				_ => Err(RuntimeError::UnaryTypeMismatch {
 					context: "for-loop range".into(),
-					expected: Type::List,
+					expected: vec!(Type::List(ListType::Empty), Type::List(ListType::Cons)),
 					actual: range_value.get_type()
 				}),
 			}
 		},
-		Expr::Return { .. } => Err(RuntimeError::ReturnOutsideBlock),
+		Expr::Return { result } => Ok(Val::Returned { result: Box::new(eval_expr(&mut env, *result)?) }),
 	}
 }
 
@@ -395,7 +403,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					Val::List(List::Cons { head, .. }) => Ok((*head).clone()),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "top()",
-						expected: Type::Cons,
+						expected: vec!(Type::List(ListType::Empty), Type::List(ListType::Cons)),
 						actual: arg.get_type()
 					}),
 				},
@@ -403,7 +411,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					Val::List(List::Cons { tail, .. }) => Ok(Val::List((*tail).clone())),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "pop()",
-						expected: Type::Cons,
+						expected: vec!(Type::List(ListType::Cons)),
 						actual: arg.get_type()
 					}),
 				},
@@ -416,7 +424,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 						},
 						arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 							context: "push()",
-							expected: Type::List,
+							expected: vec!(Type::List(ListType::Empty), Type::List(ListType::Cons)),
 							actual: arg.get_type()
 						}),
 					}
@@ -434,7 +442,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					Val::Prim(Prim::Num(number)) => Ok(Val::from(Num::Real(number.into()))),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "real()",
-						expected: Type::Real,
+						expected: vec!(Type::Real),
 						actual: arg.get_type()
 					}),
 				},
@@ -460,7 +468,7 @@ fn eval_negation(env: &Arc<Mutex<Env>>, value: Val) -> EvalResult {
 		Val::List(list) => Ok(Val::List(negate_list(env, list)?)),
 		_ => Err(RuntimeError::UnaryTypeMismatch {
 			context: "negation",
-			expected: Type::Boolean,
+			expected: vec!(Type::Boolean),
 			actual: value.get_type(),
 		}),
 	}
@@ -481,7 +489,7 @@ mod tests {
 	use std::sync::{Arc, Mutex};
 
 	#[test]
-	fn execution_of_empty_statement_returns_nothing() -> Result<(), Error> {
+	fn empty_input_evaluates_to_empty() -> Result<(), Error> {
 		assert_eq!(Val::empty(), eval(&mut Env::new(None), "")?);
 		Ok(())
 	}
@@ -931,6 +939,21 @@ mod tests {
 	}
 
 	#[test]
+	fn returning_from_nested_block() -> Result<(), Error> {
+		let mut env = Env::new(None);
+		assert_eq!(Val::from(7), eval(&mut env, r"{
+			let f = x -> {
+				if x = 3 then {
+					return 7
+				};
+				x
+			};
+			f(3)
+		}")?);
+		Ok(())
+	}
+
+	#[test]
 	fn importing_core_constants() -> Result<(), Error> {
 		let mut env = Env::new(None);
 		let pi_str = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
@@ -964,8 +987,13 @@ mod tests {
 		fn nested_blocks() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			eval(&mut env, "{ let a = 0 }")?;
-			eval(&mut env, "{ let b = { let a = a + 1 return a } }")?;
+			eval(&mut env, "{ let b = { let a = a + 1; a } }")?;
 			assert_eq!(Val::from(1), eval(&mut env, "b")?);
+			Ok(())
+		}
+		#[test]
+		fn return_outside_block_is_okay() -> Result<(), Error> {
+			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return 1")?);
 			Ok(())
 		}
 	}

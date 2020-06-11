@@ -3,7 +3,7 @@ use super::exprs::Lambda;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
-use super::types::Type;
+use super::types::{Type, ListType};
 
 use num_traits::cast::ToPrimitive;
 use itertools::Itertools;
@@ -101,6 +101,7 @@ pub enum Val {
 	Tuple(Tuple),
 	List(List),
 	Closure(Closure),
+	Returned { result: Box<Val> },
 }
 
 impl From<bool> for Val {
@@ -159,10 +160,11 @@ impl Val {
 			},
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(list) => match list {
-				List::Empty => Type::Empty,
-				List::Cons { .. } => Type::Cons,
+				List::Empty => Type::List(ListType::Empty),
+				List::Cons { .. } => Type::List(ListType::Cons),
 			},
 			Val::Closure(_) => Type::Closure,
+			Val::Returned { result } => Type::Returned(Box::new(result.get_type())),
 		}
 	}
 
@@ -194,6 +196,7 @@ impl Val {
 			Val::Tuple(tuple) => tuple.to_string(&env),
 			Val::List(list) => list.to_string(&env),
 			Val::Closure(c) => c.f.to_string(),
+			Val::Returned { result } => format!("(result: {})", result.to_string(&env)),
 		}
 	}
 

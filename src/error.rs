@@ -2,6 +2,8 @@ use super::number::NumError;
 use super::tokens::Tok;
 use super::types::Type;
 
+use itertools::Itertools;
+
 use std::fmt;
 
 /// An error that occurs while lexing a string into Gynjo tokens.
@@ -62,7 +64,7 @@ pub enum RuntimeError {
     Numeric(NumError),
     UnaryTypeMismatch {
         context: &'static str,
-        expected: Type,
+        expected: Vec<Type>,
         actual: Type,
     },
     BinaryTypeMismatch {
@@ -76,7 +78,6 @@ pub enum RuntimeError {
     },
     Undefined(String),
     UnusedResult(String),
-    ReturnOutsideBlock,
     CouldNotOpenFile {
         filename: String,
         file_error: String,
@@ -98,7 +99,7 @@ impl fmt::Display for RuntimeError {
         match self {
             RuntimeError::Numeric(err) => err.fmt(f),
             RuntimeError::UnaryTypeMismatch { context, expected, actual } => {
-                write!(f, "Expected {} in {}, found {}", expected, context, actual)
+                write!(f, "Expected {} in {}, found {}", expected.iter().map(Type::to_string).join(" or "), context, actual)
             },
             RuntimeError::BinaryTypeMismatch { context, left, right } => {
                 write!(f, "Cannot perform {} with {} and {}", context, left, right)
@@ -108,7 +109,6 @@ impl fmt::Display for RuntimeError {
             },
             RuntimeError::Undefined(name) => write!(f, "\"{}\" is undefined", name),
             RuntimeError::UnusedResult(value) => write!(f, "Unused result: {}", value),
-            RuntimeError::ReturnOutsideBlock => write!(f, "Cannot return outside statement block"),
             RuntimeError::CouldNotOpenFile { filename, file_error } => {
                 write!(f, "Could not open \"{}\" ({})", filename, file_error)
             },
