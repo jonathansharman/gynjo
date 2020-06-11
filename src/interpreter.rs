@@ -202,7 +202,19 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 				match test_value {
 					Val::Prim(Prim::Bool(b)) => if b.into() {
 						// Evaluate next iteration.
-						eval_expr(env, (*body).clone())?;
+						match eval_expr(env, (*body).clone())? {
+							Val::Tuple(Tuple { elems }) if elems.is_empty() => {
+								// Non-final empty results are okay.
+							},
+							Val::Returned { result } => {
+								// Break out of loop via return.
+								return Ok(*result)
+							},
+							unused @ _ => {
+								// Non-final, non-returned, non-empty results are errors.
+								return Err(RuntimeError::UnusedResult(unused.to_string(&mut env)));
+							},
+						}
 					} else {
 						// End of loop.
 						return Ok(Val::empty());
@@ -219,7 +231,20 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 						// Assign the loop variable to the current value in the range list.
 						env.lock().unwrap().assign(loop_var.clone(), value.clone());
 						// Evaluate the loop body in this context.
-						eval_expr(env, (*body).clone())?;
+						match eval_expr(env, (*body).clone())? {
+							Val::Tuple(Tuple { elems }) if elems.is_empty() => {
+								// Non-final empty results are okay.
+							},
+							Val::Returned { result } => {
+								// Break out of loop via return.
+								return Ok(*result)
+							},
+							unused @ _ => {
+								// Non-final, non-returned, non-empty results are errors.
+								return Err(RuntimeError::UnusedResult(unused.to_string(&mut env)));
+							},
+						}
+
 					}
 					Ok(Val::empty())
 				},
@@ -1042,27 +1067,67 @@ mod tests {
 		}
 	}
 
-	#[test]
-	fn while_loops() -> Result<(), Error> {
-		let mut env = Env::new(None);
-		eval(&mut env, r"{
-			let a = 0;
-			while a < 3 do let a = a + 1;
-		}")?;
-		assert_eq!(Val::from(3), eval(&mut env, "a")?);
-		Ok(())
+	mod while_loops {
+		use super::*;
+		#[test]
+		fn basic_while_loop() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			eval(&mut env, r"{
+				let a = 0;
+				while a < 3 do let a = a + 1;
+			}")?;
+			assert_eq!(Val::from(3), eval(&mut env, "a")?);
+			Ok(())
+		}
+		#[test]
+		fn unused_result() -> Result<(), Error> {
+			assert!(eval(&mut Env::new(None), "while true do 1").is_err());
+			Ok(())
+		}
+		#[test]
+		fn early_return() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from(7), eval(&mut env, r"{
+				let a = 0;
+				while a < 3 do {
+					return return 7;
+					let a = a + 1;
+				}
+			}")?);
+			assert_eq!(Val::from(0), eval(&mut env, "a")?);
+			Ok(())
+		}
 	}
 
-	#[test]
-	fn for_loops() -> Result<(), Error> {
-		let mut env = Env::new(None);
-		eval(&mut env, r"{
-			let a = 0;
-			for x in [1, 2, 3] do let a = a + x;
-			for x in [] do let a = 10;
-		}")?;
-		assert_eq!(Val::from(6), eval(&mut env, "a")?);
-		Ok(())
+	mod for_loops {
+		use super::*;
+		#[test]
+		fn basic_for_loops() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			eval(&mut env, r"{
+				let a = 0;
+				for x in [1, 2, 3] do let a = a + x;
+				for x in [] do let a = 10;
+			}")?;
+			assert_eq!(Val::from(6), eval(&mut env, "a")?);
+			Ok(())
+		}
+		#[test]
+		fn unused_result() -> Result<(), Error> {
+			assert!(eval(&mut Env::new(None), "for x in [1, 2, 3] true do 1").is_err());
+			Ok(())
+		}
+		#[test]
+		fn early_return() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from(7), eval(&mut env, r"{
+				for x in [1, 2, 3] do {
+					return return 7
+				};
+			}")?);
+			assert_eq!(Val::from(1), eval(&mut env, "x")?);
+			Ok(())
+		}
 	}
 
 	mod intrinsics {
