@@ -348,7 +348,7 @@ fn eval_evaluated_cluster(env: &mut Arc<Mutex<Env>>, mut cluster: Vec<EvaluatedC
 				}
 			}
 		}
-		// Multiplications and Divisions
+		// Multiplications and divisions
 		for idx in 0..cluster.len() - 1 {
 			match &cluster[idx + 1].connector {
 				ClusterConnector::AdjParen | ClusterConnector::AdjNonparen | ClusterConnector::Mul => {

@@ -2,6 +2,7 @@ use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::cast::ToPrimitive;
+use num_traits::pow::Pow;
 
 use std::cmp::{Ord, PartialOrd};
 use std::fmt;
@@ -14,7 +15,7 @@ use std::ops::Sub;
 pub enum NumError {
 	DivisionByZero,
 	ExponentTooLarge,
-	NonIntegralExponentsNotSupported,
+	BaseTooLarge,
 }
 
 impl fmt::Display for NumError {
@@ -22,7 +23,7 @@ impl fmt::Display for NumError {
         match self {
 			NumError::DivisionByZero => write!(f, "Division by zero"),
 			NumError::ExponentTooLarge => write!(f, "Exponent too large"),
-			NumError::NonIntegralExponentsNotSupported => write!(f, "Non-integral exponentiation not yet supported"),
+			NumError::BaseTooLarge => write!(f, "Base in non-integral exponentiation too large"),
 		}
     }
 }
@@ -36,6 +37,11 @@ pub enum Num {
 }
 
 impl Num {
+	/// Constructs a rational number from the given numerator and denominator.
+	pub fn rational<T: Into<BigInt>>(numer: T, denom: T) -> Num {
+		Num::Rational(BigRational::new(numer.into(), denom.into()))
+	}
+
 	/// Converts this number to the smallest domain that can contain its value.
 	pub fn shrink_domain(self) -> Num {
 		match self {
@@ -67,31 +73,27 @@ impl Num {
 		}
 	}
 
-	/// Constructs a rational number from the given numerator and denominator.
-	pub fn rational<T: Into<BigInt>>(numer: T, denom: T) -> Num {
-		Num::Rational(BigRational::new(numer.into(), denom.into()))
-	}
-
 	/// Computes `self` to the power of `other`.
-	pub fn pow(self, other: Self) -> Result<Num, NumError> {
-		match (self, other) {
-			(base @ _, Num::Integer(exponent)) => {
-				match exponent.to_i64() {
-					Some(exponent) => {
-						let negative = exponent < 0;
-						let mut result = Num::from(1);
-						for _ in 0..exponent.abs() {
-							result = result * base.clone();
-						}
-						if negative {
-							result = (Num::from(1) / result)?;
-						}
-						Ok(result.into())
-					},
-					None => Err(NumError::ExponentTooLarge),
-				}
-			},
-			_ => Err(NumError::NonIntegralExponentsNotSupported),
+	pub fn pow(&self, other: Self) -> Result<Num, NumError> {
+		if let Num::Integer(exponent) = other {
+			match exponent.to_i64() {
+				Some(exponent) => {
+					let negative = exponent < 0;
+					let mut result = Num::from(1);
+					for _ in 0..exponent.abs() {
+						result = result * self.clone();
+					}
+					if negative {
+						result = (Num::from(1) / result)?;
+					}
+					Ok(result.into())
+				},
+				None => Err(NumError::ExponentTooLarge),
+			}
+		} else {
+			let base = BigDecimal::from(self.clone()).to_f64().ok_or(NumError::BaseTooLarge)?;
+			let exponent = BigDecimal::from(other).to_f64().ok_or(NumError::ExponentTooLarge)?;
+			Ok(Num::Real(base.pow(exponent).into()).shrink_domain())
 		}
 	}
 }

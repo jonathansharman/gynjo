@@ -10,8 +10,8 @@ pub enum Bool { True, False }
 impl fmt::Display for Bool {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Bool::True => "true".fmt(f), 
-			Bool::False => "false".fmt(f),
+			Bool::True => write!(f, "true"), 
+			Bool::False => write!(f, "false"),
 		}
     }
 }

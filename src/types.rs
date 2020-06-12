@@ -10,8 +10,8 @@ pub enum ListType {
 impl fmt::Display for ListType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ListType::Empty => "empty_list".fmt(f),
-            ListType::Cons => "nonempty_list".fmt(f),
+            ListType::Empty => write!(f, "empty_list"),
+            ListType::Cons => write!(f, "nonempty_list"),
         }
     }
 }
@@ -34,16 +34,16 @@ pub enum Type {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Type => "type".fmt(f),
-            Type::Boolean => "boolean".fmt(f),
-            Type::Integer => "integer".fmt(f),
-            Type::Rational => "rational".fmt(f),
-            Type::Real => "real".fmt(f),
-            Type::String => "string".fmt(f),
-            Type::Tuple => "tuple".fmt(f),
+            Type::Type => write!(f, "type"),
+            Type::Boolean => write!(f, "boolean"),
+            Type::Integer => write!(f, "integer"),
+            Type::Rational => write!(f, "rational"),
+            Type::Real => write!(f, "real"),
+            Type::String => write!(f, "string"),
+            Type::Tuple => write!(f, "tuple"),
             Type::List(list_type) => list_type.fmt(f),
-            Type::Closure => "closure".fmt(f),
-            Type::Returned => "returned_value".fmt(f),
+            Type::Closure => write!(f, "closure"),
+            Type::Returned => write!(f, "returned_value"),
         }
     }
 }
