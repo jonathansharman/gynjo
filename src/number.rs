@@ -77,11 +77,17 @@ impl Num {
 	pub fn pow(&self, other: Self) -> Result<Num, NumError> {
 		if let Num::Integer(exponent) = other {
 			match exponent.to_i64() {
-				Some(exponent) => {
+				Some(mut exponent) => {
 					let negative = exponent < 0;
+					exponent = exponent.abs();
+					let mut base = self.clone();
 					let mut result = Num::from(1);
-					for _ in 0..exponent.abs() {
-						result = result * self.clone();
+					while exponent > 0 {
+						if exponent & 1 == 1 {
+							result = result * base.clone();
+						}
+						base = base.clone() * base;
+						exponent /= 2;
 					}
 					if negative {
 						result = (Num::from(1) / result)?;

@@ -696,7 +696,17 @@ mod tests {
 
 	#[test]
 	fn simple_compound_expression_with_parentheses() -> Result<(), Error> {
-		assert_eq!(Val::from(5), eval(&mut Env::new(None), "-5 *(1 +  -2)")?);
+		assert_eq!(Val::from(5), eval(&mut Env::new(None), "-5 * (1 + -2)")?);
+		Ok(())
+	}
+
+	#[test]
+	fn exponentiation() -> Result<(), Error> {
+		assert_eq!(Val::from(1), eval(&mut Env::new(None), "2^0")?);
+		assert_eq!(Val::from(2), eval(&mut Env::new(None), "2^1")?);
+		assert_eq!(Val::from(16), eval(&mut Env::new(None), "2^4")?);
+		assert_eq!(Val::from(32), eval(&mut Env::new(None), "2^5")?);
+		assert_eq!(Val::from(Num::rational(1, 4)), eval(&mut Env::new(None), "2^-2")?);
 		Ok(())
 	}
 
