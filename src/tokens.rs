@@ -130,6 +130,8 @@ pub enum Tok {
 		Some(Prim::from(lex.slice()[1..lex.slice().len() - 1].replace(r#"\""#, r#"""#).replace(r"\\", r"\")))
 	})]
 	Prim(Prim),
+	#[token("\\")]
+	LineContinuation,
 	#[error]
 	// Whitespace (ignored)
 	#[regex(r"\s+", logos::skip)]
@@ -198,6 +200,7 @@ impl fmt::Display for Tok {
 			Tok::Intrinsic(intrinsic) => intrinsic.fmt(f),
 			Tok::Sym(symbol) => symbol.fmt(f),
 			Tok::Prim(primitive) => primitive.fmt(f),
+			Tok::LineContinuation => write!(f, "\\"),
 		    Tok::Error => write!(f, "error"),
 		}
     }

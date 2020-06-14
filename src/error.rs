@@ -21,35 +21,31 @@ impl fmt::Display for LexError {
 /// An error that occurs while parsing tokens into a Gynjo AST.
 #[derive(Eq, PartialEq, Debug)]
 pub enum ParseError {
-    Expected {
+    InvalidInput {
+        context: &'static str,
+        expected: Option<String>,
+        actual: Tok,
+    },
+    EndOfInput {
         context: &'static str,
         expected: String,
-    },
-    Unexpected {
-        context: &'static str,
-        unexpected: String,
-    },
-    Swapped {
-        context: &'static str,
-        expected: String,
-        actual: String,
     },
     UnusedInput {
         first_unused: Tok,
-    }
+    },
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ParseError::Expected { context, expected } => {
-                write!(f, "Expected \"{}\" in {}", expected, context)
+            ParseError::InvalidInput { context, expected, actual } => {
+                match expected {
+                    Some(expected) => write!(f, "Found \"{}\" in {}, expected \"{}\"", actual, context, expected),
+                    None => write!(f, "Unexpected \"{}\" in {}", actual, context),
+                }
             },
-            ParseError::Unexpected { context, unexpected } => {
-                write!(f, "Unexpected \"{}\" in {}", unexpected, context)
-            },
-            ParseError::Swapped { context, expected, actual } => {
-                write!(f, "Expected \"{}\" in {}, found \"{}\"", expected, context, actual)
+            ParseError::EndOfInput { context, expected } => {
+                write!(f, "End of input in {}, expected {}", context, expected)
             },
             ParseError::UnusedInput { first_unused } => {
                 write!(f, "Unused input starting at \"{}\"", first_unused)

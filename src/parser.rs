@@ -11,8 +11,8 @@ use std::collections::VecDeque;
 /// Result of expression parsing: (remaining tokens, parsed expression).
 type ParseExprResult<'a> = Result<(&'a [Tok], Expr), ParseError>;
 
-/// Parses an expression, requring all input to be consumed.
-pub fn parse_expr_with_all(tokens: &[Tok]) -> Result<Expr, ParseError> {
+/// Parses an expression from `tokens`. Requires all tokens to be consumed.
+pub fn parse(tokens: &[Tok]) -> Result<Expr, ParseError> {
 	let (tokens, expr) = parse_expr(&tokens[..])?;
 	if tokens.is_empty() {
 		Ok(expr)
@@ -39,17 +39,22 @@ fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a function body.
 fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
+		[] => Err(ParseError::EndOfInput { context: "lambda", expected: "function body".into() }),
 		[Tok::Arrow, rest @ ..] => parse_expr(rest),
-		_ => Err(ParseError::Expected { context: "lambda", expected: "function body".into() }),
+		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+			context: "lambda",
+			expected: Some("function body".into()),
+			actual: invalid.clone(),
+		}),
 	}
 }
 
 /// Parses a Gynjo value.
 fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err(ParseError::Unexpected {
+		[] => Err(ParseError::EndOfInput {
 			context: "value expression",
-			unexpected: "end of input".into(),
+			expected: "value expression".into(),
 		}),
 		// Tuple or lambda
 		[Tok::Lparen, after_lparen @ ..] => {
@@ -63,7 +68,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					let mut tokens = after_first_elem;
 					loop {
 						match tokens {
-							[] => return Err(ParseError::Expected {
+							[] => return Err(ParseError::EndOfInput {
 								context: "tuple expression",
 								expected: "',' or ')'".into(),
 							}),
@@ -79,10 +84,10 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 								tokens = rest;
 								break;
 							},
-							[invalid @ _, ..] => return Err(ParseError::Swapped {
+							[invalid @ _, ..] => return Err(ParseError::InvalidInput {
 								context: "tuple expression",
-								expected: "',' or ')'".into(),
-								actual: invalid.to_string(),
+								expected: Some(r#""," or ")""#.into()),
+								actual: invalid.clone(),
 							}),
 						}
 					}
@@ -134,9 +139,9 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				// Try to parse additional comma-delimited expressions.
 				loop {
 					match tokens {
-						[] => return Err(ParseError::Expected {
+						[] => return Err(ParseError::EndOfInput {
 							context: "list expression",
-							expected: "',' or ']'".into(),
+							expected: r#"," or "]""#.into(),
 						}),
 						// Additional list element
 						[Tok::Comma, after_comma @ ..] => {
@@ -150,10 +155,10 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 							tokens = rest;
 							break;
 						},
-						[invalid @ _, ..] => return Err(ParseError::Swapped {
+						[invalid @ _, ..] => return Err(ParseError::InvalidInput {
 							context: "list expression",
-							expected: "',' or ']'".into(),
-							actual: invalid.to_string(),
+							expected: Some(r#""," or ")""#.into()),
+							actual: invalid.clone(),
 						}),
 					}
 				}
@@ -171,6 +176,10 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 			let mut final_semicolon = false;
 			loop {
 				match tokens {
+					[] => return Err(ParseError::EndOfInput {
+						context: "block",
+						expected: r#""," or "}""#.into(),
+					}),
 					[Tok::Semicolon, after_semicolon @ ..] => {
 						// Semicolons optionally separate block expressions.
 						tokens = after_semicolon;
@@ -220,9 +229,10 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		},
 		// Primitive
 		[Tok::Prim(primitive), tokens @ ..] => Ok((tokens, Expr::Prim(primitive.clone()))),
-		[t, ..] => Err(ParseError::Unexpected {
+		[invalid, ..] => Err(ParseError::InvalidInput {
 			context: "value expression",
-			unexpected: t.to_string(),
+			expected: None,
+			actual: invalid.clone(),
 		}),
 	}
 }
@@ -231,15 +241,15 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 /// `context` - The expression in which the token is required, for the purpose of error reporting.
 fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseError> {
 	match tokens {
-		[] => Err(ParseError::Expected {
+		[] => Err(ParseError::EndOfInput {
 			context,
-			expected: required.to_string(),
+			expected: format!("\"{}\"", required),
 		}),
 		[t, rest @ ..] if (t == required) => Ok(rest),
-		[invalid @ _, ..] => Err(ParseError::Swapped {
+		[invalid @ _, ..] => Err(ParseError::InvalidInput {
 			context,
-			expected: required.to_string(),
-			actual: invalid.to_string(),
+			expected: Some(format!("\"{}\"", required)),
+			actual: invalid.clone(),
 		}),
 	}
 }
@@ -398,8 +408,13 @@ fn parse_ret(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a for-loop, starting after "for".
 fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		// Parse loop variable and "in".
-		[Tok::Sym(loop_var), Tok::In, tokens @ ..] => {
+		[] => Err(ParseError::EndOfInput {
+			context: "for-loop",
+			expected: "loop variable".into(),
+		}),
+		[Tok::Sym(loop_var), tokens @ ..] => {
+			// Parse "in".
+			let tokens = parse_required_token(tokens, &Tok::In, "for-loop")?;
 			// Parse range expression.
 			let (tokens, range) = parse_expr(tokens)?;
 			// Parse "do".
@@ -409,9 +424,10 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 			// Assemble for-loop.
 			Ok((tokens, Expr::ForLoop { loop_var: loop_var.clone(), range: Box::new(range), body: Box::new(body) }))
 		},
-		_ => Err(ParseError::Expected {
+		[invalid @ _, ..] => Err(ParseError::InvalidInput {
 			context: "for-loop",
-			expected: "<loop variable> in <body>".into(),
+			expected: Some("loop variable".into()),
+			actual: invalid.clone(),
 		}),
 	}
 }
@@ -460,22 +476,22 @@ fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 	// Parse LHS.
 	match tokens {
-		[] => Err(ParseError::Expected {
-			context: "assignment",
-			expected: "<variable> = <value>".into(),
-		}),
-		[Tok::Sym(lhs), after_symbol @ ..] => {
-			// Parse "=".
-			let after_eq = parse_required_token(&after_symbol, &Tok::Eq, "assignment")?;
-			// Parse RHS.
-			let (after_rhs, rhs) = parse_expr(after_eq)?;
-			// Assemble assignment from symbol and RHS.
-			Ok((after_rhs, Expr::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
-		},
-		[invalid @ _, ..] => Err(ParseError::Swapped {
+		[] => Err(ParseError::EndOfInput {
 			context: "assignment",
 			expected: "variable".into(),
-			actual: invalid.to_string(),
+		}),
+		[Tok::Sym(lhs), tokens @ ..] => {
+			// Parse "=".
+			let tokens = parse_required_token(&tokens, &Tok::Eq, "assignment")?;
+			// Parse RHS.
+			let (tokens, rhs) = parse_expr(tokens)?;
+			// Assemble assignment from symbol and RHS.
+			Ok((tokens, Expr::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
+		},
+		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+			context: "assignment",
+			expected: Some("variable".into()),
+			actual: invalid.clone(),
 		}),
 	}
 }
@@ -483,16 +499,16 @@ fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 /// Parses an import statement, starting after "import".
 fn parse_import(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err(ParseError::Expected {
+		[] => Err(ParseError::EndOfInput {
 			context: "import statement",
-			expected: "import target".into(),
+			expected: "import target (symbol or string)".into(),
 		}),
 		[Tok::Sym(Sym { name }), tokens @ ..] => Ok((tokens, Expr::Import { filename : name.clone() })),
 		[Tok::Prim(Prim::String(filename)), tokens @ ..] => Ok((tokens, Expr::Import { filename: filename.clone() })),
-		[first, ..] => Err(ParseError::Swapped {
+		[invalid, ..] => Err(ParseError::InvalidInput {
 			context: "import statement",
-			expected: "import target (symbol or string)".into(),
-			actual: first.to_string(),
+			expected: Some("import target (symbol or string)".into()),
+			actual: invalid.clone(),
 		}),
 	}
 }

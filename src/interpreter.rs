@@ -1,24 +1,24 @@
-use super::env::Env;
+use super::env::{Env, SharedEnv};
 use super::error::{Error, RuntimeError};
 use super::exprs::{Expr, BinOp, Cluster, ClusterConnector, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::lexer::lex;
 use super::number::Num;
 use super::primitives::{Prim, Bool};
-use super::parser::parse_expr_with_all;
+use super::parser::parse;
 use super::types::{Type, ListType};
 use super::values::{Closure, Tuple, List, Val};
 
 use bigdecimal::BigDecimal;
 
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Result of evaluating a Gynjo expression.
 type EvalResult = Result<Val, RuntimeError>;
 
 /// If possible, computes the value of `expr` in the context of `env`.
-pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
+pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 	match expr {
 		Expr::Block { mut exprs } => {
 			let last = exprs.pop();
@@ -260,17 +260,17 @@ pub fn eval_expr(mut env: &mut Arc<Mutex<Env>>, expr: Expr) -> EvalResult {
 }
 
 /// If possible, computes the value of the expression contained in `input` in the context of `env`.
-pub fn eval(env: &mut Arc<Mutex<Env>>, input: &str) -> Result<Val, Error> {
+pub fn eval(env: &mut SharedEnv, input: &str) -> Result<Val, Error> {
 	// Lex.
 	let tokens = lex(input).map_err(Error::lex)?;
 	// Parse.
-	let expr = parse_expr_with_all(&tokens[..]).map_err(Error::parse)?;
+	let expr = parse(&tokens[..]).map_err(Error::parse)?;
 	// Evaluate.
 	eval_expr(env, expr).map_err(Error::runtime)
 }
 
 /// Evaluates a numerical operation on a list and a number.
-fn list_num_op(env: &Arc<Mutex<Env>>, list: List, number: Num, number_on_left: bool, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> Result<List, RuntimeError> {
+fn list_num_op(env: &SharedEnv, list: List, number: Num, number_on_left: bool, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> Result<List, RuntimeError> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
@@ -285,7 +285,7 @@ fn list_num_op(env: &Arc<Mutex<Env>>, list: List, number: Num, number_on_left: b
 }
 
 /// Evaluates a numerical operation on two values.
-fn bin_num_op(env: &Arc<Mutex<Env>>, left: Val, right: Val, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
+fn bin_num_op(env: &SharedEnv, left: Val, right: Val, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
 	match (left, right) {
 		// Number op Number
 		(Val::Prim(Prim::Num(left)), Val::Prim(Prim::Num(right))) => Ok(op(left, right)?),
@@ -314,7 +314,7 @@ struct EvaluatedClusterItem {
 	connector: ClusterConnector,
 }
 
-fn eval_evaluated_cluster(env: &mut Arc<Mutex<Env>>, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
+fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
 	if cluster.len() > 1 {
 		// Parenthesized applications
 		for idx in 0..cluster.len() - 1 {
@@ -379,7 +379,7 @@ fn eval_evaluated_cluster(env: &mut Arc<Mutex<Env>>, mut cluster: Vec<EvaluatedC
 }
 
 /// Evaluates a cluster expression.
-fn eval_cluster(env: &mut Arc<Mutex<Env>>, cluster: Cluster) -> EvalResult {
+fn eval_cluster(env: &mut SharedEnv, cluster: Cluster) -> EvalResult {
 	// First, evaluate the cluster items.
 	let mut evaluated_cluster = Vec::with_capacity(cluster.items.len());
 	for item in cluster.items {
@@ -477,7 +477,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	}
 }
 
-fn negate_list(env: &Arc<Mutex<Env>>, list: List) -> Result<List, RuntimeError> {
+fn negate_list(env: &SharedEnv, list: List) -> Result<List, RuntimeError> {
 	match list {
 		List::Empty => Ok(List::Empty),
 		List::Cons { head, tail } => Ok(List::Cons {
@@ -487,7 +487,7 @@ fn negate_list(env: &Arc<Mutex<Env>>, list: List) -> Result<List, RuntimeError> 
 	}
 }
 
-fn eval_negation(env: &Arc<Mutex<Env>>, value: Val) -> EvalResult {
+fn eval_negation(env: &SharedEnv, value: Val) -> EvalResult {
 	match value {
 		Val::Prim(Prim::Num(Num::Integer(integer))) => Ok(Val::Prim(Prim::Num(Num::Integer(-integer)))),
 		Val::Prim(Prim::Num(Num::Real(real))) => Ok(Val::Prim(Prim::Num(Num::Real(-real)))),
@@ -502,7 +502,7 @@ fn eval_negation(env: &Arc<Mutex<Env>>, value: Val) -> EvalResult {
 
 #[cfg(test)]
 mod tests {
-	use crate::env::Env;
+	use crate::env::{Env, SharedEnv};
 	use crate::error::Error;
 	use crate::interpreter::eval;
 	use crate::number::Num;
@@ -513,7 +513,7 @@ mod tests {
 	use bigdecimal::BigDecimal;
 
 	use std::str::FromStr;
-	use std::sync::{Arc, Mutex};
+	use std::sync::Arc;
 
 	#[test]
 	fn empty_input_evaluates_to_empty() -> Result<(), Error> {
@@ -903,7 +903,7 @@ mod tests {
 
 	mod order_of_operations {
 		use super::*;
-		fn env_with_inc() -> Result<Arc<Mutex<Env>>, Error> {
+		fn env_with_inc() -> Result<SharedEnv, Error> {
 			let mut env = Env::new(None);
 			eval(&mut env, "let inc = a -> a + 1")?;
 			Ok(env)

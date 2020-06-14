@@ -19,12 +19,14 @@ pub struct Env {
 	/// Variables mappings created within the local scope.
 	local_vars: HashMap<Sym, Val>,
 	/// Reference to the parent environment, if any.
-	parent_env: Option<Arc<Mutex<Env>>>,
+	parent_env: Option<SharedEnv>,
 }
+
+pub type SharedEnv = Arc<Mutex<Env>>;
 
 impl Env {
 	/// `parent_env` - The parent environment, if any.
-	pub fn new(parent_env: Option<Arc<Mutex<Env>>>) -> Arc<Mutex<Env>> {
+	pub fn new(parent_env: Option<SharedEnv>) -> SharedEnv {
 		Arc::new(Mutex::new(Env {
 			local_vars: HashMap::new(),
 			parent_env: parent_env,
@@ -32,9 +34,9 @@ impl Env {
 	}
 
 	/// Creates a new ref-counted environment with core libs loaded.
-	pub fn with_core_libs() -> Arc<Mutex<Env>> {
+	pub fn with_core_libs() -> SharedEnv {
 		lazy_static! {
-			static ref CORE_LIBS: Arc<Mutex<Env>> = {
+			static ref CORE_LIBS: SharedEnv = {
 				let mut parent = Env::new(None);
 				import_core_lib!(parent, "../core/constants.gynj");
 				import_core_lib!(parent, "../core/core.gynj");
@@ -59,7 +61,7 @@ impl Env {
 }
 
 /// Attempts to import library at `filename` into `env`. Displays an error message on failure.
-pub fn import_lib_from_path(env: &mut Arc<Mutex<Env>>, filename: &str) {
+pub fn import_lib_from_path(env: &mut SharedEnv, filename: &str) {
 	if let Err(err) = eval(env, &format!("import {}", filename)) {
 		println!("Error importing {}: {}", filename, err);
 	}
