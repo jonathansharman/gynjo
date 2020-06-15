@@ -4,12 +4,12 @@
 mod values;
 
 mod env;
-mod error;
+mod errors;
 mod exprs;
 mod interpreter;
 mod intrinsics;
 mod lexer;
-mod number;
+mod numbers;
 mod parser;
 mod primitives;
 mod symbol;
@@ -34,9 +34,9 @@ fn main() {
 	}
 }
 
-fn repl_iter(mut env: &mut env::SharedEnv) -> Result<(), error::Error> {
+fn repl_iter(mut env: &mut env::SharedEnv) -> Result<(), errors::Error> {
 	// Evaluate.
-	let value = interpreter::eval_expr(&mut env, get_expr()?).map_err(error::Error::runtime)?;
+	let value = interpreter::eval_expr(&mut env, get_expr()?).map_err(errors::Error::runtime)?;
 	if value != values::Val::empty() {
 		// Print the computed value.
 		println!("{}", value.to_string(&mut env));
@@ -46,7 +46,7 @@ fn repl_iter(mut env: &mut env::SharedEnv) -> Result<(), error::Error> {
 	Ok(())
 }
 
-fn get_expr() -> Result<exprs::Expr, error::Error> {
+fn get_expr() -> Result<exprs::Expr, errors::Error> {
 	// Read first line of input.
 	let mut tokens = get_token_line(">> ")?;
 	loop {
@@ -59,19 +59,19 @@ fn get_expr() -> Result<exprs::Expr, error::Error> {
 		match parser::parse(&tokens[..]) {
 			Ok(expr) => return Ok(expr),
 			// Try reading more input if there's an end-of-input error.
-			Err(error::ParseError::EndOfInput { .. }) => {
+			Err(errors::ParseError::EndOfInput { .. }) => {
 				tokens.append(&mut get_token_line("   ")?);
 			},
 			// Unrecoverable parse error
-			Err(parse_error) => return Err(error::Error::parse(parse_error)),
+			Err(parse_error) => return Err(errors::Error::parse(parse_error)),
 		}
 	}
 }
 
-fn get_token_line(prompt: &str) -> Result<Vec<tokens::Tok>, error::Error> {
+fn get_token_line(prompt: &str) -> Result<Vec<tokens::Tok>, errors::Error> {
 	print!("{}", prompt);
 	io::stdout().flush().unwrap();
 	let mut input = String::new();
 	io::stdin().read_line(&mut input).unwrap();
-	lexer::lex(&input).map_err(error::Error::lex)
+	lexer::lex(&input).map_err(errors::Error::lex)
 }

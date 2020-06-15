@@ -1,4 +1,4 @@
-use super::number::NumError;
+use super::numbers::NumError;
 use super::tokens::Tok;
 use super::types::Type;
 

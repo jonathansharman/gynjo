@@ -1,5 +1,5 @@
 use super::intrinsics::Intrinsic;
-use super::number::Num;
+use super::numbers::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
 use super::types::{Type, ListType};

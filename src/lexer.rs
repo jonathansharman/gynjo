@@ -1,4 +1,4 @@
-use super::error::LexError;
+use super::errors::LexError;
 use super::tokens::Tok;
 
 use logos::Logos;
@@ -21,7 +21,7 @@ pub fn lex(input: &str) -> LexResult {
 
 #[cfg(test)]
 mod tests {
-	use crate::error::LexError;
+	use crate::errors::LexError;
 	use crate::lexer::lex;
 	use crate::primitives::Prim;
 	use crate::symbol::Sym;

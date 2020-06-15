@@ -1,9 +1,9 @@
 use super::env::{Env, SharedEnv};
-use super::error::{Error, RuntimeError};
+use super::errors::{Error, RuntimeError};
 use super::exprs::{Expr, BinOp, Cluster, ClusterConnector, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::lexer::lex;
-use super::number::Num;
+use super::numbers::Num;
 use super::primitives::{Prim, Bool};
 use super::parser::parse;
 use super::types::{Type, ListType};
@@ -503,9 +503,9 @@ fn eval_negation(env: &SharedEnv, value: Val) -> EvalResult {
 #[cfg(test)]
 mod tests {
 	use crate::env::{Env, SharedEnv};
-	use crate::error::Error;
+	use crate::errors::Error;
 	use crate::interpreter::eval;
-	use crate::number::Num;
+	use crate::numbers::Num;
 	use crate::primitives::Prim;
 	use crate::types::{Type, ListType};
 	use crate::values::{Val, Tuple, List};

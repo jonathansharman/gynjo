@@ -1,4 +1,4 @@
-use super::number::Num;
+use super::numbers::Num;
 use super::types::Type;
 
 use std::fmt;

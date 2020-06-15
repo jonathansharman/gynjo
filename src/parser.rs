@@ -1,4 +1,4 @@
-use super::error::ParseError;
+use super::errors::ParseError;
 use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::primitives::Prim;
