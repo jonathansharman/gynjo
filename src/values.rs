@@ -57,6 +57,13 @@ macro_rules! make_list {
 	}
 }
 
+#[macro_export]
+macro_rules! make_list_value {
+	($($values:expr),*) => {
+		Val::List(make_list!($($values),*))
+	}
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Tuple {
 	pub elems: Box<Vec<Val>>,
@@ -64,7 +71,7 @@ pub struct Tuple {
 
 /// Convenience macro for turning a comma-separated list of values into a value tuple.
 #[macro_export]
-macro_rules! make_tuple {
+macro_rules! make_tuple_value {
 	($($exprs:expr),*) => {
 		Val::Tuple(Tuple { elems: Box::new(vec!($($exprs),*)) })
 	}

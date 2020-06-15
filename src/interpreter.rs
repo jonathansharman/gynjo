@@ -797,13 +797,13 @@ mod tests {
 		}
 		#[test]
 		fn nested_tuple_of_numbers() -> Result<(), Error> {
-			let expected = make_tuple!(Val::from(1), make_tuple!(Val::from(2), Val::from(3)));
+			let expected = make_tuple_value!(Val::from(1), make_tuple_value!(Val::from(2), Val::from(3)));
 			assert_eq!(expected, eval(&mut Env::new(None), "(1, (2, 3))")?);
 			Ok(())
 		}
 		#[test]
 		fn nested_tuple_of_numbers_and_booleans() -> Result<(), Error> {
-			let expected = make_tuple!(Val::from(true), make_tuple!(Val::from(2), Val::from(false)));
+			let expected = make_tuple_value!(Val::from(true), make_tuple_value!(Val::from(2), Val::from(false)));
 			assert_eq!(expected, eval(&mut Env::new(None), "(1 < 2, (2, false))")?);
 			Ok(())
 		}
@@ -813,18 +813,18 @@ mod tests {
 		use super::*;
 		#[test]
 		fn singleton_list() -> Result<(), Error> {
-			assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut Env::new(None), "[1]")?);
+			assert_eq!(make_list_value!(Val::from(1)), eval(&mut Env::new(None), "[1]")?);
 			Ok(())
 		}
 		#[test]
 		fn nested_list_of_numbers() -> Result<(), Error> {
-			let expected = Val::List(make_list!(Val::from(1), Val::List(make_list!(Val::from(2), Val::from(3)))));
+			let expected = make_list_value!(Val::from(1), make_list_value!(Val::from(2), Val::from(3)));
 			assert_eq!(expected, eval(&mut Env::new(None), "[1, [2, 3]]")?);
 			Ok(())
 		}
 		#[test]
 		fn nested_list_of_numbers_and_booleans() -> Result<(), Error> {
-			let expected = Val::List(make_list!(Val::from(true), Val::List(make_list!(Val::from(2), Val::from(false)))));
+			let expected = make_list_value!(Val::from(true), make_list_value!(Val::from(2), Val::from(false)));
 			assert_eq!(expected, eval(&mut Env::new(None), "[1 < 2, [2, false]]")?);
 			Ok(())
 		}
@@ -847,14 +847,14 @@ mod tests {
 		use super::*;
 		#[test]
 		fn negation() -> Result<(), Error> {
-			let expected = Val::List(make_list!(Val::from(-1), Val::from(-2), Val::from(-3)));
+			let expected = make_list_value!(Val::from(-1), Val::from(-2), Val::from(-3));
 			assert_eq!(expected, eval(&mut Env::new(None), "-[1, 2, 3]")?);
 			Ok(())
 		}
 		#[test]
 		fn addition() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			let expected = Val::List(make_list!(Val::from(2), Val::from(3), Val::from(4)));
+			let expected = make_list_value!(Val::from(2), Val::from(3), Val::from(4));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 3] + 1")?);
 			assert_eq!(expected, eval(&mut env, "1 + [1, 2, 3]")?);
 			Ok(())
@@ -862,7 +862,7 @@ mod tests {
 		#[test]
 		fn subtraction() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3)));
+			let expected = make_list_value!(Val::from(1), Val::from(2), Val::from(3));
 			assert_eq!(expected, eval(&mut env, "[2, 3, 4]-1")?);
 			assert_eq!(expected, eval(&mut env, "4-[3, 2, 1]")?);
 			Ok(())
@@ -870,7 +870,7 @@ mod tests {
 		#[test]
 		fn multiplication() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			let expected = Val::List(make_list!(Val::from(2), Val::from(4), Val::from(6)));
+			let expected = make_list_value!(Val::from(2), Val::from(4), Val::from(6));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 3]2")?);
 			assert_eq!(expected, eval(&mut env, "2[1, 2, 3]")?);
 			Ok(())
@@ -878,7 +878,7 @@ mod tests {
 		#[test]
 		fn division() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3)));
+			let expected = make_list_value!(Val::from(1), Val::from(2), Val::from(3));
 			assert_eq!(expected, eval(&mut env, "[2, 4, 6]/2")?);
 			assert_eq!(expected, eval(&mut env, "6/[6, 3, 2]")?);
 			Ok(())
@@ -886,7 +886,7 @@ mod tests {
 		#[test]
 		fn exponentiation() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			let expected = Val::List(make_list!(Val::from(1), Val::from(4), Val::from(16)));
+			let expected = make_list_value!(Val::from(1), Val::from(4), Val::from(16));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 4]^2")?);
 			assert_eq!(expected, eval(&mut env, "2^[0, 2, 4]")?);
 			Ok(())
@@ -1152,15 +1152,15 @@ mod tests {
 		#[test]
 		fn pop() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			assert_eq!(Val::List(make_list!()), eval(&mut env, "pop([1])")?);
+			assert_eq!(make_list_value!(), eval(&mut env, "pop([1])")?);
 			assert!(eval(&mut env, "pop([])").is_err());
 			Ok(())
 		}
 		#[test]
 		fn push() -> Result<(), Error> {
 			let mut env = Env::new(None);
-			assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut env, "push([], 1)")?);
-			assert_eq!(Val::List(make_list!(Val::from(2), Val::from(1))), eval(&mut env, "push([1], 2)")?);
+			assert_eq!(make_list_value!(Val::from(1)), eval(&mut env, "push([], 1)")?);
+			assert_eq!(make_list_value!(Val::from(2), Val::from(1)), eval(&mut env, "push([1], 2)")?);
 			Ok(())
 		}
 		#[test]
@@ -1235,51 +1235,51 @@ mod tests {
 			#[test]
 			fn append() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3))), eval(&mut env, "append([1, 2], 3)")?);
+				assert_eq!(make_list_value!(Val::from(1), Val::from(2), Val::from(3)), eval(&mut env, "append([1, 2], 3)")?);
 				Ok(())
 			}
 			#[test]
 			fn reverse() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(3), Val::from(2), Val::from(1))), eval(&mut env, "reverse [1, 2, 3]")?);
+				assert_eq!(make_list_value!(Val::from(3), Val::from(2), Val::from(1)), eval(&mut env, "reverse [1, 2, 3]")?);
 				Ok(())
 			}
 			#[test]
 			fn concat() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3), Val::from(4)));
+				let expected = make_list_value!(Val::from(1), Val::from(2), Val::from(3), Val::from(4));
 				assert_eq!(expected, eval(&mut env, "concat([1, 2], [3, 4])")?);
 				Ok(())
 			}
 			#[test]
 			fn insert_into_non_empty() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				let expected = Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3)));
+				let expected = make_list_value!(Val::from(1), Val::from(2), Val::from(3));
 				assert_eq!(expected, eval(&mut env, "insert([1, 3], 1, 2)")?);
 				Ok(())
 			}
 			#[test]
 			fn insert_into_empty() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(1))), eval(&mut env, "insert([], 0, 1)")?);
+				assert_eq!(make_list_value!(Val::from(1)), eval(&mut env, "insert([], 0, 1)")?);
 				Ok(())
 			}
 			#[test]
 			fn remove_from_middle() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(3))), eval(&mut env, "remove([1, 2, 3], 1)")?);
+				assert_eq!(make_list_value!(Val::from(1), Val::from(3)), eval(&mut env, "remove([1, 2, 3], 1)")?);
 				Ok(())
 			}
 			#[test]
 			fn remove_from_beginning() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(2), Val::from(3))), eval(&mut env, "remove([1, 2, 3], 0)")?);
+				assert_eq!(make_list_value!(Val::from(2), Val::from(3)), eval(&mut env, "remove([1, 2, 3], 0)")?);
 				Ok(())
 			}
 			#[test]
 			fn map() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(4), Val::from(9))), eval(&mut env, "map([1, 2, 3], x -> x^2)")?);
+				assert_eq!(make_list_value!(Val::from(1), Val::from(4), Val::from(9)), eval(&mut env, "map([1, 2, 3], x -> x^2)")?);
 				Ok(())
 			}
 			#[test]
@@ -1291,14 +1291,14 @@ mod tests {
 			#[test]
 			fn flatmap() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				let expected = Val::List(make_list!(Val::from(1), Val::from(1), Val::from(2), Val::from(2)));
+				let expected = make_list_value!(Val::from(1), Val::from(1), Val::from(2), Val::from(2));
 				assert_eq!(expected, eval(&mut env, "flatmap([1, 2], x -> [x, x])")?);
 				Ok(())
 			}
 			#[test]
 			fn range() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
-				assert_eq!(Val::List(make_list!(Val::from(1), Val::from(2), Val::from(3))), eval(&mut env, "range(1, 3)")?);
+				assert_eq!(make_list_value!(Val::from(1), Val::from(2), Val::from(3)), eval(&mut env, "range(1, 3)")?);
 				Ok(())
 			}
 		}
