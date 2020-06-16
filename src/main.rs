@@ -1,7 +1,9 @@
 #![feature(exclusive_range_pattern)]
 
 #[macro_use]
-mod values;
+mod list;
+#[macro_use]
+mod tuple;
 
 mod env;
 mod errors;
@@ -15,6 +17,7 @@ mod primitives;
 mod symbol;
 mod tokens;
 mod types;
+mod values;
 
 #[macro_use]
 extern crate lazy_static;

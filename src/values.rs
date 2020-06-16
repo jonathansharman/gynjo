@@ -1,91 +1,15 @@
 use super::env::SharedEnv;
 use super::exprs::Lambda;
+use super::list::List;
 use super::numbers::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
-use super::types::{Type, ListType};
+use super::types::Type;
+use super::tuple::Tuple;
 
 use num_traits::cast::ToPrimitive;
-use itertools::Itertools;
 
 use std::boxed::Box;
-use std::sync::Arc;
-
-/// Functional linked list of Gynjo values.
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub enum List {
-	Empty,
-	Cons { head: Box<Val>, tail: Arc<List> },
-}
-
-impl List {
-	pub fn to_string(&self, env: &SharedEnv) -> String {
-		format!("[{}]", self.iter().map(|elem| elem.to_string(&env)).join(", "))
-	}
-
-	/// A `ref` iterator over this list.
-	pub fn iter(&self) -> ListIter {
-		ListIter(self)
-	}
-}
-
-pub struct ListIter<'a>(&'a List);
-
-impl <'a> Iterator for ListIter<'a> {
-	type Item = &'a Val;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		match self.0 {
-			List::Empty => None,
-			List::Cons { head, tail } => {
-				self.0 = tail;
-				Some(head)
-			}
-		}
-	}
-}
-
-/// Convenience macro for turning a comma-separated list of values into a linked value list.
-#[macro_export]
-macro_rules! make_list {
-	() => { List::Empty };
-	($head:expr $(, $tail:expr)*) => {
-		List::Cons {
-			head: Box::new($head),
-			tail: Arc::new(make_list!($($tail),*)),
-		}
-	}
-}
-
-#[macro_export]
-macro_rules! make_list_value {
-	($($values:expr),*) => {
-		Val::List(make_list!($($values),*))
-	}
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Tuple {
-	pub elems: Box<Vec<Val>>,
-}
-
-/// Convenience macro for turning a comma-separated list of values into a value tuple.
-#[macro_export]
-macro_rules! make_tuple_value {
-	($($exprs:expr),*) => {
-		Val::Tuple(Tuple { elems: Box::new(vec!($($exprs),*)) })
-	}
-}
-
-impl Tuple {
-	pub fn empty() -> Tuple {
-		Tuple { elems: Box::new(Vec::new()) }
-	}
-
-	pub fn to_string(&self, env: &SharedEnv) -> String {
-		format!("({})", self.elems.iter().map(|elem| elem.to_string(env)).join(", "))
-	}
-}
 
 #[derive(Clone, Debug)]
 pub struct Closure {
@@ -167,10 +91,7 @@ impl Val {
 				Prim::Type(_) => Type::Type,
 			},
 			Val::Tuple(_) => Type::Tuple,
-			Val::List(list) => match list {
-				List::Empty => Type::List(ListType::Empty),
-				List::Cons { .. } => Type::List(ListType::Cons),
-			},
+			Val::List(_) => Type::List,
 			Val::Closure(_) => Type::Closure,
 			Val::Returned { .. } => Type::Returned,
 		}

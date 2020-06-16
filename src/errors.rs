@@ -2,8 +2,6 @@ use super::numbers::NumError;
 use super::tokens::Tok;
 use super::types::Type;
 
-use itertools::Itertools;
-
 use std::fmt;
 
 /// An error that occurs while lexing a string into Gynjo tokens.
@@ -60,7 +58,7 @@ pub enum RuntimeError {
     Numeric(NumError),
     UnaryTypeMismatch {
         context: &'static str,
-        expected: Vec<Type>,
+        expected: Type,
         actual: Type,
     },
     BinaryTypeMismatch {
@@ -68,6 +66,7 @@ pub enum RuntimeError {
         left: Type,
         right: Type,
     },
+    OutOfBounds,
     ArgCountMismatch {
         required: usize,
         received: usize,
@@ -95,11 +94,12 @@ impl fmt::Display for RuntimeError {
         match self {
             RuntimeError::Numeric(err) => err.fmt(f),
             RuntimeError::UnaryTypeMismatch { context, expected, actual } => {
-                write!(f, "Expected {} in {}, found {}", expected.iter().map(Type::to_string).join(" or "), context, actual)
+                write!(f, "Expected {} in {}, found {}", expected.to_string(), context, actual)
             },
             RuntimeError::BinaryTypeMismatch { context, left, right } => {
                 write!(f, "Cannot perform {} with {} and {}", context, left, right)
             },
+            RuntimeError::OutOfBounds => write!(f, "Out of bounds"),
             RuntimeError::ArgCountMismatch { required, received } => {
                 write!(f, "Function requires {} argument{}, received {}", required, if *required == 1 { "" } else { "s" }, received)
             },

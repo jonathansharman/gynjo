@@ -3,16 +3,17 @@ use super::errors::{Error, RuntimeError};
 use super::exprs::{Expr, BinOp, Cluster, ClusterConnector, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::lexer::lex;
+use super::list::List;
 use super::numbers::Num;
 use super::primitives::{Prim, Bool};
 use super::parser::parse;
-use super::types::{Type, ListType};
-use super::values::{Closure, Tuple, List, Val};
+use super::tuple::Tuple;
+use super::types::Type;
+use super::values::{Closure, Val};
 
 use bigdecimal::BigDecimal;
 
 use std::io;
-use std::sync::Arc;
 
 /// Result of evaluating a Gynjo expression.
 type EvalResult = Result<Val, RuntimeError>;
@@ -52,7 +53,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 							Val::Prim(Prim::Bool(right)) => Ok(right.into()),
 							invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 								context: "logical conjunction",
-								expected: vec!(Type::Boolean),
+								expected: Type::Boolean,
 								actual: invalid.get_type(),
 							}),
 						}
@@ -62,7 +63,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 					},
 					invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "logical conjunction",
-						expected: vec!(Type::Boolean),
+						expected: Type::Boolean,
 						actual: invalid.get_type(),
 					}),
 				}
@@ -77,14 +78,14 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 							Val::Prim(Prim::Bool(right)) => Ok(right.into()),
 							invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 								context: "logical disjunction",
-								expected: vec!(Type::Boolean),
+								expected: Type::Boolean,
 								actual: invalid.get_type(),
 							}),
 						}
 					},
 					invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "logical disjunction",
-						expected: vec!(Type::Boolean),
+						expected: Type::Boolean,
 						actual: invalid.get_type(),
 					}),
 				}
@@ -139,7 +140,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 				Val::Prim(Prim::Bool(b)) => Ok(Bool::from(!bool::from(b)).into()),
 				invalid @ _ => Err(RuntimeError::UnaryTypeMismatch {
 					context: "logical negation",
-					expected: vec!(Type::Boolean),
+					expected: Type::Boolean,
 					actual: invalid.get_type(),
 				}),
 			}
@@ -154,9 +155,9 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 			Ok(Val::Tuple(Tuple { elems: elems }))
 		},
 		Expr::ListExpr(expr_elems) => {
-			let mut list = List::Empty;
+			let mut list = List::empty();
 			for expr_elem in expr_elems.into_iter() {
-				list = List::Cons { head: Box::new(eval_expr(&mut env, expr_elem)?), tail: Arc::new(list) };
+				list = list.push(eval_expr(&mut env, expr_elem)?);
 			}
 			Ok(Val::List(list))
 		},
@@ -190,7 +191,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 				Val::Prim(Prim::Bool(b)) => eval_expr(env, if b.into() { *then_expr } else { *else_expr }),
 				_ => Err(RuntimeError::UnaryTypeMismatch {
 					context: "conditional test",
-					expected: vec!(Type::Boolean),
+					expected: Type::Boolean,
 					actual: test_value.get_type(),
 				}),
 			}
@@ -250,7 +251,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 				},
 				_ => Err(RuntimeError::UnaryTypeMismatch {
 					context: "for-loop range".into(),
-					expected: vec!(Type::List(ListType::Empty), Type::List(ListType::Cons)),
+					expected: Type::List,
 					actual: range_value.get_type()
 				}),
 			}
@@ -269,21 +270,6 @@ pub fn eval(env: &mut SharedEnv, input: &str) -> Result<Val, Error> {
 	eval_expr(env, expr).map_err(Error::runtime)
 }
 
-/// Evaluates a numerical operation on a list and a number.
-fn list_num_op(env: &SharedEnv, list: List, number: Num, number_on_left: bool, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> Result<List, RuntimeError> {
-	match list {
-		List::Empty => Ok(List::Empty),
-		List::Cons { head, tail } => Ok(List::Cons {
-			head: if number_on_left {
-				Box::new(bin_num_op(env, Val::Prim(Prim::Num(number.clone())), *head, op_name, op)?)
-			} else {
-				Box::new(bin_num_op(env, *head, Val::Prim(Prim::Num(number.clone())), op_name, op)?)
-			},
-			tail: Arc::new(list_num_op(env, (*tail).clone(), number, number_on_left, op_name, op)?),
-		}),
-	}
-}
-
 /// Evaluates a numerical operation on two values.
 fn bin_num_op(env: &SharedEnv, left: Val, right: Val, op_name: &'static str, op: fn(Num, Num) -> EvalResult) -> EvalResult {
 	match (left, right) {
@@ -291,11 +277,11 @@ fn bin_num_op(env: &SharedEnv, left: Val, right: Val, op_name: &'static str, op:
 		(Val::Prim(Prim::Num(left)), Val::Prim(Prim::Num(right))) => Ok(op(left, right)?),
 		// List op Number
 		(Val::List(list), Val::Prim(Prim::Num(number))) => {
-			Ok(Val::List(list_num_op(env, list, number, false, op_name, op)?))
+			Ok(Val::List(list.map(|elem| bin_num_op(env, elem.clone(), Val::Prim(Prim::Num(number.clone())), op_name, op))?))
 		},
 		// Number op List
 		(Val::Prim(Prim::Num(number)), Val::List(list)) => {
-			Ok(Val::List(list_num_op(env, list, number, true, op_name, op)?))
+			Ok(Val::List(list.map(|elem| bin_num_op(env, Val::Prim(Prim::Num(number.clone())), elem.clone(), op_name, op))?))
 		},
 		// Invalid numeric operation
 		(left @ _, right @ _) => Err(RuntimeError::BinaryTypeMismatch {
@@ -425,18 +411,18 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 		LambdaBody::Intrinsic(body) => {
 			match body {
 				Intrinsic::Top => match local_env.lock().unwrap().lookup(&"list".into()).unwrap() {
-					Val::List(List::Cons { head, .. }) => Ok((*head).clone()),
+					Val::List(list) => Ok(list.head().ok_or(RuntimeError::OutOfBounds)?.clone()),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "top()",
-						expected: vec!(Type::List(ListType::Empty), Type::List(ListType::Cons)),
+						expected: Type::List,
 						actual: arg.get_type()
 					}),
 				},
 				Intrinsic::Pop => match local_env.lock().unwrap().lookup(&"list".into()).unwrap() {
-					Val::List(List::Cons { tail, .. }) => Ok(Val::List((*tail).clone())),
+					Val::List(list) => Ok(Val::List(list.tail().ok_or(RuntimeError::OutOfBounds)?)),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "pop()",
-						expected: vec!(Type::List(ListType::Cons)),
+						expected: Type::List,
 						actual: arg.get_type()
 					}),
 				},
@@ -445,11 +431,11 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					match locked_env.lookup(&"list".into()).unwrap() {
 						Val::List(list) => {
 							let value = locked_env.lookup(&"value".into()).unwrap().clone();
-							Ok(Val::List(List::Cons { head: Box::new(value), tail: Arc::new(list.clone()) }))
+							Ok(Val::List(list.push(value)))
 						},
 						arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 							context: "push()",
-							expected: vec!(Type::List(ListType::Empty), Type::List(ListType::Cons)),
+							expected: Type::List,
 							actual: arg.get_type()
 						}),
 					}
@@ -468,8 +454,8 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 					Val::Prim(Prim::Num(number)) => Ok(Val::from(Num::Real(number.into()))),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
 						context: "to_real()",
-						expected: vec!(Type::Real),
-						actual: arg.get_type()
+						expected: Type::Real,
+						actual: arg.get_type(),
 					}),
 				},
 			}
@@ -477,24 +463,14 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	}
 }
 
-fn negate_list(env: &SharedEnv, list: List) -> Result<List, RuntimeError> {
-	match list {
-		List::Empty => Ok(List::Empty),
-		List::Cons { head, tail } => Ok(List::Cons {
-			head: Box::new(eval_negation(env, *head)?),
-			tail: Arc::new(negate_list(env, (*tail).clone())?),
-		}),
-	}
-}
-
 fn eval_negation(env: &SharedEnv, value: Val) -> EvalResult {
 	match value {
 		Val::Prim(Prim::Num(Num::Integer(integer))) => Ok(Val::Prim(Prim::Num(Num::Integer(-integer)))),
 		Val::Prim(Prim::Num(Num::Real(real))) => Ok(Val::Prim(Prim::Num(Num::Real(-real)))),
-		Val::List(list) => Ok(Val::List(negate_list(env, list)?)),
+		Val::List(list) => Ok(Val::List(list.map(|elem| eval_negation(env, elem.clone()))?)),
 		_ => Err(RuntimeError::UnaryTypeMismatch {
 			context: "negation",
-			expected: vec!(Type::Boolean),
+			expected: Type::Boolean,
 			actual: value.get_type(),
 		}),
 	}
@@ -505,15 +481,16 @@ mod tests {
 	use crate::env::{Env, SharedEnv};
 	use crate::errors::Error;
 	use crate::interpreter::eval;
+	use crate::list::List;
 	use crate::numbers::Num;
 	use crate::primitives::Prim;
-	use crate::types::{Type, ListType};
-	use crate::values::{Val, Tuple, List};
+	use crate::tuple::Tuple;
+	use crate::types::Type;
+	use crate::values::Val;
 
 	use bigdecimal::BigDecimal;
 
 	use std::str::FromStr;
-	use std::sync::Arc;
 
 	#[test]
 	fn empty_input_evaluates_to_empty() -> Result<(), Error> {
@@ -832,14 +809,14 @@ mod tests {
 
 	#[test]
 	fn list_destruction_does_not_cause_stack_overflow() {
-		let result = eval(&mut Env::new(None), r"(
+		let result = eval(&mut Env::new(None), r"{
 			let i = 0;
 			let l = [];
 			while i < 1000 do {
 				let l = push(l, i);
 				let i = i + 1;
 			}
-		)");
+		}");
 		assert!(result.is_ok());
 	}
 
@@ -1168,8 +1145,8 @@ mod tests {
 			let mut env = Env::new(None);
 			assert_eq!(Val::Prim(Prim::Type(Type::Integer)), eval(&mut env, "get_type 1")?);
 			assert_eq!(Val::Prim(Prim::Type(Type::Real)), eval(&mut env, "get_type 1.5")?);
-			assert_eq!(Val::Prim(Prim::Type(Type::List(ListType::Empty))), eval(&mut env, "get_type []")?);
-			assert_eq!(Val::Prim(Prim::Type(Type::List(ListType::Cons))), eval(&mut env, "get_type [1]")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::List)), eval(&mut env, "get_type []")?);
+			assert_eq!(Val::Prim(Prim::Type(Type::List)), eval(&mut env, "get_type [1]")?);
 			assert_eq!(Val::Prim(Prim::Type(Type::Type)), eval(&mut env, "get_type(get_type(1))")?);
 			Ok(())
 		}

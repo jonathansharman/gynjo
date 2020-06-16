@@ -2,7 +2,7 @@ use super::intrinsics::Intrinsic;
 use super::numbers::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
-use super::types::{Type, ListType};
+use super::types::Type;
 
 use bigdecimal::BigDecimal;
 use logos::Logos;
@@ -116,8 +116,7 @@ pub enum Tok {
 	#[token("real", |_| Some(Prim::Type(Type::Real)))]
 	#[token("string", |_| Some(Prim::Type(Type::String)))]
 	#[token("tuple", |_| Some(Prim::Type(Type::Tuple)))]
-	#[token("empty_list", |_| Some(Prim::Type(Type::List(ListType::Empty))))]
-	#[token("nonempty_list", |_| Some(Prim::Type(Type::List(ListType::Cons))))]
+	#[token("list", |_| Some(Prim::Type(Type::List)))]
 	#[token("closure", |_| Some(Prim::Type(Type::Closure)))]
 	#[token("returned_value", |_| Some(Prim::Type(Type::Returned)))]
 	// Real

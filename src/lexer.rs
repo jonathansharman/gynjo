@@ -26,7 +26,7 @@ mod tests {
 	use crate::primitives::Prim;
 	use crate::symbol::Sym;
 	use crate::tokens::Tok;
-	use crate::types::{Type, ListType};
+	use crate::types::Type;
 
 	impl Tok {
 		fn from_string<S>(s: S) -> Tok where S: Into<String> {
@@ -111,8 +111,7 @@ mod tests {
 			Tok::Prim(Prim::Type(Type::Real)), Tok::from(1), Tok::from_symbol("reals"),
 			Tok::Prim(Prim::Type(Type::String)), Tok::from(1), Tok::from_symbol("strings"),
 			Tok::Prim(Prim::Type(Type::Tuple)), Tok::from(1), Tok::from_symbol("tuples"),
-			Tok::Prim(Prim::Type(Type::List(ListType::Empty))), Tok::from(1), Tok::from_symbol("empty_lists"),
-			Tok::Prim(Prim::Type(Type::List(ListType::Cons))), Tok::from(1), Tok::from_symbol("nonempty_lists"),
+			Tok::Prim(Prim::Type(Type::List)), Tok::from(1), Tok::from_symbol("lists"),
 			Tok::Prim(Prim::Type(Type::Closure)), Tok::from(1), Tok::from_symbol("closures"),
 			Tok::Prim(Prim::Type(Type::Returned)), Tok::from(1), Tok::from_symbol("returned_values"),
 		);
@@ -136,8 +135,7 @@ mod tests {
 			real1 reals
 			string1 strings
 			tuple1 tuples
-			empty_list1 empty_lists
-			nonempty_list1 nonempty_lists
+			list1 lists
 			closure1 closures
 			returned_value1 returned_values
 		"#)?;

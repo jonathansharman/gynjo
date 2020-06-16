@@ -1,33 +1,33 @@
 {
 	// List operations
 
-	let len = list -> {
+	let len = l -> {
 		let result = 0;
-		while list != [] do {
+		while l != [] do {
 			let result = result + 1;
-			let list = pop(list);
+			let l = pop(l);
 		};
 		result
 	};
 
-	let nth = (list, n) -> {
+	let nth = (l, n) -> {
 		while n > 0 do {
 			let n = n - 1;
-			let list = pop(list);
+			let l = pop(l);
 		};
-		top(list)
+		top(l)
 	};
 
-	let append = (list, value) ->
-		if list = []
+	let append = (l, value) ->
+		if l = []
 			then [value]
-			else push(append(pop(list), value), top(list));
+			else push(append(pop(l), value), top(l));
 
-	let reverse = list -> {
+	let reverse = l -> {
 		let result = [];
-		while list != [] do {
-			let result = push(result, top(list));
-			let list = pop(list);
+		while l != [] do {
+			let result = push(result, top(l));
+			let l = pop(l);
 		};
 		result
 	};
@@ -37,49 +37,49 @@
 			then right_list
 			else push(concat(pop(left_list), right_list), top(left_list));
 
-	let insert = (list, index, value) ->
-		if index = 0 then push(list, value) else {
+	let insert = (l, index, value) ->
+		if index = 0 then push(l, value) else {
 			let result = [];
 			let i = 0;
-			while list != [] do {
+			while l != [] do {
 				if i = index then let result = push(result, value);
-				let result = push(result, top(list));
-				let list = pop(list);
+				let result = push(result, top(l));
+				let l = pop(l);
 				let i = i + 1;
 			};
 			reverse(result)
 		};
 
-	let remove = (list, index) ->
-		if index = 0 then pop(list) else {
+	let remove = (l, index) ->
+		if index = 0 then pop(l) else {
 			let result = [];
 			let i = 0;
-			while list != [] do {
-				if i != index then let result = push(result, top(list));
-				let list = pop(list);
+			while l != [] do {
+				if i != index then let result = push(result, top(l));
+				let l = pop(l);
 				let i = i + 1;
 			};
 			reverse(result)
 		};
 
-	let map = (list, f) -> {
+	let map = (l, f) -> {
 		let result = [];
-		while list != [] do {
-			let result = push(result, f(top(list)));
-			let list = pop(list);
+		while l != [] do {
+			let result = push(result, f(top(l)));
+			let l = pop(l);
 		};
 		reverse(result)
 	};
 
-	let reduce = (list, acc, f) -> {
-		while list != [] do {
-			let acc = f(acc, top(list));
-			let list = pop(list);
+	let reduce = (l, acc, f) -> {
+		while l != [] do {
+			let acc = f(acc, top(l));
+			let l = pop(l);
 		};
 		acc
 	};
 
-	let flatmap = (list, f) -> reduce(map(list, f), [], concat);
+	let flatmap = (l, f) -> reduce(map(l, f), [], concat);
 
 	let range = (start, end) -> {
 		let result = [];
