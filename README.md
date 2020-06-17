@@ -40,7 +40,7 @@ The unary operators are `not` (logical negation), `return` (return expression), 
 
 ### Binary Operators from High to Low Precedence
 | Token(s)             | Operation                                             |
-| -------------------- | ----------------------------------------------------- |
+| :------------------- | :---------------------------------------------------- |
 | implicit             | Function application with parentheses (e.g. `f(5)`)   |
 | `**`/`^`             | Exponentiation                                        |
 | implicit             | Function application without parentheses (e.g. `f 5`) |
@@ -107,7 +107,7 @@ When a block expression or loop body iteration encounters a value of type `retur
 ## Value Types
 
 | Type             | Description                               | Examples                      |
-| ---------------- | ----------------------------------------- | ----------------------------- |
+| :--------------- | :---------------------------------------- | :---------------------------- |
 | `type`           | One of the types in this table            | `integer`, `get_type(1)`      |
 | `boolean`        | `true` or `false`                         | `true`, `false`               |
 | `integer`        | Arbitrary-precision integer type          | `0`, `-1`, `42`               |
@@ -125,7 +125,7 @@ Why have both `tuple` and `list` when both are just lists of values? The reason 
 
 ### Possible Type Conversions via the `as` Operator
 | From       | To         |
-| ---------- | ---------- |
+| :--------- | :--------- |
 | any type   | itself     |
 | any type   | `string`   |
 | `integer`  | `rational` |
@@ -143,7 +143,7 @@ Gynjo uses function scoping rather than lexical scoping, so each function applic
 ### Built-in Functions
 
 | Signature     | Effect                                                       |
-| ------------- | ------------------------------------------------------------ |
+| :------------ | :----------------------------------------------------------- |
 | `top(l)`      | Gets the top (or first) element of `l` (`list`)              |
 | `pop(l)`      | Gets the elements of `l` (`list`) except for `top(l)`        |
 | `push(l, v)`  | Builds a new `list` from `l` with `v` as its new top element |
