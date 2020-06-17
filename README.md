@@ -45,7 +45,7 @@ The unary operators are `not` (logical negation), `-` (numeric negation), `retur
 | `**`/`^`             | Exponentiation                                        |
 | implicit             | Function application without parentheses (e.g. `f 5`) |
 | `*`/implicit, `/`    | Multiplication and division                           |
-| `|`                  | String and list concatenation                         |
+| `\|`                  | String and list concatenation                         |
 | `+`, `-`             | Addition and subtraction                              |
 | `as`                 | Type cast                                             |
 | `<`, `<=`, `>`, `>=` | Comparisons                                           |
