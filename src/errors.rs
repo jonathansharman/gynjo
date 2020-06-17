@@ -66,6 +66,10 @@ pub enum RuntimeError {
         left: Type,
         right: Type,
     },
+    InvalidTypeCast {
+        from: Type,
+        to: Type,
+    },
     OutOfBounds,
     ArgCountMismatch {
         required: usize,
@@ -98,6 +102,9 @@ impl fmt::Display for RuntimeError {
             },
             RuntimeError::BinaryTypeMismatch { context, left, right } => {
                 write!(f, "Cannot perform {} with {} and {}", context, left, right)
+            },
+            RuntimeError::InvalidTypeCast { from, to } => {
+                write!(f, "Cannot cast {} to {}", from, to)
             },
             RuntimeError::OutOfBounds => write!(f, "Out of bounds"),
             RuntimeError::ArgCountMismatch { required, received } => {

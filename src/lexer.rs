@@ -26,7 +26,6 @@ mod tests {
 	use crate::primitives::Prim;
 	use crate::symbol::Sym;
 	use crate::tokens::Tok;
-	use crate::types::Type;
 
 	impl Tok {
 		fn from_string<S>(s: S) -> Tok where S: Into<String> {
@@ -90,55 +89,13 @@ mod tests {
 	}
 
 	#[test]
-	fn key_words() -> Result<(), LexError> {
+	fn symbol_with_keyword_prefix() -> Result<(), LexError> {
 		let expected = vec!(
-			Tok::Import, Tok::from(1), Tok::from_symbol("imports"),
-			Tok::If, Tok::from(1), Tok::from_symbol("ifs"),
-			Tok::Then, Tok::from(1), Tok::from_symbol("thens"),
-			Tok::Else, Tok::from(1), Tok::from_symbol("elses"),
-			Tok::While, Tok::from(1), Tok::from_symbol("whiles"),
-			Tok::For, Tok::from(1), Tok::from_symbol("fors"),
-			Tok::In, Tok::from(1), Tok::from_symbol("ins"),
-			Tok::Do, Tok::from(1), Tok::from_symbol("dos"),
-			Tok::Return, Tok::from(1), Tok::from_symbol("returns"),
-			Tok::And, Tok::from(1), Tok::from_symbol("ands"),
-			Tok::Or, Tok::from(1), Tok::from_symbol("ors"),
-			Tok::Not, Tok::from(1), Tok::from_symbol("nots"),
-			Tok::Prim(Prim::Type(Type::Type)), Tok::from(1), Tok::from_symbol("types"),
-			Tok::Prim(Prim::Type(Type::Boolean)), Tok::from(1), Tok::from_symbol("booleans"),
-			Tok::Prim(Prim::Type(Type::Integer)), Tok::from(1), Tok::from_symbol("integers"),
-			Tok::Prim(Prim::Type(Type::Rational)), Tok::from(1), Tok::from_symbol("rationals"),
-			Tok::Prim(Prim::Type(Type::Real)), Tok::from(1), Tok::from_symbol("reals"),
-			Tok::Prim(Prim::Type(Type::String)), Tok::from(1), Tok::from_symbol("strings"),
-			Tok::Prim(Prim::Type(Type::Tuple)), Tok::from(1), Tok::from_symbol("tuples"),
-			Tok::Prim(Prim::Type(Type::List)), Tok::from(1), Tok::from_symbol("lists"),
-			Tok::Prim(Prim::Type(Type::Closure)), Tok::from(1), Tok::from_symbol("closures"),
-			Tok::Prim(Prim::Type(Type::Returned)), Tok::from(1), Tok::from_symbol("returned_values"),
+			Tok::Import, Tok::from(1), Tok::from_symbol("importa"),
+			Tok::If, Tok::from(1), Tok::from_symbol("ifb"),
+			Tok::Then, Tok::from(1), Tok::from_symbol("thenc"),
 		);
-		let actual = lex(r#"
-			import1 imports
-			if1 ifs
-			then1 thens
-			else1 elses
-			while1 whiles
-			for1 fors
-			in1 ins
-			do1 dos
-			return1 returns
-			and1 ands
-			or1 ors
-			not1 nots
-			type1 types
-			boolean1 booleans
-			integer1 integers
-			rational1 rationals
-			real1 reals
-			string1 strings
-			tuple1 tuples
-			list1 lists
-			closure1 closures
-			returned_value1 returned_values
-		"#)?;
+		let actual = lex("import1 importa if1 ifb then1 thenc")?;
 		assert_eq!(expected, actual);
 		Ok(())
 	}

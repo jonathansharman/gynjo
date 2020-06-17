@@ -209,7 +209,6 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				Intrinsic::Print => vec!(Sym::from("value")),
 				Intrinsic::Read => vec!(),
 				Intrinsic::GetType => vec!(Sym::from("value")),
-				Intrinsic::ToReal => vec!(Sym::from("value")),
 			};
 			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(*f) })))
 		},
@@ -366,9 +365,14 @@ fn parse_terms(tokens: &[Tok]) -> ParseExprResult {
 		&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)].iter().cloned().collect())
 }
 
+/// Parses a series of type casts.
+fn parse_type_casts(tokens: &[Tok]) -> ParseExprResult {
+	parse_binary_expressions(tokens, parse_terms, &[(Tok::As, BinOp::As)].iter().cloned().collect())
+}
+
 /// Parses a series of comparison checks (not including equality, inequality, or approximate equality).
 fn parse_comparisons(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_terms,
+	parse_binary_expressions(tokens, parse_type_casts,
 		&[(Tok::Lt, BinOp::Lt), (Tok::Leq, BinOp::Leq), (Tok::Gt, BinOp::Gt), (Tok::Geq, BinOp::Geq)].iter().cloned().collect())
 }
 

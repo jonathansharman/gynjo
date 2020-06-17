@@ -36,6 +36,9 @@ pub enum Tok {
 	Do,
 	#[token("return")]
 	Return,
+	// Type ops
+	#[token("as")]
+	As,
 	// Boolean ops
 	#[token("and")]
 	And,
@@ -93,22 +96,21 @@ pub enum Tok {
 	Question,
 	#[token(":")]
 	Colon,
-	// Intrinsic function
+	// Intrinsic functions
 	#[token("top", |_| Some(Intrinsic::Top))]
 	#[token("pop", |_| Some(Intrinsic::Pop))]
 	#[token("push", |_| Some(Intrinsic::Push))]
 	#[token("print", |_| Some(Intrinsic::Print))]
 	#[token("read", |_| Some(Intrinsic::Read))]
 	#[token("get_type", |_| Some(Intrinsic::GetType))]
-	#[token("to_real", |_| Some(Intrinsic::ToReal))]
 	Intrinsic(Intrinsic),
 	// Symbol
 	#[regex("[a-zA-Z_]+", |lex| Some(Sym::from(lex.slice())))]
 	Sym(Sym),
-	// Boolean
+	// Boolean literals
 	#[token("true", |_| Some(Prim::Bool(Bool::True)))]
 	#[token("false", |_| Some(Prim::Bool(Bool::False)))]
-	// Type
+	// Types
 	#[token("type", |_| Some(Prim::Type(Type::Type)))]
 	#[token("boolean", |_| Some(Prim::Type(Type::Boolean)))]
 	#[token("integer", |_| Some(Prim::Type(Type::Integer)))]
@@ -119,11 +121,11 @@ pub enum Tok {
 	#[token("list", |_| Some(Prim::Type(Type::List)))]
 	#[token("closure", |_| Some(Prim::Type(Type::Closure)))]
 	#[token("returned_value", |_| Some(Prim::Type(Type::Returned)))]
-	// Real
+	// Real literal
 	#[regex(r"(0|([1-9]\d*))?\.\d+", |lex| Some(Prim::Num(Num::Real(BigDecimal::from_str(lex.slice()).unwrap()))))]
-	// Integer
+	// Integer literal
 	#[regex(r"0|([1-9]\d*)", |lex| Some(Prim::Num(Num::Integer(BigInt::from_str(lex.slice()).unwrap()))))]
-	// String
+	// String literal
 	#[regex(r#""([^"\\]|\\["\\])*""#, |lex| {
 		// Strip enclosing quotes and escape characters.
 		Some(Prim::from(lex.slice()[1..lex.slice().len() - 1].replace(r#"\""#, r#"""#).replace(r"\\", r"\")))
@@ -170,6 +172,7 @@ impl fmt::Display for Tok {
 			Tok::In => write!(f, "in"),
 			Tok::Do => write!(f, "do"),
 			Tok::Return => write!(f, "return"),
+			Tok::As => write!(f, "as"),
 			Tok::And => write!(f, "and"),
 			Tok::Or => write!(f, "or"),
 			Tok::Not => write!(f, "not"),

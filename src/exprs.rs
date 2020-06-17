@@ -11,6 +11,7 @@ use std::fmt;
 /// Binary Gynjo operators.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum BinOp {
+	As,
 	And,
 	Or,
 	Eq,
@@ -27,6 +28,7 @@ pub enum BinOp {
 impl fmt::Display for BinOp {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
+			BinOp::As => write!(f, "as"),
 			BinOp::And => write!(f, "and"),
 			BinOp::Or => write!(f, "or"),
 			BinOp::Eq => write!(f, "="),

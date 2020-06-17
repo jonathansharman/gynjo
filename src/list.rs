@@ -20,7 +20,7 @@ struct Node {
 }
 
 impl Node {
-	pub fn map<F, E>(&self, f: F) -> Result<Node, E> where F: Fn(&Val) -> Result<Val, E> {
+	pub fn map<F, E>(&self, mut f: F) -> Result<Node, E> where F: FnMut(&Val) -> Result<Val, E> {
 		Ok(Node {
 			elem: f(&self.elem)?,
 			next: match self.next.clone() {
@@ -55,7 +55,7 @@ impl List {
         Iter { next: self.0.as_ref().map(|node| &**node) }
 	}
 
-	pub fn map<F, E>(&self, f: F) -> Result<List, E> where F: Fn(&Val) -> Result<Val, E> {
+	pub fn map<F, E>(&self, f: F) -> Result<List, E> where F: FnMut(&Val) -> Result<Val, E> {
 		Ok(List(match self.0.clone() {
 			Some(node) => Some(Arc::new(node.map(f)?)),
 			None => None,

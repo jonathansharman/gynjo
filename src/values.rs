@@ -7,7 +7,9 @@ use super::symbol::Sym;
 use super::types::Type;
 use super::tuple::Tuple;
 
+use bigdecimal::BigDecimal;
 use num_traits::cast::ToPrimitive;
+use num_traits::sign::Signed;
 
 use std::boxed::Box;
 
@@ -106,7 +108,23 @@ impl Val {
 				Prim::Bool(b) => b.to_string(),
 				Prim::Num(number) => match number {
 					Num::Integer(integer) => integer.to_string(),
-					Num::Rational(rational) => rational.to_string(),
+					Num::Rational(rational) => {
+						// Rational numbers are displayed both in rational and real form.
+						let real_string = Val::from(Num::Real(BigDecimal::from(rational.numer().clone()) / BigDecimal::from(rational.denom().clone()))).to_string(env);
+						// Rationals are displayed in proper form.
+						let whole_part = rational.trunc();
+						let fractional_part = rational.fract();
+						if whole_part == rational.clone() {
+							// No fractional part.
+							format!("{} ({})", whole_part, real_string)
+						} else if fractional_part == rational.clone() {
+							// No whole part.
+							format!("{} ({})", fractional_part, real_string)
+						} else {
+							// Whole and fractional parts. Ensure fractional part is displayed as positive.
+							format!("{} {} ({})", whole_part, fractional_part.abs(), real_string)
+						}
+					},
 					Num::Real(real) => {
 						let precision = env.lock().unwrap()
 							// Look up precision setting.
