@@ -6,7 +6,6 @@ pub enum Intrinsic {
 	// Fundamental list operations
 	Top,
 	Pop,
-	Push,
 	// I/O
 	Print,
 	Read,
@@ -19,7 +18,6 @@ impl fmt::Display for Intrinsic {
 		match self {
 			Intrinsic::Top => write!(f, "top"),
 			Intrinsic::Pop => write!(f, "pop"),
-			Intrinsic::Push => write!(f, "push"),
 			Intrinsic::Print => write!(f, "print"),
 			Intrinsic::Read => write!(f, "read"),
 			Intrinsic::GetType => write!(f, "get_type"),

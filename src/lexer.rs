@@ -74,8 +74,9 @@ mod tests {
 			Tok::Comma,
 			Tok::Question,
 			Tok::Colon,
+			Tok::Concat,
 		);
-		let actual = lex("let=!=<<=>>=~*(+-->)[]^***/.1 0 0.1,?:")?;
+		let actual = lex("let=!=<<=>>=~*(+-->)[]^***/.1 0 0.1,?:|")?;
 		assert_eq!(expected, actual);
 		Ok(())
 	}

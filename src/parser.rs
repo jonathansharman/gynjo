@@ -205,7 +205,6 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		[Tok::Intrinsic(f), tokens @ ..] => {
 			let params = match f {
 				Intrinsic::Top | Intrinsic::Pop => vec!(Sym::from("list")),
-				Intrinsic::Push => vec!(Sym::from("list"), Sym::from("value")),
 				Intrinsic::Print => vec!(Sym::from("value")),
 				Intrinsic::Read => vec!(),
 				Intrinsic::GetType => vec!(Sym::from("value")),
@@ -359,9 +358,14 @@ fn parse_binary_expressions<'a>(tokens: &'a [Tok], subparse: fn(&'a [Tok]) -> Pa
 	Ok((tokens, exprs))
 }
 
+/// Parses a series of concatenations.
+fn parse_concatenations(tokens: &[Tok]) -> ParseExprResult {
+	parse_binary_expressions(tokens, parse_cluster, &[(Tok::Concat, BinOp::Concat)].iter().cloned().collect())
+}
+
 /// Parses a series of additions and subtractions.
 fn parse_terms(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_cluster,
+	parse_binary_expressions(tokens, parse_concatenations,
 		&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)].iter().cloned().collect())
 }
 

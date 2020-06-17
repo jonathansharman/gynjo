@@ -45,6 +45,7 @@ The unary operators are `not` (logical negation), `-` (numeric negation), `retur
 | `**`/`^`             | Exponentiation                                        |
 | implicit             | Function application without parentheses (e.g. `f 5`) |
 | `*`/implicit, `/`    | Multiplication and division                           |
+| `|`                  | String and list concatenation                         |
 | `+`, `-`             | Addition and subtraction                              |
 | `as`                 | Type cast                                             |
 | `<`, `<=`, `>`, `>=` | Comparisons                                           |
@@ -115,7 +116,7 @@ When a block expression or loop body iteration encounters a value of type `retur
 | `real`           | High-precision floating-point type        | `0.1`, `-42.5`                |
 | `string`         | String of ASCII text                      | `"hello"`, `"world"`          |
 | `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                |
-| `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`, `push([], 1)` |
+| `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                |
 | `closure`        | A function with its captured environment  | `x -> x`, `(a, b) -> a + b`   |
 | `returned_value` | The result of a `return` expression       | `return 1`, `return return 1` |
 
@@ -146,7 +147,6 @@ Gynjo uses function scoping rather than lexical scoping, so each function applic
 | :------------ | :----------------------------------------------------------- |
 | `top(l)`      | Gets the top (or first) element of `l` (`list`)              |
 | `pop(l)`      | Gets the elements of `l` (`list`) except for `top(l)`        |
-| `push(l, v)`  | Builds a new `list` from `l` with `v` as its new top element |
 | `print(v)`    | Converts `v` to a `string` and outputs it to the console     |
 | `read()`      | Reads a line of input from the console as a `string`         |
 | `get_type(v)` | Gets the type of `v`                                         |

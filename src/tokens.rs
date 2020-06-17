@@ -72,6 +72,9 @@ pub enum Tok {
 	Div,
 	#[regex(r"(\*\*)|\^")]
 	Exp,
+	// Concatenation
+	#[token("|")]
+	Concat,
 	// Brackets
 	#[token("(")]
 	Lparen,
@@ -99,7 +102,6 @@ pub enum Tok {
 	// Intrinsic functions
 	#[token("top", |_| Some(Intrinsic::Top))]
 	#[token("pop", |_| Some(Intrinsic::Pop))]
-	#[token("push", |_| Some(Intrinsic::Push))]
 	#[token("print", |_| Some(Intrinsic::Print))]
 	#[token("read", |_| Some(Intrinsic::Read))]
 	#[token("get_type", |_| Some(Intrinsic::GetType))]
@@ -188,6 +190,7 @@ impl fmt::Display for Tok {
 			Tok::Mul => write!(f, "*"),
 			Tok::Div => write!(f, "/"),
 			Tok::Exp => write!(f, "^"),
+		    Tok::Concat => write!(f, "|"),
 			Tok::Lparen => write!(f, "("),
 			Tok::Rparen => write!(f, ")"),
 			Tok::Lsquare => write!(f, "["),

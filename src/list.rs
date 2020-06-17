@@ -28,7 +28,7 @@ impl Node {
 				None => None,
 			},
 		})
-	}
+    }
 }
 
 impl List {
@@ -49,6 +49,13 @@ impl List {
 
     pub fn head(&self) -> Option<&Val> {
         self.0.as_ref().map(|node| &node.elem)
+    }
+
+    pub fn concat(&self, other: Self) -> List {
+        match &self.0 {
+            Some(node) => List(node.next.clone()).concat(other).push(node.elem.clone()),
+            None => other,
+        }
     }
 
     pub fn iter(&self) -> Iter<'_> {

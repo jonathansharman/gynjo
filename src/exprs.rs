@@ -23,6 +23,7 @@ pub enum BinOp {
 	Geq,
 	Add,
 	Sub,
+	Concat,
 }
 
 impl fmt::Display for BinOp {
@@ -40,6 +41,7 @@ impl fmt::Display for BinOp {
 			BinOp::Geq => write!(f, ">="),
 			BinOp::Add => write!(f, "+"),
 			BinOp::Sub => write!(f, "-"),
+			BinOp::Concat => write!(f, "|"),
 		}
     }
 }

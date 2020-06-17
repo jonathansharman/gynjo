@@ -212,6 +212,30 @@ fn eval_bin_expr(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 			let right = eval_expr(env, *bin_expr.right)?;
 			bin_num_op(env, left, right, "subtraction", |a, b| Ok(Val::from(a - b)))
 		},
+		BinOp::Concat => {
+			let left = eval_expr(env, *bin_expr.left)?;
+			let right = eval_expr(env, *bin_expr.right)?;
+			match (left, right) {
+				// String concatenation
+				(Val::Prim(Prim::String(left)), Val::Prim(Prim::String(right))) => {
+					Ok(Val::from(format!("{}{}", left, right)))
+				},
+				(Val::Prim(Prim::String(left)), right @ _) => {
+					Ok(Val::from(format!("{}{}", left, right.to_string(&env))))
+				},
+				(left @ _, Val::Prim(Prim::String(right))) => {
+					Ok(Val::from(format!("{}{}", left.to_string(&env), right)))
+				},
+				// List concatenation
+				(Val::List(left), Val::List(right)) => Ok(Val::List(left.concat(right))),
+				// Invalid concatenation
+				(left @ _, right @ _) => Err(RuntimeError::BinaryTypeMismatch {
+					context: "concatenation",
+					left: left.get_type(),
+					right: right.get_type(),
+				})
+			}
+		},
 	}
 }
 
@@ -496,20 +520,6 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 						expected: Type::List,
 						actual: arg.get_type()
 					}),
-				},
-				Intrinsic::Push => {
-					let locked_env = local_env.lock().unwrap();
-					match locked_env.lookup(&"list".into()).unwrap() {
-						Val::List(list) => {
-							let value = locked_env.lookup(&"value".into()).unwrap().clone();
-							Ok(Val::List(list.push(value)))
-						},
-						arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
-							context: "push()",
-							expected: Type::List,
-							actual: arg.get_type()
-						}),
-					}
 				},
 				Intrinsic::Print => {
 					println!("{}", local_env.lock().unwrap().lookup(&"value".into()).unwrap().to_string(&local_env));
@@ -883,7 +893,7 @@ mod tests {
 			let i = 0;
 			let l = [];
 			while i < 1000 do {
-				let l = push(l, i);
+				let l = [i] | l;
 				let i = i + 1;
 			}
 		}");
@@ -936,6 +946,26 @@ mod tests {
 			let expected = make_list_value!(Val::from(1), Val::from(4), Val::from(16));
 			assert_eq!(expected, eval(&mut env, "[1, 2, 4]^2")?);
 			assert_eq!(expected, eval(&mut env, "2^[0, 2, 4]")?);
+			Ok(())
+		}
+	}
+
+	mod concatenation {
+		use super::*;
+		#[test]
+		fn string_concatenation() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from("hello, 1".to_string()), eval(&mut env, r#""hello, " | 1"#)?);
+			assert_eq!(Val::from("1 world".to_string()), eval(&mut env, r#"1 | " world""#)?);
+			assert_eq!(Val::from("hello, world".to_string()), eval(&mut env, r#""hello, " | "world""#)?);
+			Ok(())
+		}
+		#[test]
+		fn list_concatenation() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(make_list_value!(Val::from(1), Val::from(2)), eval(&mut env, r#"[1] | [2]"#)?);
+			assert_eq!(Val::from("1[2]".to_string()), eval(&mut env, r#""1" | [2]"#)?);
+			assert_eq!(Val::from("[1]2".to_string()), eval(&mut env, r#"[1] | "2""#)?);
 			Ok(())
 		}
 	}
@@ -1204,13 +1234,6 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn push() -> Result<(), Error> {
-			let mut env = Env::new(None);
-			assert_eq!(make_list_value!(Val::from(1)), eval(&mut env, "push([], 1)")?);
-			assert_eq!(make_list_value!(Val::from(2), Val::from(1)), eval(&mut env, "push([1], 2)")?);
-			Ok(())
-		}
-		#[test]
 		fn get_type() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::Prim(Prim::Type(Type::Integer)), eval(&mut env, "get_type 1")?);
@@ -1316,22 +1339,9 @@ mod tests {
 				Ok(())
 			}
 			#[test]
-			fn append() -> Result<(), Error> {
-				let mut env = Env::with_core_libs();
-				assert_eq!(make_list_value!(Val::from(1), Val::from(2), Val::from(3)), eval(&mut env, "append([1, 2], 3)")?);
-				Ok(())
-			}
-			#[test]
 			fn reverse() -> Result<(), Error> {
 				let mut env = Env::with_core_libs();
 				assert_eq!(make_list_value!(Val::from(3), Val::from(2), Val::from(1)), eval(&mut env, "reverse [1, 2, 3]")?);
-				Ok(())
-			}
-			#[test]
-			fn concat() -> Result<(), Error> {
-				let mut env = Env::with_core_libs();
-				let expected = make_list_value!(Val::from(1), Val::from(2), Val::from(3), Val::from(4));
-				assert_eq!(expected, eval(&mut env, "concat([1, 2], [3, 4])")?);
 				Ok(())
 			}
 			#[test]

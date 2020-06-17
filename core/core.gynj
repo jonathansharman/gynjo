@@ -18,32 +18,22 @@
 		top(l)
 	};
 
-	let append = (l, value) ->
-		if l = []
-			then [value]
-			else push(append(pop(l), value), top(l));
-
 	let reverse = l -> {
 		let result = [];
 		while l != [] do {
-			let result = push(result, top(l));
+			let result = [top(l)] | result;
 			let l = pop(l);
 		};
 		result
 	};
 
-	let concat = (left_list, right_list) ->
-		if left_list = []
-			then right_list
-			else push(concat(pop(left_list), right_list), top(left_list));
-
 	let insert = (l, index, value) ->
-		if index = 0 then push(l, value) else {
+		if index = 0 then [value] | l else {
 			let result = [];
 			let i = 0;
 			while l != [] do {
-				if i = index then let result = push(result, value);
-				let result = push(result, top(l));
+				if i = index then let result = [value] | result;
+				let result = [top(l)] | result;
 				let l = pop(l);
 				let i = i + 1;
 			};
@@ -55,7 +45,7 @@
 			let result = [];
 			let i = 0;
 			while l != [] do {
-				if i != index then let result = push(result, top(l));
+				if i != index then let result = [top(l)] | result;
 				let l = pop(l);
 				let i = i + 1;
 			};
@@ -65,7 +55,7 @@
 	let map = (l, f) -> {
 		let result = [];
 		while l != [] do {
-			let result = push(result, f(top(l)));
+			let result = [f(top(l))] | result;
 			let l = pop(l);
 		};
 		reverse(result)
@@ -79,12 +69,12 @@
 		acc
 	};
 
-	let flatmap = (l, f) -> reduce(map(l, f), [], concat);
+	let flatmap = (l, f) -> reduce(map(l, f), [], (a, b) -> a | b);
 
 	let range = (start, end) -> {
 		let result = [];
 		while end >= start do {
-			let result = push(result, end);
+			let result = [end] | result;
 			let end = end - 1;
 		};
 		result
