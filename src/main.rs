@@ -29,6 +29,8 @@ fn main() {
 	let mut env = env::Env::with_core_libs();
 	// Try to load user's profile script.
 	env::import_lib_from_path(&mut env, "\"profile.gynj\"");
+	// Initial value of "ans" is ().
+	env.lock().unwrap().assign("ans".into(), values::Val::empty());
 	// REPL
 	loop {
 		if let Err(error) = repl_iter(&mut env) {
