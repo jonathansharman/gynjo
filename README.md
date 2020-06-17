@@ -36,7 +36,7 @@ Variables can be set using `let` *variable* `=` *value*. The variable `ans` refe
 
 ## Operators and Precedence
 
-The unary operators are `not` (logical negation), `return` (return expression), and `import` (import expression).
+The unary operators are `not` (logical negation), `-` (numeric negation), `return` (return expression), and `import` (import expression).
 
 ### Binary Operators from High to Low Precedence
 | Token(s)             | Operation                                             |
