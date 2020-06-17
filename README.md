@@ -1,4 +1,4 @@
-![Rust](https://github.com/jonathansharman/gynjo/workflows/Rust/badge.svg)
+![build](https://github.com/jonathansharman/gynjo/workflows/build/badge.svg)
 
 # Gynjo
 
