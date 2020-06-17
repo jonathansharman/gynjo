@@ -132,7 +132,7 @@ impl Val {
 							// Interpret as an integer.
 							.and_then(|v| v.as_i64())
 							// Interpret as a non-negative integer.
-							.and_then(|v| if v < 0 { None } else { Some(v as u64) })
+							.and_then(|v| if v < 1 { None } else { Some(v as u64) })
 							// If something failed, use default precision setting.
 							.unwrap_or(12);
 						format!("{}", real.with_prec(precision))
