@@ -1,7 +1,6 @@
 use super::errors::ParseError;
 use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use super::intrinsics::Intrinsic;
-use super::primitives::Prim;
 use super::symbol::Sym;
 use super::tokens::Tok;
 
@@ -204,7 +203,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		// Intrinsic function
 		[Tok::Intrinsic(f), tokens @ ..] => {
 			let params = match f {
-				Intrinsic::Top | Intrinsic::Pop => vec!(Sym::from("list")),
+				Intrinsic::Pop => vec!(Sym::from("list")),
 				Intrinsic::Print => vec!(Sym::from("value")),
 				Intrinsic::Read => vec!(),
 				Intrinsic::GetType => vec!(Sym::from("value")),
@@ -506,17 +505,6 @@ fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 
 /// Parses an import statement, starting after "import".
 fn parse_import(tokens: &[Tok]) -> ParseExprResult {
-	match tokens {
-		[] => Err(ParseError::EndOfInput {
-			context: "import statement",
-			expected: "import target (symbol or string)".into(),
-		}),
-		[Tok::Sym(Sym { name }), tokens @ ..] => Ok((tokens, Expr::Import { filename : name.clone() })),
-		[Tok::Prim(Prim::String(filename)), tokens @ ..] => Ok((tokens, Expr::Import { filename: filename.clone() })),
-		[invalid, ..] => Err(ParseError::InvalidInput {
-			context: "import statement",
-			expected: Some("import target (symbol or string)".into()),
-			actual: invalid.clone(),
-		}),
-	}
+	let (tokens, target) = parse_expr(tokens)?;
+	Ok((tokens, Expr::Import { target: Box::new(target) }))
 }

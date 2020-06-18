@@ -4,7 +4,6 @@ use std::fmt;
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Intrinsic {
 	// Fundamental list operations
-	Top,
 	Pop,
 	// I/O
 	Print,
@@ -16,7 +15,6 @@ pub enum Intrinsic {
 impl fmt::Display for Intrinsic {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Intrinsic::Top => write!(f, "top"),
 			Intrinsic::Pop => write!(f, "pop"),
 			Intrinsic::Print => write!(f, "print"),
 			Intrinsic::Read => write!(f, "read"),

@@ -36,26 +36,32 @@ Variables can be set using `let` *variable* `=` *value*. The variable `ans` refe
 
 ## Operators and Precedence
 
-The unary operators are `not` (logical negation), `-` (numeric negation), `return` (return expression), and `import` (import expression).
-
-### Binary Operators from High to Low Precedence
-| Token(s)             | Operation                                             |
-| :------------------- | :---------------------------------------------------- |
-| implicit             | Function application with parentheses (e.g. `f(5)`)   |
-| `**`/`^`             | Exponentiation                                        |
-| implicit             | Function application without parentheses (e.g. `f 5`) |
-| `*`/implicit, `/`    | Multiplication and division                           |
-| `\|`                  | String and list concatenation                         |
-| `+`, `-`             | Addition and subtraction                              |
-| `as`                 | Type cast                                             |
-| `<`, `<=`, `>`, `>=` | Comparisons                                           |
-| `=`, `!=`, `~`       | Equality, inequality, and approximate equality        |
-| `and`                | Logical conjunction                                   |
-| `or`                 | Logical disjunction                                   |
+### Operators from High to Low Precedence
+|            | Operation                                             | Syntax               | Type    |
+| ---------: | :---------------------------------------------------- | :------------------- | :------ |
+|          1 | Function application with parentheses (e.g. `f(5)`)   | *implicit*           | Binary  |
+|          2 | List/string index                                     | `[`*index*`]`        | Postfix |
+|          3 | Exponentiation                                        | `**`/`^`             | Binary  |
+|          4 | Function application without parentheses (e.g. `f 5`) | *implicit*           | Binary  |
+|          5 | Multiplication                                        | `*`/*implicit*       | Binary  |
+|          5 | Division                                              | `/`                  | Binary  |
+|          6 | Numeric negation                                      | `-`                  | Prefix  |
+|          7 | String and list concatenation                         | `\|`                 | Binary  |
+|          8 | Addition and subtraction                              | `+`, `-`             | Binary  |
+|          9 | Type cast                                             | `as`                 | Binary  |
+|         10 | Comparisons                                           | `<`, `<=`, `>`, `>=` | Binary  |
+|         11 | Equality, inequality, and approximate equality        | `=`, `!=`, `~`       | Binary  |
+|         12 | Logical conjunction                                   | `and`                | Binary  |
+|         13 | Logical disjunction                                   | `or`                 | Binary  |
+|         14 | Logical negation                                      | `not`                | Prefix  |
+|         14 | Return                                                | `return`             | Prefix  |
+|         14 | Import                                                | `import`             | Prefix  |
 
 Implicit multiplication is supported and uses the same syntax as function application. This means that precedence is partially resolved during intepretation based on the values of the operands.
 
 Function application varies in precedence depending on the use of parentheses so that, for example, `sin x^2` does `x^2` first but `sin(x)^2` does `sin(x)` first, to better match expectations.
+
+List and string indexes are modulo length, so `[1, 2, 3][-1]` is equal to `3`, and `"hello"[5]` is equal to `"h"`.
 
 Approximate equality is like equality, except that numeric types compare approximately equal if their real-valued display representations are equal. By default, `real` values are displayed using twelve significant digits. This display setting can be overridden in the current environment by setting the variable `precision` to some positive number of digits.
 
@@ -153,9 +159,8 @@ Gynjo uses function scoping rather than lexical scoping, so each function applic
 
 ## Importing Scripts
 
-Very simple textual importation is supported via `import` expressions. The argument to the `import` expression should be a symbol or `string` that names a file containing a Gynjo script.
+Very simple textual importation is supported via `import` expressions. The argument to the `import` expression should be a `string` that names a file containing a Gynjo script.
 
 ```
->> import lib                // Executes the script at "./lib"
 >> import "path/to/lib.gynj" // Executes the script at "path/to/lib.gynj"
 ```

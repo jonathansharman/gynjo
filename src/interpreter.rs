@@ -35,7 +35,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 			Prim::Num(number) => Prim::Num(number.shrink_domain()),
 			primitive @ _ => primitive
 		})),
-		Expr::Import { filename } => eval_import(&mut env, filename),
+		Expr::Import { target } => eval_import(&mut env, target),
 		Expr::Assign { lhs, rhs } => eval_assignment(&mut env, lhs, rhs),
 		Expr::Branch { test, then_expr, else_expr } => eval_branch(&mut env, test, then_expr, else_expr),
 		Expr::WhileLoop { test, body } => eval_while_loop(env, test, body),
@@ -272,16 +272,27 @@ fn eval_symbol(env: &mut SharedEnv, symbol: Sym) -> EvalResult {
 		.ok_or(RuntimeError::Undefined(symbol.name))
 }
 
-fn eval_import(env: &mut SharedEnv, filename: String) -> EvalResult {
-	let lib_text = std::fs::read_to_string(&filename)
-		.map_err(|err| RuntimeError::CouldNotOpenFile {
-			filename: filename.clone(),
-			file_error: err.to_string(),
-		})?;
-	eval(env, &lib_text).map_err(|err| RuntimeError::LibError {
-		lib_name: filename.clone(),
-		nested_error: Box::new(err),
-	})
+fn eval_import(env: &mut SharedEnv, target: Box<Expr>) -> EvalResult {
+	match eval_expr(env, *target)? {
+    Val::Prim(Prim::String(filename)) => {
+		let lib_text = std::fs::read_to_string(&filename)
+			.map_err(|err| RuntimeError::CouldNotOpenFile {
+				filename: filename.clone(),
+				file_error: err.to_string(),
+			})?;
+		eval(env, &lib_text).map_err(|err| RuntimeError::LibError {
+			lib_name: filename.clone(),
+			nested_error: Box::new(err),
+		})
+	}
+    invalid @ _ => {
+		Err(RuntimeError::UnaryTypeMismatch {
+			context: "import",
+			expected: Type::String,
+			actual: invalid.get_type(),
+		})
+	}
+}
 }
 
 fn eval_assignment(env: &mut SharedEnv, lhs: Sym, rhs: Box<Expr>) -> EvalResult {
@@ -395,6 +406,19 @@ struct EvaluatedClusterItem {
 	connector: ClusterConnector,
 }
 
+/// Tries to extract an idex from `list`, mod `n`.
+fn get_idx_from_list(env: &SharedEnv, list: List, n: usize) -> Result<usize, RuntimeError> {
+	// Check for exactly one element that fits in an i64.
+	if let (Some(value), Some(true)) = (list.head(), list.tail().as_ref().map(List::is_empty)) {
+		if let Some(signed_idx) = value.as_i64() {
+			let signed_len = n as i64;
+			let signed_idx = ((signed_idx % signed_len) + signed_len) % signed_len;
+			return Ok(signed_idx as usize);
+		}
+	}
+	Err(RuntimeError::InvalidIndex { idx: list.to_string(&env) })
+}
+
 fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
 	if cluster.len() > 1 {
 		// Parenthesized applications
@@ -405,6 +429,34 @@ fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedCluster
 					cluster.remove(idx + 1);
 					return eval_evaluated_cluster(env, cluster);
 				}
+			}
+		}
+		// List/string indexing
+		for idx in 0..cluster.len() - 1 {
+			if let ClusterConnector::AdjNonparen = &cluster[idx + 1].connector {
+				cluster[idx].value = match (&cluster[idx].value, &cluster[idx + 1].value) {
+					// List index
+					(Val::List(left), Val::List(right)) => {
+						if left.is_empty() {
+							Err(RuntimeError::OutOfBounds)
+						} else {
+							// Can safely unwrap because idx is guaranteed to be in bounds.
+							Ok(left.nth(get_idx_from_list(&env, right.clone(), left.len())?).unwrap())
+						}
+					},
+					// String index
+					(Val::Prim(Prim::String(left)), Val::List(right)) => {
+						if left.is_empty() {
+							Err(RuntimeError::OutOfBounds)
+						} else {
+							// Can safely unwrap because idx is guaranteed to be in bounds.
+							Ok(Val::from(left.chars().nth(get_idx_from_list(&env, right.clone(), left.len())?).unwrap().to_string()))
+						}
+					},
+					_ => continue,
+				}?;
+				cluster.remove(idx + 1);
+				return eval_evaluated_cluster(env, cluster);
 			}
 		}
 		// Exponentiations
@@ -505,14 +557,6 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 		LambdaBody::UserDefined(body) => eval_expr(&mut local_env, *body),
 		LambdaBody::Intrinsic(body) => {
 			match body {
-				Intrinsic::Top => match local_env.lock().unwrap().lookup(&"list".into()).unwrap() {
-					Val::List(list) => Ok(list.head().ok_or(RuntimeError::OutOfBounds)?.clone()),
-					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
-						context: "top()",
-						expected: Type::List,
-						actual: arg.get_type()
-					}),
-				},
 				Intrinsic::Pop => match local_env.lock().unwrap().lookup(&"list".into()).unwrap() {
 					Val::List(list) => Ok(Val::List(list.tail().ok_or(RuntimeError::OutOfBounds)?)),
 					arg @ _ => Err(RuntimeError::UnaryTypeMismatch {
@@ -970,6 +1014,44 @@ mod tests {
 		}
 	}
 
+	mod indexing {
+		use super::*;
+		#[test]
+		fn valid_list_indexing() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from(1), eval(&mut env, "[1, 2][0]")?);
+			assert_eq!(Val::from(2), eval(&mut env, "[1, 2][1]")?);
+			assert_eq!(Val::from(1), eval(&mut env, "[1, 2][2]")?);
+			assert_eq!(Val::from(2), eval(&mut env, "[1, 2][-1]")?);
+			Ok(())
+		}
+		#[test]
+		fn invalid_list_indexing() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert!(eval(&mut env, "[][0]").is_err());
+			assert!(eval(&mut env, "[1][true]").is_err());
+			assert!(eval(&mut env, "[1][1, 2]").is_err());
+			Ok(())
+		}
+		#[test]
+		fn valid_string_indexing() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from("h".to_string()), eval(&mut env, r#""hi"[0]"#)?);
+			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[1]"#)?);
+			assert_eq!(Val::from("h".to_string()), eval(&mut env, r#""hi"[2]"#)?);
+			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[-1]"#)?);
+			Ok(())
+		}
+		#[test]
+		fn invalid_string_indexing() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert!(eval(&mut env, r#"""[0]"#).is_err());
+			assert!(eval(&mut env, r#""hi"[true]"#).is_err());
+			assert!(eval(&mut env, r#""hi"[1, 2]"#).is_err());
+			Ok(())
+		}
+	}
+
 	#[test]
 	fn simple_function_application() -> Result<(), Error> {
 		let mut env = Env::new(None);
@@ -1064,16 +1146,6 @@ mod tests {
 			};
 			f(3)
 		}")?);
-		Ok(())
-	}
-
-	#[test]
-	fn importing_core_constants() -> Result<(), Error> {
-		let mut env = Env::new(None);
-		let pi_str = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
-		let expected = Val::Prim(Prim::Num(Num::Real(BigDecimal::from_str(pi_str).unwrap())));
-		eval(&mut env, "import \"core/constants.gynj\"")?;
-		assert_eq!(expected, eval(&mut env, "PI")?);
 		Ok(())
 	}
 
@@ -1220,13 +1292,6 @@ mod tests {
 	mod intrinsics {
 		use super::*;
 		#[test]
-		fn top() -> Result<(), Error> {
-			let mut env = Env::new(None);
-			assert_eq!(Val::from(1), eval(&mut env, "top([1])")?);
-			assert!(eval(&mut env, "top([])").is_err());
-			Ok(())
-		}
-		#[test]
 		fn pop() -> Result<(), Error> {
 			let mut env = Env::new(None);
 			assert_eq!(make_list_value!(), eval(&mut env, "pop([1])")?);
@@ -1286,6 +1351,16 @@ mod tests {
 			assert!(eval(&mut env, "(x -> x) as boolean").is_err());
 			Ok(())
 		}
+	}
+
+	#[test]
+	fn core_constants() -> Result<(), Error> {
+		let mut env = Env::new(None);
+		let pi_str = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
+		let expected = Val::Prim(Prim::Num(Num::Real(BigDecimal::from_str(pi_str).unwrap())));
+		eval(&mut env, "import \"core/constants.gynj\"")?;
+		assert_eq!(expected, eval(&mut env, "PI")?);
+		Ok(())
 	}
 
 	mod core_libs {

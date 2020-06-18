@@ -15,13 +15,13 @@
 			let n = n - 1;
 			let l = pop(l);
 		};
-		top(l)
+		l[0]
 	};
 
 	let reverse = l -> {
 		let result = [];
 		while l != [] do {
-			let result = [top(l)] | result;
+			let result = [l[0]] | result;
 			let l = pop(l);
 		};
 		result
@@ -33,7 +33,7 @@
 			let i = 0;
 			while l != [] do {
 				if i = index then let result = [value] | result;
-				let result = [top(l)] | result;
+				let result = [l[0]] | result;
 				let l = pop(l);
 				let i = i + 1;
 			};
@@ -45,7 +45,7 @@
 			let result = [];
 			let i = 0;
 			while l != [] do {
-				if i != index then let result = [top(l)] | result;
+				if i != index then let result = [l[0]] | result;
 				let l = pop(l);
 				let i = i + 1;
 			};
@@ -55,7 +55,7 @@
 	let map = (l, f) -> {
 		let result = [];
 		while l != [] do {
-			let result = [f(top(l))] | result;
+			let result = [f(l[0])] | result;
 			let l = pop(l);
 		};
 		reverse(result)
@@ -63,7 +63,7 @@
 
 	let reduce = (l, acc, f) -> {
 		while l != [] do {
-			let acc = f(acc, top(l));
+			let acc = f(acc, l[0]);
 			let l = pop(l);
 		};
 		acc

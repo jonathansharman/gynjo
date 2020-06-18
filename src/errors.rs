@@ -71,6 +71,7 @@ pub enum RuntimeError {
         to: Type,
     },
     OutOfBounds,
+    InvalidIndex { idx: String },
     ArgCountMismatch {
         required: usize,
         received: usize,
@@ -107,6 +108,7 @@ impl fmt::Display for RuntimeError {
                 write!(f, "Cannot cast {} to {}", from, to)
             },
             RuntimeError::OutOfBounds => write!(f, "Out of bounds"),
+            RuntimeError::InvalidIndex { idx } => write!(f, "Invalid index: {}", idx),
             RuntimeError::ArgCountMismatch { required, received } => {
                 write!(f, "Function requires {} argument{}, received {}", required, if *required == 1 { "" } else { "s" }, received)
             },

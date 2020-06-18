@@ -100,7 +100,6 @@ pub enum Tok {
 	#[token(":")]
 	Colon,
 	// Intrinsic functions
-	#[token("top", |_| Some(Intrinsic::Top))]
 	#[token("pop", |_| Some(Intrinsic::Pop))]
 	#[token("print", |_| Some(Intrinsic::Print))]
 	#[token("read", |_| Some(Intrinsic::Read))]

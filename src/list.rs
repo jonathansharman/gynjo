@@ -9,7 +9,10 @@ use std::sync::Arc;
 
 /// A functional linked list of Gynjo values.
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct List(Link);
+pub struct List {
+    head: Link,
+    len: usize,
+}
 
 type Link = Option<Arc<Node>>;
 
@@ -20,6 +23,7 @@ struct Node {
 }
 
 impl Node {
+    /// Produces a new node by applying `f` to each element.
 	pub fn map<F, E>(&self, mut f: F) -> Result<Node, E> where F: FnMut(&Val) -> Result<Val, E> {
 		Ok(Node {
 			elem: f(&self.elem)?,
@@ -32,42 +36,79 @@ impl Node {
 }
 
 impl List {
+    /// An empty list.
     pub fn empty() -> Self {
-        List(None)
+        List { head: None, len: 0 }
     }
 
+    /// Whether this list has no elements.
+    pub fn is_empty(&self) -> bool {
+        self.head.is_none()
+    }
+
+    /// The number of elements in this list.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// A shallow copy of this list with `elem` added as the head.
     pub fn push(&self, elem: Val) -> List {
-        List(Some(Arc::new(Node {
-            elem: elem,
-            next: self.0.clone(),
-        })))
+        List {
+            head: Some(Arc::new(Node {
+                elem: elem,
+                next: self.head.clone(),
+            })),
+            len: self.len + 1,
+        }
     }
 
+    /// A shallow copy of this list's tail.
     pub fn tail(&self) -> Option<List> {
-		self.0.as_ref().map(|node| List(node.next.clone()))
+		self.head.as_ref().map(|node| List { head: node.next.clone(), len: self.len - 1 })
     }
 
+    /// A reference to the first element of this list, if there is one.
     pub fn head(&self) -> Option<&Val> {
-        self.0.as_ref().map(|node| &node.elem)
+        self.head.as_ref().map(|node| &node.elem)
     }
 
+    /// Concatenates `self` with `other`. The head of `self` is the head of the result.
     pub fn concat(&self, other: Self) -> List {
-        match &self.0 {
-            Some(node) => List(node.next.clone()).concat(other).push(node.elem.clone()),
+        match &self.head {
+            Some(node) => List {
+                head: node.next.clone(),
+                len: self.len - 1,
+            }.concat(other).push(node.elem.clone()),
             None => other,
         }
     }
 
+    /// Creates a reference iterator into this list's elements.
     pub fn iter(&self) -> Iter<'_> {
-        Iter { next: self.0.as_ref().map(|node| &**node) }
+        Iter { next: self.head.as_ref().map(|node| &**node) }
 	}
 
+    /// Produces a new list by applying `f` to each element.
 	pub fn map<F, E>(&self, f: F) -> Result<List, E> where F: FnMut(&Val) -> Result<Val, E> {
-		Ok(List(match self.0.clone() {
-			Some(node) => Some(Arc::new(node.map(f)?)),
-			None => None,
-		}))
-	}
+		Ok(List {
+            head: match self.head.clone() {
+                Some(node) => Some(Arc::new(node.map(f)?)),
+                None => None,
+            },
+            len: self.len,
+        })
+    }
+
+    /// Gets the nth element of this list or `None` if out of bounds.
+    pub fn nth(&self, mut idx: usize) -> Option<Val> {
+        let mut iter = self.iter();
+        let mut result = iter.next();
+        while result.is_some() && idx != 0 {
+            result = iter.next();
+            idx -= 1;
+        }
+        result.map(|val| val.clone())
+    }
 
 	pub fn to_string(&self, env: &SharedEnv) -> String {
 		format!("[{}]", self.iter().map(|elem| elem.to_string(&env)).join(", "))
@@ -76,7 +117,7 @@ impl List {
 
 impl Drop for List {
     fn drop(&mut self) {
-        let mut head = self.0.take();
+        let mut head = self.head.take();
         while let Some(node) = head {
             if let Ok(mut node) = Arc::try_unwrap(node) {
                 head = node.next.take();
@@ -136,7 +177,18 @@ mod tests {
         let list = list.tail().unwrap();
 		assert_eq!(list.head(), None);
         assert_eq!(None, list.tail());
-	}
+    }
+    #[test]
+    fn len() {
+        let zero = List::empty();
+        let one = zero.push(Val::empty());
+        let two = one.push(Val::empty());
+        assert_eq!(0, zero.len());
+        assert_eq!(1, one.len());
+        assert_eq!(2, two.len());
+        assert_eq!(3, one.concat(two.clone()).len());
+        assert_eq!(1, two.tail().unwrap().len());
+    }
     #[test]
     fn iter() {
         let list = make_list!(Val::from(1), Val::from(2), Val::from(3));

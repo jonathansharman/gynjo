@@ -154,7 +154,7 @@ pub enum Expr {
 	ListExpr(Box<VecDeque<Expr>>),
 	Sym(Sym),
 	Prim(Prim),
-	Import { filename: String },
+	Import { target: Box<Expr> },
 	Assign {
 		lhs: Sym,
 		rhs: Box<Expr>,
@@ -188,7 +188,7 @@ impl fmt::Display for Expr {
 			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::Sym(symbol) => symbol.fmt(f),
 			Expr::Prim(primitive) => primitive.fmt(f),
-			Expr::Import { filename } => write!(f, "import \"{}\"", filename),
+			Expr::Import { target } => write!(f, "import \"{}\"", target),
 			Expr::Assign { lhs, rhs } => write!(f, "let {} = {}", lhs.name, rhs),
 			Expr::Branch { test, then_expr, else_expr } => {
 				write!(f, "if {} then {} else {}", test, then_expr, else_expr)
