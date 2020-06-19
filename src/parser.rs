@@ -20,6 +20,31 @@ pub fn parse(tokens: &[Tok]) -> Result<Expr, ParseError> {
 	}
 }
 
+/// Parses a single `required` token from `tokens` and returns the remaining tokens.
+/// `context` - The expression in which the token is required, for the purpose of error reporting.
+fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseError> {
+	match tokens {
+		[] => Err(ParseError::EndOfInput {
+			context,
+			expected: format!("\"{}\"", required),
+		}),
+		[t, rest @ ..] if (t == required) => Ok(rest),
+		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+			context,
+			expected: Some(format!("\"{}\"", required)),
+			actual: invalid.clone(),
+		}),
+	}
+}
+
+/// Parses a single `optional` token from `tokens` and returns the remaining tokens and whether the token was parsed.
+fn parse_optional_token<'a>(tokens: &'a [Tok], optional: &Tok) -> (&'a [Tok], bool) {
+	match tokens {
+		[t, rest @ ..] if (t == optional) => (rest, true),
+		_ => (tokens, false),
+	}
+}
+
 /// If possible, parses the next single expression from `tokens`.
 /// Returns a slice of the unused tokens along with the parsed expression.
 fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
@@ -204,11 +229,19 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		[Tok::Intrinsic(f), tokens @ ..] => {
 			let params = match f {
 				Intrinsic::Pop => vec!(Sym::from("list")),
-				Intrinsic::Print => vec!(Sym::from("value")),
-				Intrinsic::Read => vec!(),
-				Intrinsic::GetType => vec!(Sym::from("value")),
 			};
 			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(*f) })))
+		},
+		// I/O
+		[Tok::Read, tokens @ ..] => Ok((tokens, Expr::Read)),
+		[Tok::Write, tokens @ ..] => {
+			let (tokens, output) = parse_expr(tokens)?;
+			Ok((tokens, Expr::Write { output: Box::new(output) }))
+		},
+		// Get type
+		[Tok::GetType, tokens @ ..] => {
+			let (tokens, expr) = parse_expr(tokens)?;
+			Ok((tokens, Expr::GetType { expr: Box::new(expr) }))
 		},
 		// Symbol or lambda
 		[Tok::Sym(symbol), tokens @ ..] => {
@@ -226,36 +259,12 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		},
 		// Primitive
 		[Tok::Prim(primitive), tokens @ ..] => Ok((tokens, Expr::Prim(primitive.clone()))),
+		// Invalid
 		[invalid, ..] => Err(ParseError::InvalidInput {
 			context: "value expression",
 			expected: None,
 			actual: invalid.clone(),
 		}),
-	}
-}
-
-/// Parses a single `required` token from `tokens` and returns the remaining tokens.
-/// `context` - The expression in which the token is required, for the purpose of error reporting.
-fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseError> {
-	match tokens {
-		[] => Err(ParseError::EndOfInput {
-			context,
-			expected: format!("\"{}\"", required),
-		}),
-		[t, rest @ ..] if (t == required) => Ok(rest),
-		[invalid @ _, ..] => Err(ParseError::InvalidInput {
-			context,
-			expected: Some(format!("\"{}\"", required)),
-			actual: invalid.clone(),
-		}),
-	}
-}
-
-/// Parses a single `optional` token from `tokens` and returns the remaining tokens and whether the token was parsed.
-fn parse_optional_token<'a>(tokens: &'a [Tok], optional: &Tok) -> (&'a [Tok], bool) {
-	match tokens {
-		[t, rest @ ..] if (t == optional) => (rest, true),
-		_ => (tokens, false),
 	}
 }
 

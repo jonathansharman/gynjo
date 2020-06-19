@@ -39,6 +39,8 @@ pub enum Tok {
 	// Type ops
 	#[token("as")]
 	As,
+	#[token("get_type")]
+	GetType,
 	// Boolean ops
 	#[token("and")]
 	And,
@@ -75,6 +77,11 @@ pub enum Tok {
 	// Concatenation
 	#[token("|")]
 	Concat,
+	// I/O ops
+	#[token("read")]
+	Read,
+	#[token("write")]
+	Write,
 	// Brackets
 	#[token("(")]
 	Lparen,
@@ -101,9 +108,6 @@ pub enum Tok {
 	Colon,
 	// Intrinsic functions
 	#[token("pop", |_| Some(Intrinsic::Pop))]
-	#[token("print", |_| Some(Intrinsic::Print))]
-	#[token("read", |_| Some(Intrinsic::Read))]
-	#[token("get_type", |_| Some(Intrinsic::GetType))]
 	Intrinsic(Intrinsic),
 	// Symbol
 	#[regex("[a-zA-Z_]+", |lex| Some(Sym::from(lex.slice())))]
@@ -161,7 +165,7 @@ impl From<f64> for Tok {
 }
 
 impl fmt::Display for Tok {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Tok::Import => write!(f, "import"),
 			Tok::Let => write!(f, "let"),
@@ -174,6 +178,7 @@ impl fmt::Display for Tok {
 			Tok::Do => write!(f, "do"),
 			Tok::Return => write!(f, "return"),
 			Tok::As => write!(f, "as"),
+			Tok::GetType => write!(f, "get_type"),
 			Tok::And => write!(f, "and"),
 			Tok::Or => write!(f, "or"),
 			Tok::Not => write!(f, "not"),
@@ -189,7 +194,9 @@ impl fmt::Display for Tok {
 			Tok::Mul => write!(f, "*"),
 			Tok::Div => write!(f, "/"),
 			Tok::Exp => write!(f, "^"),
-		    Tok::Concat => write!(f, "|"),
+			Tok::Concat => write!(f, "|"),
+			Tok::Read => write!(f, "read"),
+			Tok::Write => write!(f, "write"),
 			Tok::Lparen => write!(f, "("),
 			Tok::Rparen => write!(f, ")"),
 			Tok::Lsquare => write!(f, "["),
@@ -205,7 +212,7 @@ impl fmt::Display for Tok {
 			Tok::Sym(symbol) => symbol.fmt(f),
 			Tok::Prim(primitive) => primitive.fmt(f),
 			Tok::LineContinuation => write!(f, "\\"),
-		    Tok::Error => write!(f, "error"),
+			Tok::Error => write!(f, "error"),
 		}
-    }
+	}
 }

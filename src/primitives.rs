@@ -13,7 +13,7 @@ impl fmt::Display for Bool {
 			Bool::True => write!(f, "true"), 
 			Bool::False => write!(f, "false"),
 		}
-    }
+	}
 }
 
 /// Gynjo boolean to Rust boolean.
@@ -50,7 +50,7 @@ impl fmt::Display for Prim {
 			Prim::String(s) => write!(f, "\"{}\"", s),
 			Prim::Type(t) => t.fmt(f),
 		}
-    }
+	}
 }
 
 impl From<bool> for Prim {

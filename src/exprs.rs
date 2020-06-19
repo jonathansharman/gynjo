@@ -43,7 +43,7 @@ impl fmt::Display for BinOp {
 			BinOp::Sub => write!(f, "-"),
 			BinOp::Concat => write!(f, "|"),
 		}
-    }
+	}
 }
 
 /// Binary Gynjo expressions.
@@ -57,7 +57,7 @@ pub struct BinExpr {
 impl fmt::Display for BinExpr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "({} {} {})", self.left, self.op, self.right)
-    }
+	}
 }
 
 /// The way in which a cluster item is attached to the preceding element of the cluster.
@@ -105,7 +105,7 @@ impl fmt::Display for ClusterItem {
 			if let ClusterConnector::AdjParen = self.connector { ")" } else { "" },
 			self.expr
 		)
-    }
+	}
 }
 
 /// A cluster of function calls, exponentiations, (possibly implicit) multiplications, and/or divisions.
@@ -139,7 +139,7 @@ impl fmt::Display for Lambda {
 			LambdaBody::UserDefined(body) => write!(f, "(({}) -> {})", self.params.iter().map(|s| s.name.clone()).join(", "), body),
 			LambdaBody::Intrinsic(intrinsic) => intrinsic.fmt(f),
 		}
-    }
+	}
 }
 
 /// Gynjo expressions.
@@ -174,6 +174,9 @@ pub enum Expr {
 		body: Box<Expr>,
 	},
 	Return { result: Box<Expr> },
+	Read,
+	Write { output: Box<Expr> },
+	GetType { expr: Box<Expr> },
 }
 
 impl fmt::Display for Expr {
@@ -198,6 +201,9 @@ impl fmt::Display for Expr {
 				write!(f, "for {} in {} do {}", loop_var.name, range, body)
 			},
 			Expr::Return { result } => write!(f, "return {}", result),
+			Expr::Read => write!(f, "read"),
+			Expr::Write { output } => write!(f, "write {}", output),
+			Expr::GetType { expr } => write!(f, "get_type {}", expr),
 		}
-    }
+	}
 }

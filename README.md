@@ -37,31 +37,36 @@ Variables can be set using `let` *variable* `=` *value*. The variable `ans` refe
 ## Operators and Precedence
 
 ### Operators from High to Low Precedence
-|            | Operation                                             | Syntax               | Type    |
-| ---------: | :---------------------------------------------------- | :------------------- | :------ |
-|          1 | Function application with parentheses (e.g. `f(5)`)   | *implicit*           | Binary  |
-|          2 | List/string index                                     | `[`*index*`]`        | Postfix |
-|          3 | Exponentiation                                        | `**`/`^`             | Binary  |
-|          4 | Function application without parentheses (e.g. `f 5`) | *implicit*           | Binary  |
-|          5 | Multiplication                                        | `*`/*implicit*       | Binary  |
-|          5 | Division                                              | `/`                  | Binary  |
-|          6 | Numeric negation                                      | `-`                  | Prefix  |
-|          7 | String and list concatenation                         | `\|`                 | Binary  |
-|          8 | Addition and subtraction                              | `+`, `-`             | Binary  |
-|          9 | Type cast                                             | `as`                 | Binary  |
-|         10 | Comparisons                                           | `<`, `<=`, `>`, `>=` | Binary  |
-|         11 | Equality, inequality, and approximate equality        | `=`, `!=`, `~`       | Binary  |
-|         12 | Logical conjunction                                   | `and`                | Binary  |
-|         13 | Logical disjunction                                   | `or`                 | Binary  |
-|         14 | Logical negation                                      | `not`                | Prefix  |
-|         14 | Return                                                | `return`             | Prefix  |
-|         14 | Import                                                | `import`             | Prefix  |
+|            | Operation                                      | Syntax                                      |
+| ---------: | :--------------------------------------------- | :------------------------------------------ |
+|          1 | Function application with parentheses          | *f*`(`*arg1*`,` *arg2*`,` *...*`)`          |
+|          2 | List/string index                              | *list/string*`[`*index*`]`                  |
+|          3 | Exponentiation                                 | *value* `**` *value* or *value* `^` *value* |
+|          4 | Function application without parentheses       | *f* *arg*                                   |
+|          5 | Multiplication                                 | *value* `*` *value* or *value* *value*      |
+|          5 | Division                                       | *value*`/`*value*                           |
+|          6 | Numeric negation                               | `-`*value*                                  |
+|          7 | String and list concatenation                  | *string/list* `\|` *string/list*            |
+|          8 | Addition and subtraction                       | *value* `+`/`-` *value*                     |
+|          9 | Type conversion                                | *value* `as` *type*                         |
+|         10 | Comparisons                                    | *value* `<`/`<=`/`>`/`>=` *value*           |
+|         11 | Equality, inequality, and approximate equality | *value* `=`/`!=`/`~` *value*                |
+|         12 | Logical conjunction                            | *boolean* `and` *boolean*                   |
+|         13 | Logical disjunction                            | *boolean* `or` *boolean*                    |
+|         14 | Logical negation                               | `not` *boolean*                             |
+|         14 | Return                                         | `return` *value*                            |
+|         14 | Import                                         | `import` *string*                           |
+|         14 | Read from console                              | `read`                                      |
+|         14 | Write to console                               | `write` *value*                             |
+|         14 | Get type                                       | `get_type` *value*                          |
 
 Implicit multiplication is supported and uses the same syntax as function application. This means that precedence is partially resolved during intepretation based on the values of the operands.
 
 Function application varies in precedence depending on the use of parentheses so that, for example, `sin x^2` does `x^2` first but `sin(x)^2` does `sin(x)` first, to better match expectations.
 
 List and string indexes are modulo length, so `[1, 2, 3][-1]` is equal to `3`, and `"hello"[5]` is equal to `"h"`.
+
+Lists can be concatenated with lists, and strings can be concatenated with arbitrary values on either side.
 
 Approximate equality is like equality, except that numeric types compare approximately equal if their real-valued display representations are equal. By default, `real` values are displayed using twelve significant digits. This display setting can be overridden in the current environment by setting the variable `precision` to some positive number of digits.
 

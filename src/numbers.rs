@@ -19,13 +19,13 @@ pub enum NumError {
 }
 
 impl fmt::Display for NumError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
 			NumError::DivisionByZero => write!(f, "Division by zero"),
 			NumError::ExponentTooLarge => write!(f, "Exponent too large"),
 			NumError::BaseTooLarge => write!(f, "Base in non-integral exponentiation too large"),
 		}
-    }
+	}
 }
 
 /// Numeric Gynjo types.
@@ -111,7 +111,7 @@ impl fmt::Display for Num {
 			Num::Rational(n) => n.fmt(f),
 			Num::Real(n) => n.fmt(f),
 		}
-    }
+	}
 }
 
 impl From<i64> for Num {
@@ -127,7 +127,7 @@ impl From<f64> for Num {
 }
 
 impl PartialOrd for Num {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
 		match (self, other) {
 			(Num::Real(lhs), rhs @ _) => lhs.partial_cmp(&BigDecimal::from(rhs.clone())),
 			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).partial_cmp(rhs),
@@ -135,11 +135,11 @@ impl PartialOrd for Num {
 			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).partial_cmp(rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.partial_cmp(rhs),
 		}
-    }
+	}
 }
 
 impl Ord for Num {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
 		match (self, other) {
 			(Num::Real(lhs), rhs @ _) => lhs.cmp(&BigDecimal::from(rhs.clone())),
 			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
@@ -147,12 +147,12 @@ impl Ord for Num {
 			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.cmp(rhs),
 		}
-    }
+	}
 }
 
 impl Add for Num {
-    type Output = Num;
-    fn add(self, rhs: Self) -> Self::Output {
+	type Output = Num;
+	fn add(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
 			(Num::Real(lhs), rhs @ _) => Num::Real(lhs + BigDecimal::from(rhs)),
 			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) + rhs),
@@ -160,12 +160,12 @@ impl Add for Num {
 			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) + rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs + rhs),
 		}
-    }
+	}
 }
 
 impl Sub for Num {
-    type Output = Num;
-    fn sub(self, rhs: Self) -> Self::Output {
+	type Output = Num;
+	fn sub(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
 			(Num::Real(lhs), rhs @ _) => Num::Real(lhs - BigDecimal::from(rhs)),
 			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) - rhs),
@@ -173,7 +173,7 @@ impl Sub for Num {
 			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) - rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs - rhs),
 		}
-    }
+	}
 }
 
 impl Mul for Num {
