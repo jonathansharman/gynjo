@@ -40,7 +40,13 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 		Expr::Branch { test, then_expr, else_expr } => eval_branch(&mut env, test, then_expr, else_expr),
 		Expr::WhileLoop { test, body } => eval_while_loop(env, test, body),
 		Expr::ForLoop { loop_var, range, body } => eval_for_loop(env, loop_var, range, body),
-		Expr::Return { result } => Ok(Val::Returned { result: Box::new(eval_expr(env, *result)?) }),
+		Expr::Break => Ok(Val::Break),
+		Expr::Return { result } => Ok(match eval_expr(env, *result)? {
+			// Return is idempotent; don't wrap the return value if it's already wrapped.
+			result @ Val::Returned { .. } => result,
+			// Wrap non-returned value into returned value.
+			result @ _ => Val::Returned { result: Box::new(result) },
+		}),
 		Expr::Read => {
 			let mut input = String::new();
 			io::stdin().read_line(&mut input).unwrap();
@@ -72,9 +78,13 @@ fn eval_block(env: &mut SharedEnv, mut exprs: Box<Vec<Expr>>) -> EvalResult {
 				Val::Tuple(Tuple { elems }) if elems.is_empty() => {
 					// Non-final empty results are okay.
 				},
-				Val::Returned { result } => {
+				Val::Break => {
+					// Break out of block.
+					return Ok(Val::Break)
+				},
+				result @ Val::Returned { .. } => {
 					// Return non-final result.
-					return Ok(*result)
+					return Ok(result)
 				},
 				unused @ _ => {
 					// Non-final, non-returned, non-empty results are errors.
@@ -82,7 +92,7 @@ fn eval_block(env: &mut SharedEnv, mut exprs: Box<Vec<Expr>>) -> EvalResult {
 				},
 			}
 		}
-		// No early return. Return final value.
+		// No break or early return. Return final value.
 		Ok(eval_expr(env, last)?)
 	} else {
 		Ok(Val::empty())
@@ -345,9 +355,13 @@ fn eval_while_loop(env: &mut SharedEnv, test: Box<Expr>, body: Box<Expr>) -> Eva
 					Val::Tuple(Tuple { elems }) if elems.is_empty() => {
 						// Non-final empty results are okay.
 					},
-					Val::Returned { result } => {
-						// Break out of loop via return.
-						return Ok(*result)
+					Val::Break => {
+						// Break out of loop.
+						return Ok(Val::empty())
+					}
+					result @ Val::Returned { .. } => {
+						// Exit loop via return.
+						return Ok(result)
 					},
 					unused @ _ => {
 						// Non-final, non-returned, non-empty results are errors.
@@ -375,9 +389,13 @@ fn eval_for_loop(env: &mut SharedEnv, loop_var: Sym, range: Box<Expr>, body: Box
 					Val::Tuple(Tuple { elems }) if elems.is_empty() => {
 						// Non-final empty results are okay.
 					},
-					Val::Returned { result } => {
-						// Break out of loop via return.
-						return Ok(*result)
+					Val::Break => {
+						// Break out of loop.
+						return Ok(Val::empty())
+					}
+					result @ Val::Returned { .. } => {
+						// Exit loop via return.
+						return Ok(result)
 					},
 					unused @ _ => {
 						// Non-final, non-returned, non-empty results are errors.
@@ -570,7 +588,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 		local_env.lock().unwrap().assign(variable, value);
 	}
 	// Evaluate function body within the application environment.
-	match c.f.body {
+	let result = match c.f.body {
 		LambdaBody::UserDefined(body) => eval_expr(&mut local_env, *body),
 		LambdaBody::Intrinsic(body) => {
 			match body {
@@ -584,7 +602,12 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 				},
 			}
 		}
-	}
+	}?;
+	// Unwrap returned value, if any.
+	Ok(match result {
+		Val::Returned { result } => *result,
+		other @ _ => other,
+	})
 }
 
 fn eval_numeric_negation(env: &mut SharedEnv, value: Val) -> EvalResult {
@@ -1184,30 +1207,6 @@ mod tests {
 			assert_eq!(Val::from(1), eval(&mut env, "b")?);
 			Ok(())
 		}
-		#[test]
-		fn return_outside_block_is_okay() -> Result<(), Error> {
-			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return 1")?);
-			Ok(())
-		}
-		#[test]
-		fn return_from_nested_expr() -> Result<(), Error> {
-			assert_eq!(Val::from(1), eval(&mut Env::new(None), r"{
-				if true then {
-					return 1
-				};
-				2
-			}")?);
-			Ok(())
-		}
-		#[test]
-		fn return_from_called_function() -> Result<(), Error> {
-			assert_eq!(Val::from(1), eval(&mut Env::new(None), r"{
-				let f = () -> return 1;
-				f();
-				2
-			}")?);
-			Ok(())
-		}
 	}
 
 	mod branch_statements {
@@ -1250,19 +1249,6 @@ mod tests {
 			assert!(eval(&mut Env::new(None), "while true do 1").is_err());
 			Ok(())
 		}
-		#[test]
-		fn early_return() -> Result<(), Error> {
-			let mut env = Env::new(None);
-			assert_eq!(Val::from(7), eval(&mut env, r"{
-				let a = 0;
-				while a < 3 do {
-					return return 7;
-					let a = a + 1;
-				}
-			}")?);
-			assert_eq!(Val::from(0), eval(&mut env, "a")?);
-			Ok(())
-		}
 	}
 
 	mod for_loops {
@@ -1283,15 +1269,87 @@ mod tests {
 			assert!(eval(&mut Env::new(None), "for x in [1, 2, 3] true do 1").is_err());
 			Ok(())
 		}
+	}
+
+	mod return_and_break {
+		use super::*;
 		#[test]
-		fn early_return() -> Result<(), Error> {
-			let mut env = Env::new(None);
-			assert_eq!(Val::from(7), eval(&mut env, r"{
-				for x in [1, 2, 3] do {
-					return return 7
+		fn return_outside_function_is_okay() -> Result<(), Error> {
+			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return 1")?);
+			Ok(())
+		}
+		#[test]
+		fn break_outside_loop_is_okay() -> Result<(), Error> {
+			assert_eq!(Val::Break, eval(&mut Env::new(None), "break")?);
+			Ok(())
+		}
+		#[test]
+		fn return_is_idempotent() -> Result<(), Error> {
+			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return return 1")?);
+			Ok(())
+		}
+		#[test]
+		fn return_from_nested_block() -> Result<(), Error> {
+			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), r"{
+				if true then {
+					return 1
 				};
+				2
 			}")?);
-			assert_eq!(Val::from(1), eval(&mut env, "x")?);
+			Ok(())
+		}
+		#[test]
+		fn return_from_called_function() -> Result<(), Error> {
+			assert_eq!(Val::from(1), eval(&mut Env::new(None), r"{
+				let f = () -> return ();
+				f();
+				1
+			}")?);
+			Ok(())
+		}
+		#[test]
+		fn break_while() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::empty(), eval(&mut env, r"
+				while true do {
+					break;
+					1/0
+				}
+			")?);
+			Ok(())
+		}
+		#[test]
+		fn return_from_while() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from(7), eval(&mut env, r"(() -> {
+				while true do {
+					return 7;
+					1/0
+				}
+			})()")?);
+			Ok(())
+		}
+		#[test]
+		fn break_for() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from(1), eval(&mut env, r"{
+				for x in [1, 2, 3] do {
+					break;
+					1/0
+				};
+				x
+			}")?);
+			Ok(())
+		}
+		#[test]
+		fn return_from_for() -> Result<(), Error> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from(7), eval(&mut env, r"(() -> {
+				for x in [1, 2, 3] do {
+					return 7;
+					1/0
+				};
+			})()")?);
 			Ok(())
 		}
 	}

@@ -173,6 +173,7 @@ pub enum Expr {
 		range: Box<Expr>,
 		body: Box<Expr>,
 	},
+	Break,
 	Return { result: Box<Expr> },
 	Read,
 	Write { output: Box<Expr> },
@@ -200,6 +201,7 @@ impl fmt::Display for Expr {
 			Expr::ForLoop { loop_var, range, body } => {
 				write!(f, "for {} in {} do {}", loop_var.name, range, body)
 			},
+			Expr::Break => write!(f, "break"),
 			Expr::Return { result } => write!(f, "return {}", result),
 			Expr::Read => write!(f, "read"),
 			Expr::Write { output } => write!(f, "write {}", output),

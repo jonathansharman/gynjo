@@ -34,6 +34,8 @@ pub enum Tok {
 	In,
 	#[token("do")]
 	Do,
+	#[token("break")]
+	Break,
 	#[token("return")]
 	Return,
 	// Type ops
@@ -176,6 +178,7 @@ impl fmt::Display for Tok {
 			Tok::For => write!(f, "for"),
 			Tok::In => write!(f, "in"),
 			Tok::Do => write!(f, "do"),
+			Tok::Break => write!(f, "break"),
 			Tok::Return => write!(f, "return"),
 			Tok::As => write!(f, "as"),
 			Tok::GetType => write!(f, "get_type"),

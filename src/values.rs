@@ -34,6 +34,7 @@ pub enum Val {
 	Tuple(Tuple),
 	List(List),
 	Closure(Closure),
+	Break,
 	Returned { result: Box<Val> },
 }
 
@@ -95,6 +96,7 @@ impl Val {
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(_) => Type::List,
 			Val::Closure(_) => Type::Closure,
+			Val::Break => Type::Broken,
 			Val::Returned { .. } => Type::Returned,
 		}
 	}
@@ -144,6 +146,7 @@ impl Val {
 			Val::Tuple(tuple) => tuple.to_string(&env),
 			Val::List(list) => list.to_string(&env),
 			Val::Closure(c) => c.f.to_string(),
+			Val::Break => "break".to_string(),
 			Val::Returned { result } => format!("(result: {})", result.to_string(&env)),
 		}
 	}

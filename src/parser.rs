@@ -55,6 +55,7 @@ fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
 		[Tok::If, rest @ ..] => parse_branch(rest),
 		[Tok::While, rest @ ..] => parse_while_loop(rest),
 		[Tok::For, rest @ ..] => parse_for_loop(rest),
+		[Tok::Break, rest @ ..] => Ok((rest, Expr::Break)),
 		[Tok::Return, rest @ ..] => parse_ret(rest),
 		_ => parse_logical_negation(tokens),
 	}
