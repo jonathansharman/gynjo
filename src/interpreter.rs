@@ -43,9 +43,9 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 		Expr::Break => Ok(Val::Break),
 		Expr::Return { result } => Ok(match eval_expr(env, *result)? {
 			// Return is idempotent; don't wrap the return value if it's already wrapped.
-			result @ Val::Returned { .. } => result,
+			result @ Val::Return { .. } => result,
 			// Wrap non-returned value into returned value.
-			result @ _ => Val::Returned { result: Box::new(result) },
+			result @ _ => Val::Return { result: Box::new(result) },
 		}),
 		Expr::Read => {
 			let mut input = String::new();
@@ -82,7 +82,7 @@ fn eval_block(env: &mut SharedEnv, mut exprs: Box<Vec<Expr>>) -> EvalResult {
 					// Break out of block.
 					return Ok(Val::Break)
 				},
-				result @ Val::Returned { .. } => {
+				result @ Val::Return { .. } => {
 					// Return non-final result.
 					return Ok(result)
 				},
@@ -359,7 +359,7 @@ fn eval_while_loop(env: &mut SharedEnv, test: Box<Expr>, body: Box<Expr>) -> Eva
 						// Break out of loop.
 						return Ok(Val::empty())
 					}
-					result @ Val::Returned { .. } => {
+					result @ Val::Return { .. } => {
 						// Exit loop via return.
 						return Ok(result)
 					},
@@ -393,7 +393,7 @@ fn eval_for_loop(env: &mut SharedEnv, loop_var: Sym, range: Box<Expr>, body: Box
 						// Break out of loop.
 						return Ok(Val::empty())
 					}
-					result @ Val::Returned { .. } => {
+					result @ Val::Return { .. } => {
 						// Exit loop via return.
 						return Ok(result)
 					},
@@ -605,7 +605,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	}?;
 	// Unwrap returned value, if any.
 	Ok(match result {
-		Val::Returned { result } => *result,
+		Val::Return { result } => *result,
 		other @ _ => other,
 	})
 }
@@ -1275,7 +1275,7 @@ mod tests {
 		use super::*;
 		#[test]
 		fn return_outside_function_is_okay() -> Result<(), Error> {
-			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return 1")?);
+			assert_eq!(Val::Return { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return 1")?);
 			Ok(())
 		}
 		#[test]
@@ -1285,12 +1285,12 @@ mod tests {
 		}
 		#[test]
 		fn return_is_idempotent() -> Result<(), Error> {
-			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return return 1")?);
+			assert_eq!(Val::Return { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), "return return 1")?);
 			Ok(())
 		}
 		#[test]
 		fn return_from_nested_block() -> Result<(), Error> {
-			assert_eq!(Val::Returned { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), r"{
+			assert_eq!(Val::Return { result: Box::new(Val::from(1)) }, eval(&mut Env::new(None), r"{
 				if true then {
 					return 1
 				};

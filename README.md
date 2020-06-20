@@ -122,7 +122,8 @@ Blocks allow sequential evaluation of a semicolon-separated list of expressions 
 | `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                |
 | `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                |
 | `closure`        | A function with its captured environment  | `x -> x`, `(a, b) -> a + b`   |
-| `returned_value` | The result of a `return` expression       | `return 1`, `return return 1` |
+| `break_value`    | The result of a break expression          | `break`                       |
+| `return_value`   | The result of a `return` expression       | `return 1`                    |
 
 The Gynjo runtime tries to store numerical values as an integer if possible. The expression `(3/2) * 2` is a `rational` times an `integer`, which in general is a `rational`, but since the resulting value is integral (in the mathematical sense), its type is actually `integer`. That also means that `1.0` evaluates to an object of type `integer`. The runtime does not attempt to shrink `real`s into `rational`s since there could be round-off error.
 

@@ -35,7 +35,7 @@ pub enum Val {
 	List(List),
 	Closure(Closure),
 	Break,
-	Returned { result: Box<Val> },
+	Return { result: Box<Val> },
 }
 
 impl From<bool> for Val {
@@ -96,8 +96,8 @@ impl Val {
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(_) => Type::List,
 			Val::Closure(_) => Type::Closure,
-			Val::Break => Type::Broken,
-			Val::Returned { .. } => Type::Returned,
+			Val::Break => Type::Break,
+			Val::Return { .. } => Type::Return,
 		}
 	}
 
@@ -147,7 +147,7 @@ impl Val {
 			Val::List(list) => list.to_string(&env),
 			Val::Closure(c) => c.f.to_string(),
 			Val::Break => "break".to_string(),
-			Val::Returned { result } => format!("(result: {})", result.to_string(&env)),
+			Val::Return { result } => format!("(return {})", result.to_string(&env)),
 		}
 	}
 

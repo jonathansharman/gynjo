@@ -127,7 +127,8 @@ pub enum Tok {
 	#[token("tuple", |_| Some(Prim::Type(Type::Tuple)))]
 	#[token("list", |_| Some(Prim::Type(Type::List)))]
 	#[token("closure", |_| Some(Prim::Type(Type::Closure)))]
-	#[token("returned_value", |_| Some(Prim::Type(Type::Returned)))]
+	#[token("break_value", |_| Some(Prim::Type(Type::Break)))]
+	#[token("return_value", |_| Some(Prim::Type(Type::Return)))]
 	// Real literal
 	#[regex(r"(0|([1-9]\d*))?\.\d+", |lex| Some(Prim::Num(Num::Real(BigDecimal::from_str(lex.slice()).unwrap()))))]
 	// Integer literal
