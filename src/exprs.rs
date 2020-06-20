@@ -96,14 +96,14 @@ impl fmt::Display for ClusterItem {
 			if self.negated { "-" } else { "" },
 			match self.connector {
 				ClusterConnector::None => "",
-				ClusterConnector::AdjParen => " (",
+				ClusterConnector::AdjParen => "(",
 				ClusterConnector::AdjNonparen => " ",
 				ClusterConnector::Mul => " * ",
 				ClusterConnector::Div => " / ",
 				ClusterConnector::Exp => " ^ ",
 			},
+			self.expr,
 			if let ClusterConnector::AdjParen = self.connector { ")" } else { "" },
-			self.expr
 		)
 	}
 }
@@ -186,7 +186,7 @@ impl fmt::Display for Expr {
 			Expr::Block { exprs } => write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; ")),
 			Expr::BinExpr(binary_expr) => binary_expr.fmt(f),
 			Expr::Not { expr } => write!(f, "(not {})", expr),
-			Expr::Cluster(cluster) => write!(f, "({})", cluster.items.iter().map(ClusterItem::to_string).join(" ")),
+			Expr::Cluster(cluster) => write!(f, "({})", cluster.items.iter().map(ClusterItem::to_string).join("")),
 			Expr::Lambda(lambda) => lambda.fmt(f),
 			Expr::TupleExpr(exprs) => write!(f, "({})", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
