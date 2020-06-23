@@ -141,9 +141,9 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 impl FormatWithEnv for List {
-    fn format_with_env(&self, env: &SharedEnv) -> String {
+	fn format_with_env(&self, env: &SharedEnv) -> String {
 		format!("[{}]", self.iter().map(|elem| elem.format_with_env(&env)).join(", "))
-    }
+	}
 }
 
 /// Convenience macro for turning a comma-separated list of values into a list.

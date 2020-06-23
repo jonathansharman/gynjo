@@ -106,6 +106,7 @@ fn eval_block(env: &mut SharedEnv, mut exprs: Box<Vec<Expr>>) -> EvalResult {
 fn eval_bin_expr(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 	match bin_expr.op {
 		BinOp::As => eval_as(env, bin_expr),
+		BinOp::In => eval_in(env, bin_expr),
 		BinOp::And => eval_and(env, bin_expr),
 		BinOp::Or => eval_or(env, bin_expr),
 		BinOp::Eq => Ok(Bool::from(eval_expr(env, *bin_expr.left)? == eval_expr(env, *bin_expr.right)?).into()),
@@ -188,6 +189,29 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "type cast",
 			expected: vec!(Type::Type),
+			actual: invalid.get_type(),
+		})
+	}
+}
+
+fn eval_in(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
+	match eval_expr(env, *bin_expr.right)? {
+		Val::Quant(to) => {
+			if to.val != Num::from(1) {
+				return Err(RtErr::InvalidUnit);
+			}
+			match eval_expr(env, *bin_expr.left)? {
+				Val::Quant(from) => Ok(from.convert(to.units).map_err(RtErr::quant)?.into()),
+				invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+					context: "unit conversion",
+					expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
+					actual: invalid.get_type(),
+				})
+			}
+		},
+		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+			context: "unit conversion",
+			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
 			actual: invalid.get_type(),
 		})
 	}
@@ -1547,6 +1571,15 @@ mod tests {
 		#[test]
 		fn mixed_unit_comparisons() -> Result<(), GynjoErr> {
 			assert_eq!(Val::from(true), eval(&mut Env::with_core_libs(), "1.m = 100.cm")?);
+			Ok(())
+		}
+		#[test]
+		fn unit_conversion() -> Result<(), GynjoErr> {
+			let mut env = Env::with_core_libs();
+			match eval(&mut env, "1000.m + 100000.cm in .km")? {
+				Val::Quant(quant) => assert_eq!(Num::from(2), quant.val),
+				_ => assert!(false),
+			}
 			Ok(())
 		}
 		#[test]

@@ -80,6 +80,7 @@ pub enum RtErr {
 	},
 	Undefined(String),
 	UnusedResult(String),
+	InvalidUnit,
 	CouldNotOpenFile {
 		filename: String,
 		file_error: String,
@@ -116,6 +117,7 @@ impl fmt::Display for RtErr {
 			},
 			RtErr::Undefined(name) => write!(f, "\"{}\" is undefined", name),
 			RtErr::UnusedResult(value) => write!(f, "Unused result: {}", value),
+			RtErr::InvalidUnit => write!(f, "Non-unit quantity on right-hand side of unit conversion"),
 			RtErr::CouldNotOpenFile { filename, file_error } => {
 				write!(f, "Could not open \"{}\" ({})", filename, file_error)
 			},
@@ -159,19 +161,19 @@ impl fmt::Display for GynjoErr {
 }
 
 impl From<LexErr> for GynjoErr {
-    fn from(err: LexErr) -> Self {
-        GynjoErr::lex(err)
-    }
+	fn from(err: LexErr) -> Self {
+		GynjoErr::lex(err)
+	}
 }
 
 impl From<ParseErr> for GynjoErr {
-    fn from(err: ParseErr) -> Self {
-        GynjoErr::parse(err)
-    }
+	fn from(err: ParseErr) -> Self {
+		GynjoErr::parse(err)
+	}
 }
 
 impl From<RtErr> for GynjoErr {
-    fn from(err: RtErr) -> Self {
-        GynjoErr::rt(err)
-    }
+	fn from(err: RtErr) -> Self {
+		GynjoErr::rt(err)
+	}
 }

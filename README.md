@@ -17,6 +17,7 @@ A command-line calculator and programming language with an emphasis on short, ma
 ## Contents
 1. [Variable Assignment](#variables)
 1. [Operators and Precedence](#operators-and-precedence)
+1. [Units and Dimensional Analysis](#units-and-dimensional-analysis)
 1. [Blocks and Control Flow](#blocks-and-control-flow)
 1. [Value Types](#value-types)
 1. [Functions](#functions)
@@ -43,25 +44,28 @@ Variables can be set using `let` *variable* `=` *value*. The variable `ans` refe
 |          2 | List/string index                              | *list/string*`[`*index*`]`                  |
 |          3 | Exponentiation                                 | *value* `**` *value* or *value* `^` *value* |
 |          4 | Function application without parentheses       | *f* *arg*                                   |
-|          5 | Multiplication                                 | *value* `*` *value* or *value* *value*      |
-|          5 | Division                                       | *value*`/`*value*                           |
-|          6 | Numeric negation                               | `-`*value*                                  |
-|          7 | String and list concatenation                  | *string/list* `\|` *string/list*            |
-|          8 | Addition and subtraction                       | *value* `+`/`-` *value*                     |
-|          9 | Type conversion                                | *value* `as` *type*                         |
-|         10 | Comparisons                                    | *value* `<`/`<=`/`>`/`>=` *value*           |
-|         11 | Equality, inequality, and approximate equality | *value* `=`/`!=`/`~` *value*                |
-|         12 | Logical conjunction                            | *boolean* `and` *boolean*                   |
-|         13 | Logical disjunction                            | *boolean* `or` *boolean*                    |
-|         14 | Logical negation                               | `not` *boolean*                             |
-|         14 | Break out of loop early                        | `break`                                     |
-|         14 | Return from function early                     | `return` *value*                            |
-|         14 | Import                                         | `import` *string*                           |
-|         14 | Read from console                              | `read`                                      |
-|         14 | Write to console                               | `write` *value*                             |
-|         14 | Get type                                       | `get_type` *value*                          |
+|          5 | Implicit multiplication                        | *value* *value*                             |
+|          6 | Explicit multiplication                        | *value* `*` *value*                         |
+|          6 | Division                                       | *value*`/`*value*                           |
+|          7 | Numeric negation                               | `-`*value*                                  |
+|          8 | String and list concatenation                  | *string/list* `\|` *string/list*            |
+|          9 | Addition and subtraction                       | *value* `+`/`-` *value*                     |
+|         10 | Type conversion                                | *value* `as` *type*                         |
+|         10 | Unit conversion                                | *value* `in` *unit*                         |
+|         11 | Comparisons                                    | *value* `<`/`<=`/`>`/`>=` *value*           |
+|         12 | Equality, inequality, and approximate equality | *value* `=`/`!=`/`~` *value*                |
+|         13 | Logical conjunction                            | *boolean* `and` *boolean*                   |
+|         14 | Logical disjunction                            | *boolean* `or` *boolean*                    |
+|         15 | Logical negation                               | `not` *boolean*                             |
+|         15 | Break out of loop early                        | `break`                                     |
+|         15 | Return from function early                     | `return` *value*                            |
+|         15 | Read from console                              | `read`                                      |
+|         15 | Write to console                               | `write` *value*                             |
+|         15 | Get type                                       | `get_type` *value*                          |
+|         15 | Import                                         | `import` *string*                           |
+|         15 | Unit declaration                               | `unit` *name* `=` *dimension* *scale*       |
 
-Implicit multiplication is supported and uses the same syntax as function application. This means that precedence is partially resolved during intepretation based on the values of the operands.
+Implicit multiplication is supported and uses the same syntax as function application. This means that precedence is partially resolved during intepretation based on the values of the operands. Implicit multiplication has higher precedence than explicit multiplication/division, so for example, `2a/3b` is equal to `(2a)/(3b)`.
 
 Function application varies in precedence depending on the use of parentheses so that, for example, `sin x^2` does `x^2` first but `sin(x)^2` does `sin(x)` first, to better match expectations.
 
@@ -77,6 +81,40 @@ Approximate equality is like equality, except that numeric types compare approxi
 true
 ```
 
+## Units and Dimensional Analysis
+
+Dimensional analysis on quantities with units is supported. The Gynjo core library defines basic SI and imperial units by default (see [core/units.gynj](core/units.gynj)).
+
+```
+>> let speed = 60.km/.hr
+>> let time = 45.min
+>> let distance = speed * time
+>> distance
+45.km
+```
+
+Additional units can be created using a unit declaration.
+
+```
+>> unit .micron = length 10^-6
+>> 1.micron = 1.um
+true
+```
+
+When performing binary operations with two different units of the same dimension, the units of the left-hand side are used for the result.
+
+```
+>> 1.m + 100.cm
+2.m
+```
+
+Quantities can be explicitly converted to different units with the same dimensions using the `in` operator.
+
+```
+>> 1000.m + 100000.cm in .km
+2.km
+```
+
 ## Blocks and Control Flow
 
 Blocks allow sequential evaluation of a semicolon-separated list of expressions inside `{}`, with the overall result being the result of the final (possibly empty) expression. Each non-final expression must evaluate to `()`.
@@ -90,7 +128,7 @@ Blocks allow sequential evaluation of a semicolon-separated list of expressions 
 3
 ```
 
-### Control expressions
+### Control Expressions
 - `if` *test* `then` *expression* [ `else` *expression* ]
 - `for` *variable* `in` *range* `do` *body*
 - `while` *test* `do` *body*
@@ -115,9 +153,9 @@ Blocks allow sequential evaluation of a semicolon-separated list of expressions 
 | :--------------- | :---------------------------------------- | :---------------------------- |
 | `type`           | One of the types in this table            | `integer`, `get_type(1)`      |
 | `boolean`        | `true` or `false`                         | `true`, `false`               |
-| `integer`        | Arbitrary-precision integer type          | `0`, `-1`, `42`               |
-| `rational`       | Arbitrary-precision rational type         | `1/2`, `-5/3`                 |
-| `real`           | High-precision floating-point type        | `0.1`, `-42.5`                |
+| `integer`        | Arbitrary-precision integer quantity      | `0`, `-1`, `2.s`              |
+| `rational`       | Arbitrary-precision rational quantity     | `1/2`, `-5/3`, `2.m/3.kg`     |
+| `real`           | High-precision floating-point quantity    | `0.1`, `-42.5`, `1.5.m`       |
 | `string`         | String of ASCII text                      | `"hello"`, `"world"`          |
 | `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                |
 | `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                |
@@ -150,11 +188,7 @@ Gynjo uses function scoping rather than lexical scoping, so each function applic
 
 | Signature     | Effect                                                       |
 | :------------ | :----------------------------------------------------------- |
-| `top(l)`      | Gets the top (or first) element of `l` (`list`)              |
-| `pop(l)`      | Gets the elements of `l` (`list`) except for `top(l)`        |
-| `print(v)`    | Converts `v` to a `string` and outputs it to the console     |
-| `read()`      | Reads a line of input from the console as a `string`         |
-| `get_type(v)` | Gets the type of `v`                                         |
+| `pop(l)`      | Gets the elements of `l` (`list`) after the first            |
 
 ## Importing Scripts
 

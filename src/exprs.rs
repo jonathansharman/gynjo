@@ -12,6 +12,7 @@ use std::fmt;
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum BinOp {
 	As,
+	In,
 	And,
 	Or,
 	Eq,
@@ -30,6 +31,7 @@ impl fmt::Display for BinOp {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			BinOp::As => write!(f, "as"),
+			BinOp::In => write!(f, "in"),
 			BinOp::And => write!(f, "and"),
 			BinOp::Or => write!(f, "or"),
 			BinOp::Eq => write!(f, "="),

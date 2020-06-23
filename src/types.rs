@@ -27,8 +27,8 @@ pub enum Type {
 	String,
 	Tuple,
 	List,
-    Closure,
-    Break,
+	Closure,
+	Break,
 	Return,
 }
 
@@ -41,8 +41,8 @@ impl fmt::Display for Type {
 			Type::String => write!(f, "string"),
 			Type::Tuple => write!(f, "tuple"),
 			Type::List => write!(f, "list"),
-            Type::Closure => write!(f, "closure"),
-            Type::Break => write!(f, "break_value"),
+			Type::Closure => write!(f, "closure"),
+			Type::Break => write!(f, "break_value"),
 			Type::Return => write!(f, "return_value"),
 		}
 	}

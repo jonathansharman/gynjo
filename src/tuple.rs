@@ -27,7 +27,7 @@ impl Tuple {
 }
 
 impl FormatWithEnv for Tuple {
-    fn format_with_env(&self, env: &SharedEnv) -> String {
+	fn format_with_env(&self, env: &SharedEnv) -> String {
 		format!("({})", self.elems.iter().map(|elem| elem.format_with_env(env)).join(", "))
-    }
+	}
 }

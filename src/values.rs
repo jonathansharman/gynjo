@@ -124,7 +124,7 @@ impl Val {
 }
 
 impl FormatWithEnv for Val {
-    fn format_with_env(&self, env: &SharedEnv) -> String {
+	fn format_with_env(&self, env: &SharedEnv) -> String {
 		match self {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
 			Val::Prim(primitive) => match primitive {
@@ -133,12 +133,12 @@ impl FormatWithEnv for Val {
 				Prim::String(s) => format!("\"{}\"", s),
 				Prim::Type(t) => t.to_string(),
 			},
-		    Val::Quant(quant) => quant.format_with_env(&env),
+			Val::Quant(quant) => quant.format_with_env(&env),
 			Val::Tuple(tuple) => tuple.format_with_env(&env),
 			Val::List(list) => list.format_with_env(&env),
 			Val::Closure(c) => c.f.to_string(),
 			Val::Break => "break".to_string(),
 			Val::Return { result } => format!("(return {})", result.format_with_env(&env)),
 		}
-    }
+	}
 }

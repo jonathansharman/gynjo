@@ -381,14 +381,15 @@ fn parse_terms(tokens: &[Tok]) -> ParseExprResult {
 		&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)].iter().cloned().collect())
 }
 
-/// Parses a series of type casts.
-fn parse_type_casts(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_terms, &[(Tok::As, BinOp::As)].iter().cloned().collect())
+/// Parses a series of type casts or unit conversions.
+fn parse_conversions(tokens: &[Tok]) -> ParseExprResult {
+	parse_binary_expressions(tokens, parse_terms,
+		&[(Tok::As, BinOp::As), (Tok::In, BinOp::In)].iter().cloned().collect())
 }
 
 /// Parses a series of comparison checks (not including equality, inequality, or approximate equality).
 fn parse_comparisons(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_type_casts,
+	parse_binary_expressions(tokens, parse_conversions,
 		&[(Tok::Lt, BinOp::Lt), (Tok::Leq, BinOp::Leq), (Tok::Gt, BinOp::Gt), (Tok::Geq, BinOp::Geq)].iter().cloned().collect())
 }
 

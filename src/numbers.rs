@@ -149,8 +149,8 @@ impl fmt::Display for Num {
 }
 
 impl FormatWithEnv for Num {
-    fn format_with_env(&self, env: &SharedEnv) -> String {
-        match self {
+	fn format_with_env(&self, env: &SharedEnv) -> String {
+		match self {
 			Num::Integer(integer) => integer.to_string(),
 			Num::Rational(rational) => {
 				// Rational numbers are displayed both in rational and real form.
@@ -183,7 +183,7 @@ impl FormatWithEnv for Num {
 				format!("{}", real.with_prec(precision))
 			},
 		}
-    }
+	}
 }
 
 impl From<i64> for Num {
@@ -297,14 +297,14 @@ impl Div for Num {
 }
 
 impl Neg for Num {
-    type Output = Num;
-    fn neg(self) -> Self::Output {
+	type Output = Num;
+	fn neg(self) -> Self::Output {
 		match self {
-		    Num::Integer(integer) => Num::Integer(-integer),
-		    Num::Rational(rational) => Num::Rational(-rational),
-		    Num::Real(real) => Num::Real(-real),
+			Num::Integer(integer) => Num::Integer(-integer),
+			Num::Rational(rational) => Num::Rational(-rational),
+			Num::Real(real) => Num::Real(-real),
 		}
-    }
+	}
 }
 
 impl From<Num> for BigRational {

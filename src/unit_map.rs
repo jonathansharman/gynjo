@@ -36,19 +36,19 @@ impl UnitMap {
 }
 
 impl Hash for UnitMap {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
 		// Hash based on all keys and values.
 		for (k, v) in self.map.iter() {
 			k.hash(state);
 			v.hash(state);
 		}
-    }
+	}
 }
 
 impl From<(Sym, Unit)> for UnitMap {
-    fn from((dimension, unit): (Sym, Unit)) -> Self {
-        UnitMap { map: [(dimension, (unit, Num::from(1)))].iter().cloned().collect() }
-    }
+	fn from((dimension, unit): (Sym, Unit)) -> Self {
+		UnitMap { map: [(dimension, (unit, Num::from(1)))].iter().cloned().collect() }
+	}
 }
 
 impl fmt::Display for UnitMap {

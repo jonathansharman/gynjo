@@ -21,13 +21,13 @@ impl QuantErr {
 }
 
 impl fmt::Display for QuantErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
 			QuantErr::Num(num_err) => num_err.fmt(f),
 			QuantErr::UnitErr => write!(f, "Units are incompatible"),
 			QuantErr::DimensionedExponent => write!(f, "Exponents must be dimensionless"),
 		}
-    }
+	}
 }
 
 /// Numeric Gynjo types.
@@ -94,15 +94,15 @@ impl Quant {
 }
 
 impl FormatWithEnv for Quant {
-    fn format_with_env(&self, env: &SharedEnv) -> String {
+	fn format_with_env(&self, env: &SharedEnv) -> String {
 		format!("{}{}", self.val.format_with_env(env), self.units)
-    }
+	}
 }
 
 impl From<Num> for Quant {
-    fn from(val: Num) -> Self {
-        Quant { val, units: UnitMap::empty() }
-    }
+	fn from(val: Num) -> Self {
+		Quant { val, units: UnitMap::empty() }
+	}
 }
 
 impl From<UnitMap> for Quant {
@@ -112,11 +112,11 @@ impl From<UnitMap> for Quant {
 }
 
 impl PartialEq for Quant {
-    fn eq(&self, other: &Self) -> bool {
+	fn eq(&self, other: &Self) -> bool {
 		other.clone()
 			.convert(self.units.clone())
 			.map_or(false, |other| self.val.eq(&other.val))
-    }
+	}
 }
 
 impl Eq for Quant {}
@@ -202,8 +202,8 @@ impl Div for Quant {
 }
 
 impl Neg for Quant {
-    type Output = Quant;
-    fn neg(self) -> Self::Output {
-        Quant { val: -self.val, units: self.units }
-    }
+	type Output = Quant;
+	fn neg(self) -> Self::Output {
+		Quant { val: -self.val, units: self.units }
+	}
 }
