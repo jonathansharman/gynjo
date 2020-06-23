@@ -1,4 +1,4 @@
-use super::errors::ParseError;
+use super::errors::ParseErr;
 use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use super::intrinsics::Intrinsic;
 use super::symbol::Sym;
@@ -8,28 +8,28 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 /// Result of expression parsing: (remaining tokens, parsed expression).
-type ParseExprResult<'a> = Result<(&'a [Tok], Expr), ParseError>;
+type ParseExprResult<'a> = Result<(&'a [Tok], Expr), ParseErr>;
 
 /// Parses an expression from `tokens`. Requires all tokens to be consumed.
-pub fn parse(tokens: &[Tok]) -> Result<Expr, ParseError> {
+pub fn parse(tokens: &[Tok]) -> Result<Expr, ParseErr> {
 	let (tokens, expr) = parse_expr(&tokens[..])?;
 	if tokens.is_empty() {
 		Ok(expr)
 	} else {
-		Err(ParseError::UnusedInput { first_unused: tokens.first().unwrap().clone() })
+		Err(ParseErr::UnusedInput { first_unused: tokens.first().unwrap().clone() })
 	}
 }
 
 /// Parses a single `required` token from `tokens` and returns the remaining tokens.
 /// `context` - The expression in which the token is required, for the purpose of error reporting.
-fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseError> {
+fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseErr> {
 	match tokens {
-		[] => Err(ParseError::EndOfInput {
+		[] => Err(ParseErr::EndOfInput {
 			context,
 			expected: format!("\"{}\"", required),
 		}),
-		[t, rest @ ..] if (t == required) => Ok(rest),
-		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+		[t, tokens @ ..] if (t == required) => Ok(tokens),
+		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context,
 			expected: Some(format!("\"{}\"", required)),
 			actual: invalid.clone(),
@@ -40,7 +40,7 @@ fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static
 /// Parses a single `optional` token from `tokens` and returns the remaining tokens and whether the token was parsed.
 fn parse_optional_token<'a>(tokens: &'a [Tok], optional: &Tok) -> (&'a [Tok], bool) {
 	match tokens {
-		[t, rest @ ..] if (t == optional) => (rest, true),
+		[t, tokens @ ..] if (t == optional) => (tokens, true),
 		_ => (tokens, false),
 	}
 }
@@ -50,13 +50,14 @@ fn parse_optional_token<'a>(tokens: &'a [Tok], optional: &Tok) -> (&'a [Tok], bo
 fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		[] => Ok((tokens, Expr::TupleExpr(Box::new(Vec::new())))),
-		[Tok::Import, rest @ ..] => parse_import(rest),
-		[Tok::Let, rest @ ..] => parse_assignment(rest),
-		[Tok::If, rest @ ..] => parse_branch(rest),
-		[Tok::While, rest @ ..] => parse_while_loop(rest),
-		[Tok::For, rest @ ..] => parse_for_loop(rest),
-		[Tok::Break, rest @ ..] => Ok((rest, Expr::Break)),
-		[Tok::Return, rest @ ..] => parse_ret(rest),
+		[Tok::Import, tokens @ ..] => parse_import(tokens),
+		[Tok::Let, tokens @ ..] => parse_assignment(tokens),
+		[Tok::Unit, tokens @ ..] => parse_unit_declaration(tokens),
+		[Tok::If, tokens @ ..] => parse_branch(tokens),
+		[Tok::While, tokens @ ..] => parse_while_loop(tokens),
+		[Tok::For, tokens @ ..] => parse_for_loop(tokens),
+		[Tok::Break, tokens @ ..] => Ok((tokens, Expr::Break)),
+		[Tok::Return, tokens @ ..] => parse_ret(tokens),
 		_ => parse_logical_negation(tokens),
 	}
 }
@@ -64,9 +65,9 @@ fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a function body.
 fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err(ParseError::EndOfInput { context: "lambda", expected: "function body".into() }),
-		[Tok::Arrow, rest @ ..] => parse_expr(rest),
-		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+		[] => Err(ParseErr::EndOfInput { context: "lambda", expected: "function body".into() }),
+		[Tok::Arrow, tokens @ ..] => parse_expr(tokens),
+		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "lambda",
 			expected: Some("function body".into()),
 			actual: invalid.clone(),
@@ -77,7 +78,7 @@ fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a Gynjo value.
 fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err(ParseError::EndOfInput {
+		[] => Err(ParseErr::EndOfInput {
 			context: "value expression",
 			expected: "value expression".into(),
 		}),
@@ -93,7 +94,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					let mut tokens = after_first_elem;
 					loop {
 						match tokens {
-							[] => return Err(ParseError::EndOfInput {
+							[] => return Err(ParseErr::EndOfInput {
 								context: "tuple expression",
 								expected: "',' or ')'".into(),
 							}),
@@ -105,11 +106,11 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 								elems.push(next_elem);
 							},
 							// End of tuple
-							[Tok::Rparen, rest @ ..] => {
-								tokens = rest;
+							[Tok::Rparen, after_rparen @ ..] => {
+								tokens = after_rparen;
 								break;
 							},
-							[invalid @ _, ..] => return Err(ParseError::InvalidInput {
+							[invalid @ _, ..] => return Err(ParseErr::InvalidInput {
 								context: "tuple expression",
 								expected: Some(r#""," or ")""#.into()),
 								actual: invalid.clone(),
@@ -164,7 +165,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				// Try to parse additional comma-delimited expressions.
 				loop {
 					match tokens {
-						[] => return Err(ParseError::EndOfInput {
+						[] => return Err(ParseErr::EndOfInput {
 							context: "list expression",
 							expected: r#"," or "]""#.into(),
 						}),
@@ -176,11 +177,11 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 							elems.push_front(next_elem);
 						},
 						// End of list
-						[Tok::Rsquare, rest @ ..] => {
-							tokens = rest;
+						[Tok::Rsquare, after_rsquare @ ..] => {
+							tokens = after_rsquare;
 							break;
 						},
-						[invalid @ _, ..] => return Err(ParseError::InvalidInput {
+						[invalid @ _, ..] => return Err(ParseErr::InvalidInput {
 							context: "list expression",
 							expected: Some(r#""," or ")""#.into()),
 							actual: invalid.clone(),
@@ -201,7 +202,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 			let mut final_semicolon = false;
 			loop {
 				match tokens {
-					[] => return Err(ParseError::EndOfInput {
+					[] => return Err(ParseErr::EndOfInput {
 						context: "block",
 						expected: r#""," or "}""#.into(),
 					}),
@@ -260,8 +261,10 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		},
 		// Primitive
 		[Tok::Prim(primitive), tokens @ ..] => Ok((tokens, Expr::Prim(primitive.clone()))),
+		// Unit
+		[Tok::UnitLiteral(unit), tokens @ ..] => Ok((tokens, Expr::Unit(unit.clone()))),
 		// Invalid
-		[invalid, ..] => Err(ParseError::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidInput {
 			context: "value expression",
 			expected: None,
 			actual: invalid.clone(),
@@ -270,7 +273,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 }
 
 /// Parses a cluster item after an operator or parenthesis.
-fn parse_mandatory_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), ParseError> {
+fn parse_mandatory_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), ParseErr> {
 	let (after_minus, negated) = parse_optional_token(tokens, &Tok::Minus);
 	let (after_expr, expr) = parse_value(after_minus)?;
 	Ok((after_expr, ClusterItem {
@@ -425,7 +428,7 @@ fn parse_ret(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a for-loop, starting after "for".
 fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err(ParseError::EndOfInput {
+		[] => Err(ParseErr::EndOfInput {
 			context: "for-loop",
 			expected: "loop variable".into(),
 		}),
@@ -441,7 +444,7 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 			// Assemble for-loop.
 			Ok((tokens, Expr::ForLoop { loop_var: loop_var.clone(), range: Box::new(range), body: Box::new(body) }))
 		},
-		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "for-loop",
 			expected: Some("loop variable".into()),
 			actual: invalid.clone(),
@@ -493,7 +496,7 @@ fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 	// Parse LHS.
 	match tokens {
-		[] => Err(ParseError::EndOfInput {
+		[] => Err(ParseErr::EndOfInput {
 			context: "assignment",
 			expected: "variable".into(),
 		}),
@@ -505,9 +508,51 @@ fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 			// Assemble assignment from symbol and RHS.
 			Ok((tokens, Expr::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
 		},
-		[invalid @ _, ..] => Err(ParseError::InvalidInput {
+		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "assignment",
 			expected: Some("variable".into()),
+			actual: invalid.clone(),
+		}),
+	}
+}
+
+/// Parses a unit declaration, starting after "unit".
+fn parse_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
+	// Parse unit.
+	match tokens {
+		[] => Err(ParseErr::EndOfInput {
+			context: "unit declaration",
+			expected: "unit name".into(),
+		}),
+		[Tok::UnitLiteral(name), tokens @ ..] => {
+			// Parse "=".
+			let tokens = parse_required_token(&tokens, &Tok::Eq, "assignment")?;
+			// Parse dimension.
+			let (tokens, dimension) = match tokens {
+				[] => Err(ParseErr::EndOfInput {
+					context: "unit declaration",
+					expected: "dimension".into(),
+				}),
+				[Tok::Sym(dimension), tokens @ ..] => Ok((tokens, dimension)),
+				[invalid @ _, ..] => Err(ParseErr::InvalidInput {
+					context: "unit declaration",
+					expected: Some("dimension".into()),
+					actual: invalid.clone(),
+				}),
+			}?;
+			// Parse scale.
+			let (tokens, scale) = parse_expr(tokens)?;
+			// Assemble unit declaration from unit, dimension, and scale expression.
+			let unit_decl = Expr::DeclUnit {
+				dimension: dimension.clone(),
+				name: name.clone(),
+				scale: Box::new(scale),
+			};
+			Ok((tokens, unit_decl))
+		},
+		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
+			context: "unit declaration",
+			expected: Some("unit name".into()),
 			actual: invalid.clone(),
 		}),
 	}

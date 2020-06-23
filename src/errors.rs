@@ -1,16 +1,18 @@
-use super::numbers::NumError;
+use super::quantity::QuantErr;
 use super::tokens::Tok;
 use super::types::Type;
+
+use itertools::Itertools;
 
 use std::fmt;
 
 /// An error that occurs while lexing a string into Gynjo tokens.
 #[derive(Eq, PartialEq, Debug)]
-pub struct LexError {
+pub struct LexErr {
 	pub unrecognized_token: String,
 }
 
-impl fmt::Display for LexError {
+impl fmt::Display for LexErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "Unrecognized token: \"{}\"", self.unrecognized_token)
 	}
@@ -18,7 +20,7 @@ impl fmt::Display for LexError {
 
 /// An error that occurs while parsing tokens into a Gynjo AST.
 #[derive(Eq, PartialEq, Debug)]
-pub enum ParseError {
+pub enum ParseErr {
 	InvalidInput {
 		context: &'static str,
 		expected: Option<String>,
@@ -33,19 +35,19 @@ pub enum ParseError {
 	},
 }
 
-impl fmt::Display for ParseError {
+impl fmt::Display for ParseErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			ParseError::InvalidInput { context, expected, actual } => {
+			ParseErr::InvalidInput { context, expected, actual } => {
 				match expected {
 					Some(expected) => write!(f, "Found \"{}\" in {}, expected \"{}\"", actual, context, expected),
 					None => write!(f, "Unexpected \"{}\" in {}", actual, context),
 				}
 			},
-			ParseError::EndOfInput { context, expected } => {
+			ParseErr::EndOfInput { context, expected } => {
 				write!(f, "End of input in {}, expected {}", context, expected)
 			},
-			ParseError::UnusedInput { first_unused } => {
+			ParseErr::UnusedInput { first_unused } => {
 				write!(f, "Unused input starting at \"{}\"", first_unused)
 			}
 		}
@@ -54,11 +56,11 @@ impl fmt::Display for ParseError {
 
 /// An error that occurs while evaluating a Gynjo AST.
 #[derive(Eq, PartialEq, Debug)]
-pub enum RuntimeError {
-	Numeric(NumError),
+pub enum RtErr {
+	Quant(QuantErr),
 	UnaryTypeMismatch {
 		context: &'static str,
-		expected: Type,
+		expected: Vec<Type>,
 		actual: Type,
 	},
 	BinaryTypeMismatch {
@@ -82,42 +84,42 @@ pub enum RuntimeError {
 		filename: String,
 		file_error: String,
 	},
-	LibError {
+	LibErr {
 		lib_name: String,
-		nested_error: Box<Error>,
+		nested_error: Box<GynjoErr>,
 	},
 }
 
-impl RuntimeError {
-	pub fn numeric(err: NumError) -> RuntimeError {
-		RuntimeError::Numeric(err)
+impl RtErr {
+	pub fn quant(err: QuantErr) -> RtErr {
+		RtErr::Quant(err)
 	}
 }
 
-impl fmt::Display for RuntimeError {
+impl fmt::Display for RtErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			RuntimeError::Numeric(err) => err.fmt(f),
-			RuntimeError::UnaryTypeMismatch { context, expected, actual } => {
-				write!(f, "Expected {} in {}, found {}", expected.to_string(), context, actual)
+			RtErr::Quant(err) => err.fmt(f),
+			RtErr::UnaryTypeMismatch { context, expected, actual } => {
+				write!(f, "Expected {} in {}, found {}", expected.iter().map(|t| t.to_string()).join(" or "), context, actual)
 			},
-			RuntimeError::BinaryTypeMismatch { context, left, right } => {
+			RtErr::BinaryTypeMismatch { context, left, right } => {
 				write!(f, "Cannot perform {} with {} and {}", context, left, right)
 			},
-			RuntimeError::InvalidTypeCast { from, to } => {
+			RtErr::InvalidTypeCast { from, to } => {
 				write!(f, "Cannot cast {} to {}", from, to)
 			},
-			RuntimeError::OutOfBounds => write!(f, "Out of bounds"),
-			RuntimeError::InvalidIndex { idx } => write!(f, "Invalid index: {}", idx),
-			RuntimeError::ArgCountMismatch { required, received } => {
+			RtErr::OutOfBounds => write!(f, "Out of bounds"),
+			RtErr::InvalidIndex { idx } => write!(f, "Invalid index: {}", idx),
+			RtErr::ArgCountMismatch { required, received } => {
 				write!(f, "Function requires {} argument{}, received {}", required, if *required == 1 { "" } else { "s" }, received)
 			},
-			RuntimeError::Undefined(name) => write!(f, "\"{}\" is undefined", name),
-			RuntimeError::UnusedResult(value) => write!(f, "Unused result: {}", value),
-			RuntimeError::CouldNotOpenFile { filename, file_error } => {
+			RtErr::Undefined(name) => write!(f, "\"{}\" is undefined", name),
+			RtErr::UnusedResult(value) => write!(f, "Unused result: {}", value),
+			RtErr::CouldNotOpenFile { filename, file_error } => {
 				write!(f, "Could not open \"{}\" ({})", filename, file_error)
 			},
-			RuntimeError::LibError { lib_name, nested_error } => {
+			RtErr::LibErr { lib_name, nested_error } => {
 				write!(f, "Error in library \"{}\": {}", lib_name, nested_error)
 			},
 		}
@@ -126,32 +128,50 @@ impl fmt::Display for RuntimeError {
 
 /// A lex, parse, or runtime error.
 #[derive(Eq, PartialEq, Debug)]
-pub enum Error {
-	Lex(LexError),
-	Parse(ParseError),
-	Runtime(RuntimeError),
+pub enum GynjoErr {
+	Lex(LexErr),
+	Parse(ParseErr),
+	Rt(RtErr),
 }
 
-impl Error {
-	pub fn lex(err: LexError) -> Error {
-		Error::Lex(err)
+impl GynjoErr {
+	pub fn lex(err: LexErr) -> GynjoErr {
+		GynjoErr::Lex(err)
 	}
 	
-	pub fn parse(err: ParseError) -> Error {
-		Error::Parse(err)
+	pub fn parse(err: ParseErr) -> GynjoErr {
+		GynjoErr::Parse(err)
 	}
 	
-	pub fn runtime(err: RuntimeError) -> Error {
-		Error::Runtime(err)
+	pub fn rt(err: RtErr) -> GynjoErr {
+		GynjoErr::Rt(err)
 	}
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for GynjoErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Error::Lex(lex_error) => write!(f, "(lex error) {}", lex_error),
-			Error::Parse(parse_error) => write!(f, "(parse error) {}", parse_error),
-			Error::Runtime(runtime_error) => write!(f, "(runtime error) {}", runtime_error),
+			GynjoErr::Lex(lex_error) => write!(f, "(lex error) {}", lex_error),
+			GynjoErr::Parse(parse_error) => write!(f, "(parse error) {}", parse_error),
+			GynjoErr::Rt(runtime_error) => write!(f, "(runtime error) {}", runtime_error),
 		}
 	}
+}
+
+impl From<LexErr> for GynjoErr {
+    fn from(err: LexErr) -> Self {
+        GynjoErr::lex(err)
+    }
+}
+
+impl From<ParseErr> for GynjoErr {
+    fn from(err: ParseErr) -> Self {
+        GynjoErr::parse(err)
+    }
+}
+
+impl From<RtErr> for GynjoErr {
+    fn from(err: RtErr) -> Self {
+        GynjoErr::rt(err)
+    }
 }

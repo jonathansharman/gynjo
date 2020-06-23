@@ -154,6 +154,12 @@ pub enum Expr {
 	ListExpr(Box<VecDeque<Expr>>),
 	Sym(Sym),
 	Prim(Prim),
+	Unit(String),
+	DeclUnit {
+		dimension: Sym,
+		name: String,
+		scale: Box<Expr>,
+	},
 	Import { target: Box<Expr> },
 	Assign {
 		lhs: Sym,
@@ -192,6 +198,8 @@ impl fmt::Display for Expr {
 			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::Sym(symbol) => symbol.fmt(f),
 			Expr::Prim(primitive) => primitive.fmt(f),
+			Expr::Unit(unit) => unit.fmt(f),
+			Expr::DeclUnit { dimension, name, scale } => write!(f, "unit {} = {} {}", name, dimension, scale),
 			Expr::Import { target } => write!(f, "import \"{}\"", target),
 			Expr::Assign { lhs, rhs } => write!(f, "let {} = {}", lhs.name, rhs),
 			Expr::Branch { test, then_expr, else_expr } => {

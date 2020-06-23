@@ -2,7 +2,7 @@ use super::intrinsics::Intrinsic;
 use super::numbers::Num;
 use super::primitives::{Prim, Bool};
 use super::symbol::Sym;
-use super::types::Type;
+use super::types::{Type, NumType};
 
 use bigdecimal::BigDecimal;
 use logos::Logos;
@@ -120,9 +120,9 @@ pub enum Tok {
 	// Types
 	#[token("type", |_| Some(Prim::Type(Type::Type)))]
 	#[token("boolean", |_| Some(Prim::Type(Type::Boolean)))]
-	#[token("integer", |_| Some(Prim::Type(Type::Integer)))]
-	#[token("rational", |_| Some(Prim::Type(Type::Rational)))]
-	#[token("real", |_| Some(Prim::Type(Type::Real)))]
+	#[token("integer", |_| Some(Prim::Type(Type::Quant(NumType::Integer))))]
+	#[token("rational", |_| Some(Prim::Type(Type::Quant(NumType::Rational))))]
+	#[token("real", |_| Some(Prim::Type(Type::Quant(NumType::Real))))]
 	#[token("string", |_| Some(Prim::Type(Type::String)))]
 	#[token("tuple", |_| Some(Prim::Type(Type::Tuple)))]
 	#[token("list", |_| Some(Prim::Type(Type::List)))]
@@ -139,6 +139,12 @@ pub enum Tok {
 		Some(Prim::from(lex.slice()[1..lex.slice().len() - 1].replace(r#"\""#, r#"""#).replace(r"\\", r"\")))
 	})]
 	Prim(Prim),
+	// Units
+	#[regex(r"\.[a-zA-Z_]+", |lex| lex.slice().to_string())]
+	UnitLiteral(String),
+	#[token("unit")]
+	Unit,
+	// Line continuation
 	#[token("\\")]
 	LineContinuation,
 	#[error]
@@ -146,7 +152,7 @@ pub enum Tok {
 	#[regex(r"\s+", logos::skip)]
 	// Line comment (ignored)
 	#[regex(r"//.*", logos::skip)]
-	Error,
+	Err,
 }
 
 impl From<bool> for Tok {
@@ -215,8 +221,10 @@ impl fmt::Display for Tok {
 			Tok::Intrinsic(intrinsic) => intrinsic.fmt(f),
 			Tok::Sym(symbol) => symbol.fmt(f),
 			Tok::Prim(primitive) => primitive.fmt(f),
+			Tok::UnitLiteral(unit) => unit.fmt(f),
+			Tok::Unit => write!(f, "unit"),
 			Tok::LineContinuation => write!(f, "\\"),
-			Tok::Error => write!(f, "error"),
+			Tok::Err => write!(f, "error"),
 		}
 	}
 }

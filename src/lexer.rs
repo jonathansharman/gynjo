@@ -1,17 +1,17 @@
-use super::errors::LexError;
+use super::errors::LexErr;
 use super::tokens::Tok;
 
 use logos::Logos;
 
 /// Result of lexing: either a vector of tokens or an error message.
-type LexResult = Result<Vec<Tok>, LexError>;
+type LexResult = Result<Vec<Tok>, LexErr>;
 
 /// Lexes `input` into a vector of tokens, if possible.
 pub fn lex(input: &str) -> LexResult {
 	let mut tokens: Vec<Tok> = Vec::new();
 	for (token, span) in Tok::lexer(input).spanned() {
-		if token == Tok::Error {
-			return Err(LexError { unrecognized_token: input[span].to_string() });
+		if token == Tok::Err {
+			return Err(LexErr { unrecognized_token: input[span].to_string() });
 		} else {
 			tokens.push(token)
 		}
@@ -21,7 +21,7 @@ pub fn lex(input: &str) -> LexResult {
 
 #[cfg(test)]
 mod tests {
-	use crate::errors::LexError;
+	use crate::errors::LexErr;
 	use crate::lexer::lex;
 	use crate::primitives::Prim;
 	use crate::symbol::Sym;
@@ -38,7 +38,7 @@ mod tests {
 	}
 	
 	#[test]
-	fn whitespace() -> Result<(), LexError> {
+	fn whitespace() -> Result<(), LexErr> {
 		let expected: Vec<Tok> = vec!(Tok::from(1), Tok::Plus, Tok::from(2), Tok::Plus, Tok::from(3));
 		let actual = lex(" \t \n 1 \n + \t 2+3 \t \n ")?;
 		assert_eq!(expected, actual);
@@ -46,7 +46,7 @@ mod tests {
 	}
 
 	#[test]
-	fn numbers_operators_and_separators() -> Result<(), LexError> {
+	fn numbers_operators_and_separators() -> Result<(), LexErr> {
 		let expected = vec!(
 			Tok::Let,
 			Tok::Eq,
@@ -82,7 +82,7 @@ mod tests {
 	}
 
 	#[test]
-	fn line_comments() -> Result<(), LexError> {
+	fn line_comments() -> Result<(), LexErr> {
 		let expected = vec!(Tok::from(1), Tok::Plus, Tok::from(2));
 		let actual = lex("1+2 // This is a line comment.")?;
 		assert_eq!(expected, actual);
@@ -90,7 +90,7 @@ mod tests {
 	}
 
 	#[test]
-	fn symbol_with_keyword_prefix() -> Result<(), LexError> {
+	fn symbol_with_keyword_prefix() -> Result<(), LexErr> {
 		let expected = vec!(
 			Tok::Import, Tok::from(1), Tok::from_symbol("importa"),
 			Tok::If, Tok::from(1), Tok::from_symbol("ifb"),
@@ -102,7 +102,7 @@ mod tests {
 	}
 
 	#[test]
-	fn valid_strings() -> Result<(), LexError> {
+	fn valid_strings() -> Result<(), LexErr> {
 		assert_eq!(Tok::from_string(""), lex(r#""""#)?[0]);
 		assert_eq!(Tok::from_string("abc"), lex(r#""abc""#)?[0]);
 		assert_eq!(Tok::from_string(r#""abc""#), lex(r#""\"abc\"""#)?[0]);
@@ -111,7 +111,7 @@ mod tests {
 	}
 
 	#[test]
-	fn invalid_strings() -> Result<(), LexError> {
+	fn invalid_strings() -> Result<(), LexErr> {
 		assert!(lex(r#"""#).is_err());
 		assert!(lex(r#"""""#).is_err());
 		assert!(lex(r#""\""#).is_err());

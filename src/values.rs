@@ -1,15 +1,15 @@
 use super::env::SharedEnv;
 use super::exprs::Lambda;
+use super::format_with_env::FormatWithEnv;
 use super::list::List;
 use super::numbers::Num;
 use super::primitives::{Prim, Bool};
-use super::symbol::Sym;
+use super::quantity::Quant;
 use super::types::Type;
 use super::tuple::Tuple;
+use super::unit_map::UnitMap;
 
-use bigdecimal::BigDecimal;
 use num_traits::cast::ToPrimitive;
-use num_traits::sign::Signed;
 
 use std::boxed::Box;
 
@@ -31,6 +31,7 @@ impl Eq for Closure {}
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Val {
 	Prim(Prim),
+	Quant(Quant),
 	Tuple(Tuple),
 	List(List),
 	Closure(Closure),
@@ -53,6 +54,12 @@ impl From<Bool> for Val {
 impl From<Num> for Val {
 	fn from(number: Num) -> Val {
 		Val::Prim(Prim::Num(number))
+	}
+}
+
+impl From<Quant> for Val {
+	fn from(quant: Quant) -> Val {
+		Val::Quant(quant)
 	}
 }
 
@@ -80,19 +87,21 @@ impl Val {
 		Val::Tuple(Tuple::empty())
 	}
 
-	/// Retrives the type of this value.
+	/// Constructs a dimensionless quantity value form `n`.
+	pub fn scalar<N>(n: N) -> Val where N: Into<Num> {
+		Val::Quant(Quant { val: n.into(), units: UnitMap::empty() })
+	}
+
+	/// Retrives the Gynjo type of this value.
 	pub fn get_type(&self) -> Type {
 		match self {
 			Val::Prim(prim) => match prim {
 				Prim::Bool(_) => Type::Boolean,
-				Prim::Num(number) => match number {
-					Num::Integer(_) => Type::Integer,
-					Num::Rational(_) => Type::Rational,
-					Num::Real(_) => Type::Real,
-				},
+				Prim::Num(number) => Type::Quant(number.get_type()),
 				Prim::String(_) => Type::String,
 				Prim::Type(_) => Type::Type,
 			},
+			Val::Quant(quant) => Type::Quant(quant.val.get_type()),
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(_) => Type::List,
 			Val::Closure(_) => Type::Closure,
@@ -101,62 +110,35 @@ impl Val {
 		}
 	}
 
-	/// Converts this value to a user-readable string.
-	/// `env` - Used for values whose string representation is environment-dependent.
-	pub fn to_string(&self, env: &SharedEnv) -> String {
+	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
+	pub fn as_i64(&self) -> Option<i64> {
+		match self {
+			Val::Prim(Prim::Num(Num::Integer(integer))) => integer.to_i64(),
+			Val::Quant(quant) => quant.clone().to_scalar().ok().and_then(|n| match n {
+				Num::Integer(integer) => integer.to_i64(),
+				_ => None,
+			}),
+			_ => None,
+		}
+	}
+}
+
+impl FormatWithEnv for Val {
+    fn format_with_env(&self, env: &SharedEnv) -> String {
 		match self {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
 			Val::Prim(primitive) => match primitive {
 				Prim::Bool(b) => b.to_string(),
-				Prim::Num(number) => match number {
-					Num::Integer(integer) => integer.to_string(),
-					Num::Rational(rational) => {
-						// Rational numbers are displayed both in rational and real form.
-						let real_string = Val::from(Num::Real(BigDecimal::from(rational.numer().clone()) / BigDecimal::from(rational.denom().clone()))).to_string(env);
-						// Rationals are displayed in proper form.
-						let whole_part = rational.trunc();
-						let fractional_part = rational.fract();
-						if whole_part == rational.clone() {
-							// No fractional part.
-							format!("{} ({})", whole_part, real_string)
-						} else if fractional_part == rational.clone() {
-							// No whole part.
-							format!("{} ({})", fractional_part, real_string)
-						} else {
-							// Whole and fractional parts. Ensure fractional part is displayed as positive.
-							format!("{} {} ({})", whole_part, fractional_part.abs(), real_string)
-						}
-					},
-					Num::Real(real) => {
-						let precision = env.lock().unwrap()
-							// Look up precision setting.
-							.lookup(&Sym { name: "precision".to_string() })
-							// Interpret as an integer.
-							.and_then(|v| v.as_i64())
-							// Interpret as a non-negative integer.
-							.and_then(|v| if v < 1 { None } else { Some(v as u64) })
-							// If something failed, use default precision setting.
-							.unwrap_or(12);
-						format!("{}", real.with_prec(precision))
-					},
-				},
+				Prim::Num(number) => number.format_with_env(&env),
 				Prim::String(s) => format!("\"{}\"", s),
 				Prim::Type(t) => t.to_string(),
 			},
-			Val::Tuple(tuple) => tuple.to_string(&env),
-			Val::List(list) => list.to_string(&env),
+		    Val::Quant(quant) => quant.format_with_env(&env),
+			Val::Tuple(tuple) => tuple.format_with_env(&env),
+			Val::List(list) => list.format_with_env(&env),
 			Val::Closure(c) => c.f.to_string(),
 			Val::Break => "break".to_string(),
-			Val::Return { result } => format!("(return {})", result.to_string(&env)),
+			Val::Return { result } => format!("(return {})", result.format_with_env(&env)),
 		}
-	}
-
-	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
-	pub fn as_i64(&self) -> Option<i64> {
-		if let Val::Prim(Prim::Num(Num::Integer(integer))) = self {
-			integer.to_i64()
-		} else {
-			None
-		}
-	}
+    }
 }

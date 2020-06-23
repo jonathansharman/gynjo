@@ -1,4 +1,5 @@
 use super::env::SharedEnv;
+use super::format_with_env::FormatWithEnv;
 use super::values::Val;
 
 use itertools::Itertools;
@@ -19,11 +20,14 @@ macro_rules! make_tuple_value {
 }
 
 impl Tuple {
+	/// Creates a tuple with no elements.
 	pub fn empty() -> Tuple {
 		Tuple { elems: Box::new(Vec::new()) }
 	}
+}
 
-	pub fn to_string(&self, env: &SharedEnv) -> String {
-		format!("({})", self.elems.iter().map(|elem| elem.to_string(env)).join(", "))
-	}
+impl FormatWithEnv for Tuple {
+    fn format_with_env(&self, env: &SharedEnv) -> String {
+		format!("({})", self.elems.iter().map(|elem| elem.format_with_env(env)).join(", "))
+    }
 }

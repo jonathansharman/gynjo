@@ -1,6 +1,7 @@
 // Functional list implementation based on https://rust-unofficial.github.io/too-many-lists/third-final.html.
 
 use super::env::SharedEnv;
+use super::format_with_env::FormatWithEnv;
 use super::values::Val;
 
 use itertools::Itertools;
@@ -109,10 +110,6 @@ impl List {
 		}
 		result.map(|val| val.clone())
 	}
-
-	pub fn to_string(&self, env: &SharedEnv) -> String {
-		format!("[{}]", self.iter().map(|elem| elem.to_string(&env)).join(", "))
-	}
 }
 
 impl Drop for List {
@@ -141,6 +138,12 @@ impl<'a> Iterator for Iter<'a> {
 			&node.elem
 		})
 	}
+}
+
+impl FormatWithEnv for List {
+    fn format_with_env(&self, env: &SharedEnv) -> String {
+		format!("[{}]", self.iter().map(|elem| elem.format_with_env(&env)).join(", "))
+    }
 }
 
 /// Convenience macro for turning a comma-separated list of values into a list.
