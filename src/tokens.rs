@@ -114,6 +114,12 @@ pub enum Tok {
 	// Symbol
 	#[regex("[a-zA-Z_]+", |lex| Some(Sym::from(lex.slice())))]
 	Sym(Sym),
+	// Unit literal
+	#[regex(r"\.[a-zA-Z_]+", |lex| lex.slice().to_string())]
+	Unit(String),
+	// Base unit conversion
+	#[token("basic")]
+	Basic,
 	// Boolean literals
 	#[token("true", |_| Some(Prim::Bool(Bool::True)))]
 	#[token("false", |_| Some(Prim::Bool(Bool::False)))]
@@ -139,11 +145,6 @@ pub enum Tok {
 		Some(Prim::from(lex.slice()[1..lex.slice().len() - 1].replace(r#"\""#, r#"""#).replace(r"\\", r"\")))
 	})]
 	Prim(Prim),
-	// Units
-	#[regex(r"\.[a-zA-Z_]+", |lex| lex.slice().to_string())]
-	UnitLiteral(String),
-	#[token("unit")]
-	Unit,
 	// Line continuation
 	#[token("\\")]
 	LineContinuation,
@@ -221,8 +222,8 @@ impl fmt::Display for Tok {
 			Tok::Intrinsic(intrinsic) => intrinsic.fmt(f),
 			Tok::Sym(symbol) => symbol.fmt(f),
 			Tok::Prim(primitive) => primitive.fmt(f),
-			Tok::UnitLiteral(unit) => unit.fmt(f),
-			Tok::Unit => write!(f, "unit"),
+			Tok::Unit(unit_name) => unit_name.fmt(f),
+			Tok::Basic => write!(f, "basic"),
 			Tok::LineContinuation => write!(f, "\\"),
 			Tok::Err => write!(f, "error"),
 		}

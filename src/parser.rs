@@ -51,13 +51,10 @@ fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		[] => Ok((tokens, Expr::TupleExpr(Box::new(Vec::new())))),
 		[Tok::Import, tokens @ ..] => parse_import(tokens),
-		[Tok::Let, tokens @ ..] => parse_assignment(tokens),
-		[Tok::Unit, tokens @ ..] => parse_unit_declaration(tokens),
+		[Tok::Let, tokens @ ..] => parse_assignment_or_unit_declaration(tokens),
 		[Tok::If, tokens @ ..] => parse_branch(tokens),
 		[Tok::While, tokens @ ..] => parse_while_loop(tokens),
 		[Tok::For, tokens @ ..] => parse_for_loop(tokens),
-		[Tok::Break, tokens @ ..] => Ok((tokens, Expr::Break)),
-		[Tok::Return, tokens @ ..] => parse_ret(tokens),
 		_ => parse_logical_negation(tokens),
 	}
 }
@@ -216,7 +213,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 						if final_semicolon {
 							exprs.push(Expr::TupleExpr(Box::new(Vec::new())));
 						}
-						return Ok((after_rclurly, Expr::Block { exprs }))
+						return Ok((after_rclurly, Expr::Block(exprs)))
 					},
 					_ => {
 						let (after_expr, expr) = parse_expr(tokens)?;
@@ -234,16 +231,21 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 			};
 			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(*f) })))
 		},
+		// Base unit conversion
+		[Tok::Basic, tokens @ ..] => parse_base_conversion(tokens),
+		// Control flow
+		[Tok::Break, tokens @ ..] => Ok((tokens, Expr::Break)),
+		[Tok::Return, tokens @ ..] => parse_ret(tokens),
 		// I/O
 		[Tok::Read, tokens @ ..] => Ok((tokens, Expr::Read)),
 		[Tok::Write, tokens @ ..] => {
 			let (tokens, output) = parse_expr(tokens)?;
-			Ok((tokens, Expr::Write { output: Box::new(output) }))
+			Ok((tokens, Expr::Write(Box::new(output))))
 		},
 		// Get type
 		[Tok::GetType, tokens @ ..] => {
 			let (tokens, expr) = parse_expr(tokens)?;
-			Ok((tokens, Expr::GetType { expr: Box::new(expr) }))
+			Ok((tokens, Expr::GetType(Box::new(expr))))
 		},
 		// Symbol or lambda
 		[Tok::Sym(symbol), tokens @ ..] => {
@@ -262,7 +264,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		// Primitive
 		[Tok::Prim(primitive), tokens @ ..] => Ok((tokens, Expr::Prim(primitive.clone()))),
 		// Unit
-		[Tok::UnitLiteral(unit), tokens @ ..] => Ok((tokens, Expr::Unit(unit.clone()))),
+		[Tok::Unit(unit_name), tokens @ ..] => Ok((tokens, Expr::Unit(unit_name.clone()))),
 		// Invalid
 		[invalid, ..] => Err(ParseErr::InvalidInput {
 			context: "value expression",
@@ -414,7 +416,7 @@ fn parse_logical_negation(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
 		[Tok::Not, tokens @ ..] => {
 			let (tokens, expr) = parse_logical_negation(tokens)?;
-			Ok((tokens, Expr::Not { expr: Box::new(expr) }))
+			Ok((tokens, Expr::Not(Box::new(expr))))
 		},
 		_ => parse_disjunctions(tokens),
 	}
@@ -423,7 +425,7 @@ fn parse_logical_negation(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a return statement, starting after "return".
 fn parse_ret(tokens: &[Tok]) -> ParseExprResult {
 	let (tokens, expr) = parse_expr(tokens)?;
-	Ok((tokens, Expr::Return { result: Box::new(expr) }))
+	Ok((tokens, Expr::Return(Box::new(expr))))
 }
 
 /// Parses a for-loop, starting after "for".
@@ -493,8 +495,8 @@ fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 	}))
 }
 
-/// Parses an assignment operation, starting after "let".
-fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
+/// Parses an assignment or unit declaration, starting after "let".
+fn parse_assignment_or_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
 	// Parse LHS.
 	match tokens {
 		[] => Err(ParseErr::EndOfInput {
@@ -509,6 +511,14 @@ fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 			// Assemble assignment from symbol and RHS.
 			Ok((tokens, Expr::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
 		},
+		[Tok::Unit(unit_name), tokens @ ..] => {
+			// Parse "=".
+			let tokens = parse_required_token(&tokens, &Tok::Eq, "unit declaration")?;
+			// Parse value.
+			let (tokens, value) = parse_expr(tokens)?;
+			// Assemble assignment from symbol and RHS.
+			Ok((tokens, Expr::DeclUnit { unit_name: unit_name.clone(), value_expr: Box::new(value) }))
+		},
 		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "assignment",
 			expected: Some("variable".into()),
@@ -517,50 +527,14 @@ fn parse_assignment(tokens: &[Tok]) -> ParseExprResult {
 	}
 }
 
-/// Parses a unit declaration, starting after "unit".
-fn parse_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
-	// Parse unit.
-	match tokens {
-		[] => Err(ParseErr::EndOfInput {
-			context: "unit declaration",
-			expected: "unit name".into(),
-		}),
-		[Tok::UnitLiteral(name), tokens @ ..] => {
-			// Parse "=".
-			let tokens = parse_required_token(&tokens, &Tok::Eq, "assignment")?;
-			// Parse dimension.
-			let (tokens, dimension) = match tokens {
-				[] => Err(ParseErr::EndOfInput {
-					context: "unit declaration",
-					expected: "dimension".into(),
-				}),
-				[Tok::Sym(dimension), tokens @ ..] => Ok((tokens, dimension)),
-				[invalid @ _, ..] => Err(ParseErr::InvalidInput {
-					context: "unit declaration",
-					expected: Some("dimension".into()),
-					actual: invalid.clone(),
-				}),
-			}?;
-			// Parse scale.
-			let (tokens, scale) = parse_expr(tokens)?;
-			// Assemble unit declaration from unit, dimension, and scale expression.
-			let unit_decl = Expr::DeclUnit {
-				dimension: dimension.clone(),
-				name: name.clone(),
-				scale: Box::new(scale),
-			};
-			Ok((tokens, unit_decl))
-		},
-		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
-			context: "unit declaration",
-			expected: Some("unit name".into()),
-			actual: invalid.clone(),
-		}),
-	}
+/// Parses a base unit conversion expression, starting after "basic".
+fn parse_base_conversion(tokens: &[Tok]) -> ParseExprResult {
+	let (tokens, expr) = parse_expr(tokens)?;
+	Ok((tokens, Expr::Basic(Box::new(expr))))
 }
 
 /// Parses an import statement, starting after "import".
 fn parse_import(tokens: &[Tok]) -> ParseExprResult {
 	let (tokens, target) = parse_expr(tokens)?;
-	Ok((tokens, Expr::Import { target: Box::new(target) }))
+	Ok((tokens, Expr::Import(Box::new(target))))
 }

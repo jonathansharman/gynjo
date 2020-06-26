@@ -19,8 +19,7 @@ mod quantity;
 mod symbol;
 mod tokens;
 mod types;
-mod unit;
-mod unit_map;
+mod units;
 mod values;
 
 #[macro_use]

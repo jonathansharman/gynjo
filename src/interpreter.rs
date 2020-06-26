@@ -12,7 +12,7 @@ use super::quantity::Quant;
 use super::symbol::Sym;
 use super::tuple::Tuple;
 use super::types::{Type, NumType};
-use super::unit_map::UnitMap;
+use super::units::Unit;
 use super::values::{Closure, Val};
 
 use std::collections::VecDeque;
@@ -24,9 +24,9 @@ type EvalResult = Result<Val, RtErr>;
 /// If possible, computes the value of `expr` in the context of `env`.
 pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 	match expr {
-		Expr::Block { exprs } => eval_block(&mut env, exprs),
+		Expr::Block(exprs) => eval_block(&mut env, exprs),
 		Expr::BinExpr(bin_expr) => eval_bin_expr(&mut env, bin_expr),
-		Expr::Not { expr } => eval_not(&mut env, expr),
+		Expr::Not(expr) => eval_not(&mut env, expr),
 		Expr::Cluster(cluster) => eval_cluster(env, cluster),
 		Expr::Lambda(f) => Ok(Val::Closure(Closure { f: f, env: env.clone() })),
 		Expr::TupleExpr(expr_elems) => eval_tuple_expr(&mut env, expr_elems),
@@ -38,14 +38,15 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 			primitive @ _ => Val::Prim(primitive),
 		}),
 		Expr::Unit(unit) => eval_unit(&mut env, unit),
-		Expr::DeclUnit { dimension, name, scale } => eval_unit_declaration(&mut env, dimension, name, scale),
-		Expr::Import { target } => eval_import(&mut env, target),
+		Expr::DeclUnit { unit_name, value_expr } => eval_unit_declaration(&mut env, unit_name, value_expr),
+		Expr::Basic(expr) => eval_basic(&mut env, expr),
+		Expr::Import(target) => eval_import(&mut env, target),
 		Expr::Assign { lhs, rhs } => eval_assignment(&mut env, lhs, rhs),
 		Expr::Branch { test, then_expr, else_expr } => eval_branch(&mut env, test, then_expr, else_expr),
 		Expr::WhileLoop { test, body } => eval_while_loop(env, test, body),
 		Expr::ForLoop { loop_var, range, body } => eval_for_loop(env, loop_var, range, body),
 		Expr::Break => Ok(Val::Break),
-		Expr::Return { result } => Ok(match eval_expr(env, *result)? {
+		Expr::Return(result) => Ok(match eval_expr(env, *result)? {
 			// Return is idempotent; don't wrap the return value if it's already wrapped.
 			result @ Val::Return { .. } => result,
 			// Wrap non-returned value into returned value.
@@ -56,11 +57,11 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 			io::stdin().read_line(&mut input).unwrap();
 			Ok(Val::from(input.trim().to_string()))
 		},
-		Expr::Write { output } => {
+		Expr::Write(output) => {
 			println!("{}", eval_expr(&mut env, *output)?.format_with_env(env));
 			Ok(Val::empty())
 		},
-		Expr::GetType { expr } => Ok(Val::Prim(Prim::Type(eval_expr(&mut env, *expr)?.get_type()))),
+		Expr::GetType(expr) => Ok(Val::Prim(Prim::Type(eval_expr(&mut env, *expr)?.get_type()))),
 	}
 }
 
@@ -156,13 +157,19 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 			match (eval_expr(env, *bin_expr.left)?, to) {
 				// T -> T
 				(value @ _, to @ _) if value.get_type() == to => Ok(value),
-				// integer -> rational
-				(Val::Quant(Quant { val: Num::Integer(val), units }), Type::Quant(NumType::Rational)) => {
-					Ok(Quant { val: Num::Rational(val.into()), units }.into())
+				// integer | rational -> rational
+				(Val::Quant(quant), Type::Quant(NumType::Rational)) => {
+					let (value, units) = quant.into_value_and_units();
+					if let Num::Real(_) = value {
+						Err(RtErr::InvalidTypeCast { from: Type::Quant(NumType::Real), to: Type::Quant(NumType::Rational) })
+					} else {
+						Ok(Quant::new(Num::Rational(value.into()), units).into())
+					}
 				},
 				// integer | rational | real -> real
 				(Val::Quant(quant), Type::Quant(NumType::Real)) => {
-					Ok(Quant { val: Num::Real(quant.val.into()), units: quant.units }.into())
+					let (value, units) = quant.into_value_and_units();
+					Ok(Quant::new(Num::Real(value.into()), units).into())
 				},
 				// tuple -> list
 				(Val::Tuple(tuple), Type::List) => {
@@ -190,18 +197,19 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 			context: "type cast",
 			expected: vec!(Type::Type),
 			actual: invalid.get_type(),
-		})
+		}),
 	}
 }
 
 fn eval_in(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 	match eval_expr(env, *bin_expr.right)? {
 		Val::Quant(to) => {
-			if to.val != Num::from(1) {
+			let (to_value, to_units) = to.into_value_and_units();
+			if to_value != Num::from(1) {
 				return Err(RtErr::InvalidUnit);
 			}
 			match eval_expr(env, *bin_expr.left)? {
-				Val::Quant(from) => Ok(from.convert(to.units).map_err(RtErr::quant)?.into()),
+				Val::Quant(from) => Ok(from.convert(to_units).map_err(RtErr::quant)?.into()),
 				invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 					context: "unit conversion",
 					expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
@@ -268,8 +276,10 @@ fn eval_approx(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 	let right = eval_expr(env, *bin_expr.right)?;
 	Ok(Val::from(match (left, right) {
 		(Val::Quant(left), Val::Quant(right)) => {
-			let left_string = Quant { val: left.val.expand_domain(), units: left.units }.format_with_env(env);
-			let right_string = Quant { val: right.val.expand_domain(), units: right.units }.format_with_env(env);
+			let (left_value, left_units) = left.into_value_and_units();
+			let (right_value, right_units) = right.into_value_and_units();
+			let left_string = Quant::new(left_value.expand_domain(), left_units).format_with_env(env);
+			let right_string = Quant::new(right_value.expand_domain(), right_units).format_with_env(env);
 			left_string == right_string
 		},
 		(left @ _, right @ _) => left == right,
@@ -334,23 +344,35 @@ fn eval_symbol(env: &mut SharedEnv, symbol: Sym) -> EvalResult {
 		.ok_or(RtErr::Undefined(symbol.name))
 }
 
-fn eval_unit(env: &mut SharedEnv, unit: String) -> EvalResult {
-	env.lock().unwrap().get_unit(&unit)
-		.map(|dimension_unit| Val::Quant(UnitMap::from(dimension_unit).into()))
-		.ok_or(RtErr::Undefined(unit))
+fn eval_unit(env: &mut SharedEnv, unit_name: String) -> EvalResult {
+	let units = match env.lock().unwrap().get_unit(&unit_name) {
+		Some(base) => Unit::non_base(unit_name, base).into(),
+		None => Unit::base(unit_name).into(),
+	};
+	Ok(Val::from(Quant::new(Num::from(1), units)))
 }
 
-fn eval_unit_declaration(env: &mut SharedEnv, dimension: Sym, name: String, scale: Box<Expr>) -> EvalResult {
-	// Evaluate the scale expression.
-	match eval_expr(env, *scale)? {
-		// Have to match a quantity rather than a number because numbers get eagerly converted to dimensionless quantities.
-		Val::Quant(scale) => {
+fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr>) -> EvalResult {
+	// Evaluate the value expression.
+	match eval_expr(env, *value)? {
+		Val::Quant(value) => {
 			// Perform the unit assignment, possibly overwriting the existing value.
-			env.lock().unwrap().set_unit(dimension, name, scale.to_scalar().map_err(RtErr::quant)?);
+			env.lock().unwrap().set_unit(unit_name, value.with_base_units().map_err(RtErr::quant)?);
 			Ok(Val::empty())
 		},
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "unit declaration",
+			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
+			actual: invalid.get_type(),
+		}),
+	}
+}
+
+fn eval_basic(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
+	match eval_expr(env, *expr)? {
+		Val::Quant(value) => Ok(value.with_base_units().map_err(RtErr::quant)?.into()),
+		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+			context: "base units conversion",
 			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
 			actual: invalid.get_type(),
 		}),
@@ -580,7 +602,7 @@ fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedCluster
 				let left = cluster[idx].value.clone();
 				let right = cluster[idx + 1].value.clone();
 				cluster[idx].value = eval_bin_op(env, left, right, "multiplication", |a, b| {
-					Ok(Val::from((a * b).map_err(RtErr::quant)?))
+					Ok(Val::from(a * b))
 				})?;
 				cluster.remove(idx + 1);
 				return eval_evaluated_cluster(env, cluster);
@@ -595,7 +617,7 @@ fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedCluster
 				let left = cluster[idx].value.clone();
 				let right = cluster[idx + 1].value.clone();
 				cluster[idx].value = eval_bin_op(env, left, right, "multiplication", |a, b| {
-					Ok(Val::from((a * b).map_err(RtErr::quant)?))
+					Ok(Val::from(a * b))
 				})?;
 				cluster.remove(idx + 1);
 				return eval_evaluated_cluster(env, cluster);
@@ -1537,49 +1559,60 @@ mod tests {
 		#[test]
 		fn single_unit_addition_and_subtraction() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
-			assert_eq!(eval(&mut env, "3.m")?, eval(&mut Env::with_core_libs(), "1.m + 2.m")?);
-			assert_eq!(eval(&mut env, "1.m")?, eval(&mut env, "2.m - 1.m")?);
+			assert_eq!("3.m", eval(&mut Env::with_core_libs(), "1.m + 2.m")?.format_with_env(&env));
+			assert_eq!("1.m", eval(&mut env, "2.m - 1.m")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]
 		fn invalid_addition_and_subtraction() {
 			let mut env = Env::with_core_libs();
-			assert_eq!(GynjoErr::Rt(RtErr::Quant(QuantErr::UnitErr)), eval(&mut env, "1.m + 1.s").err().unwrap());
-			assert_eq!(GynjoErr::Rt(RtErr::Quant(QuantErr::UnitErr)), eval(&mut env, "1.m - 1.s").err().unwrap());
+			assert_eq!(GynjoErr::Rt(RtErr::Quant(QuantErr::IncompatibleUnits)), eval(&mut env, "1.m + 1.s").err().unwrap());
+			assert_eq!(GynjoErr::Rt(RtErr::Quant(QuantErr::IncompatibleUnits)), eval(&mut env, "1.m - 1.s").err().unwrap());
 		}
 		#[test]
 		fn multiplication() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
-			assert_eq!(eval(&mut env, "6.m.s")?, eval(&mut env, "2.m 3.s")?);
+			assert_eq!("6.m.s", eval(&mut env, "2.m 3.s")?.format_with_env(&env));
+			assert_eq!("6.ft.m", eval(&mut env, "2.m 3.ft")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]
 		fn division() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
-			assert_eq!(eval(&mut env, "2.m/.s")?, eval(&mut env, "4.m/2.s")?);
+			assert_eq!("2.m.s^-1", eval(&mut env, "4.m/2.s")?.format_with_env(&env));
+			assert_eq!("2.m.ft^-1", eval(&mut env, "4.m/2.ft")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]
 		fn mixed_unit_arithmetic() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
-			assert_eq!(eval(&mut env, "2.m")?, eval(&mut env, "1.m + 100.cm")?);
-			assert_eq!(eval(&mut env, "1.m")?, eval(&mut env, "2.m - 100.cm")?);
-			assert_eq!(eval(&mut env, "1")?, eval(&mut env, "1.m / 100.cm")?);
-			assert_eq!(eval(&mut env, "1.m^2")?, eval(&mut env, "1.m * 100.cm")?);
+			assert_eq!("2.m", eval(&mut env, "1.m + 100.cm")?.format_with_env(&env));
+			assert_eq!("1.m", eval(&mut env, "2.m - 100.cm")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]
 		fn mixed_unit_comparisons() -> Result<(), GynjoErr> {
-			assert_eq!(Val::from(true), eval(&mut Env::with_core_libs(), "1.m = 100.cm")?);
+			let mut env = Env::with_core_libs();
+			assert_eq!(Val::from(true), eval(&mut env, "1.m = 100.cm")?);
+			assert_eq!(Val::from(true), eval(&mut env, "1.m^2 = 1.m * 100.cm")?);
+			assert_eq!(Val::from(true), eval(&mut env, "1 = 1.m / 100.cm")?);
+			assert_eq!(Val::from(true), eval(&mut env, "1 = 100.cm / 1.m")?);
+			assert_eq!(Val::from(true), eval(&mut env, "1.m < 200.cm")?);
+			assert_eq!(Val::from(true), eval(&mut env, "2.m > 100.cm")?);
 			Ok(())
 		}
 		#[test]
-		fn unit_conversion() -> Result<(), GynjoErr> {
+		fn explicit_conversion() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
-			match eval(&mut env, "1000.m + 100000.cm in .km")? {
-				Val::Quant(quant) => assert_eq!(Num::from(2), quant.val),
-				_ => assert!(false),
-			}
+			assert_eq!("2.km", eval(&mut env, "1000.m + 100000.cm in .km")?.format_with_env(&env));
+			assert_eq!("3600.s^2", eval(&mut env, ".min^2 in .s^2")?.format_with_env(&env));
+			Ok(())
+		}
+		#[test]
+		fn basic_unit_conversion() -> Result<(), GynjoErr> {
+			let mut env = Env::with_core_libs();
+			assert_eq!("1.m", eval(&mut env, "basic 100.cm")?.format_with_env(&env));
+			assert_eq!("3600.s^2", eval(&mut env, "basic .min^2")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]

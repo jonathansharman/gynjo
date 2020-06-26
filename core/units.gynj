@@ -1,63 +1,61 @@
 {
 	// SI length
-	unit .nm = length 10^-9;
-	unit .um = length 10^-6;
-	unit .mm = length 10^-3;
-	unit .cm = length 10^-2;
-	unit .dm = length 10^-1;
-	unit .m  = length 10^0;
-	unit .km = length 10^3;
-	unit .Mm = length 10^6;
-	unit .Gm = length 10^9;
+	let .nm = 1.m 10^-9;
+	let .um = 1.m 10^-6;
+	let .mm = 1.m 10^-3;
+	let .cm = 1.m 10^-2;
+	let .dm = 1.m 10^-1;
+	let .km = 1.m 10^3;
+	let .Mm = 1.m 10^6;
+	let .Gm = 1.m 10^9;
 
 	// Imperial length
-	unit .in  = length 1/12 (3048 10^-4);
-	unit .ft  = length 3048 10^-4;
-	unit .yd  = length 3(3048 10^-4);
-	unit .fur = length 660(3048 10^-4);
-	unit .mi  = length 5280 (3048 10^-4);
-	unit .lea = length 3(5280(3048 10^-4));
+	let .in  = 254.m 10^-4
+	let .ft  =  12.in;
+	let .yd  =   3.ft;
+	let .fur = 660.ft;
+	let .mi  =   8.fur;
+	let .lea =   3.mi;
 
 	// SI mass
-	unit .ng = mass 10^-12;
-	unit .ug = mass 10^-9;
-	unit .mg = mass 10^-6;
-	unit .cg = mass 10^-5;
-	unit .dg = mass 10^-4;
-	unit .g  = mass 10^-3;
-	unit .kg = mass 10^0;
-	unit .t  = mass 10^3;
-	unit .Mg = mass 10^3;
-	unit .Gg = mass 10^6;
+	let .ng = 1.kg 10^-12;
+	let .ug = 1.kg 10^-9;
+	let .mg = 1.kg 10^-6;
+	let .cg = 1.kg 10^-5;
+	let .dg = 1.kg 10^-4;
+	let .g  = 1.kg 10^-3;
+	let .t  = 1.kg 10^3;
+	let .Mg = 1.kg 10^3;
+	let .Gg = 1.kg 10^6;
 
 	// Imperial mass
-	unit .oz  = mass 1/16 (45359237 10^-8);
-	unit .lb  = mass 45359237 10^-8;
-	unit .st  = mass 14 (45359237 10^-8);
-	unit .ton = mass 2000 (45359237 10^-8);
+	let .oz        = 28349523125.g 10^-9;
+	let .lb        =   16.oz;
+	let .st        =   14.lb;
+	let .long_ton  = 2000.lb;
+	let .short_ton = 2240.lb;
 
 	// SI time
-	unit .ns = time 10^-9;
-	unit .us = time 10^-6;
-	unit .ms = time 10^-3;
-	unit .cs = time 10^-2;
-	unit .ds = time 10^-1;
-	unit .s  = time 10^0;
-	unit .ks = time 10^3;
-	unit .Ms = time 10^6;
-	unit .Gs = time 10^9;
+	let .ns = 1.s 10^-9;
+	let .us = 1.s 10^-6;
+	let .ms = 1.s 10^-3;
+	let .cs = 1.s 10^-2;
+	let .ds = 1.s 10^-1;
+	let .ks = 1.s 10^3;
+	let .Ms = 1.s 10^6;
+	let .Gs = 1.s 10^9;
 
 	// Other exact time units
-	unit .min        = time 60;
-	unit .hr         = time 60 60;
-	unit .d        = time 24 60 60;
-	unit .week       = time 7 24 60 60;
-	unit .fortnight  = time 2 7 24 60 60;
+	let .min        = 60.s;
+	let .hr         = 60.min;
+	let .d          = 24.hr;
+	let .week       =  7.d;
+	let .fortnight  =  2.week;
 
 	// Time units based on the "common year", 365 days
-	unit .yr         = time 365 24 60 60;
-	unit .decade     = time 10^1 365 24 60 60;
-	unit .century    = time 10^2 365 24 60 60;
-	unit .millennium = time 10^3 365 24 60 60;
-	unit .Ma         = time 10^6 365 24 60 60;
+	let .yr         =  365.d;
+	let .decade     =   10.yr;
+	let .century    =  100.yr;
+	let .millennium = 1000.yr;
+	let .Ma         =    1.yr 10^6;
 }

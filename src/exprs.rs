@@ -147,25 +147,24 @@ impl fmt::Display for Lambda {
 /// Gynjo expressions.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expr {
-	Block { exprs: Box<Vec<Expr>> },
+	Block(Box<Vec<Expr>>),
 	BinExpr(BinExpr),
-	Not { expr: Box<Expr> },
+	Not(Box<Expr>),
 	Cluster(Cluster),
 	Lambda(Lambda),
 	TupleExpr(Box<Vec<Expr>>),
 	ListExpr(Box<VecDeque<Expr>>),
 	Sym(Sym),
-	Prim(Prim),
 	Unit(String),
-	DeclUnit {
-		dimension: Sym,
-		name: String,
-		scale: Box<Expr>,
-	},
-	Import { target: Box<Expr> },
+	Prim(Prim),
+	Import(Box<Expr>),
 	Assign {
 		lhs: Sym,
 		rhs: Box<Expr>,
+	},
+	DeclUnit {
+		unit_name: String,
+		value_expr: Box<Expr>,
 	},
 	Branch {
 		test: Box<Expr>,
@@ -181,29 +180,30 @@ pub enum Expr {
 		range: Box<Expr>,
 		body: Box<Expr>,
 	},
+	Basic(Box<Expr>),
 	Break,
-	Return { result: Box<Expr> },
+	Return(Box<Expr>),
 	Read,
-	Write { output: Box<Expr> },
-	GetType { expr: Box<Expr> },
+	Write(Box<Expr>),
+	GetType(Box<Expr>),
 }
 
 impl fmt::Display for Expr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Expr::Block { exprs } => write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; ")),
+			Expr::Block(exprs) => write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; ")),
 			Expr::BinExpr(binary_expr) => binary_expr.fmt(f),
-			Expr::Not { expr } => write!(f, "(not {})", expr),
+			Expr::Not(expr) => write!(f, "(not {})", expr),
 			Expr::Cluster(cluster) => write!(f, "({})", cluster.items.iter().map(ClusterItem::to_string).join("")),
 			Expr::Lambda(lambda) => lambda.fmt(f),
 			Expr::TupleExpr(exprs) => write!(f, "({})", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::Sym(symbol) => symbol.fmt(f),
-			Expr::Prim(primitive) => primitive.fmt(f),
 			Expr::Unit(unit) => unit.fmt(f),
-			Expr::DeclUnit { dimension, name, scale } => write!(f, "unit {} = {} {}", name, dimension, scale),
-			Expr::Import { target } => write!(f, "import \"{}\"", target),
+			Expr::Prim(primitive) => primitive.fmt(f),
+			Expr::Import(target) => write!(f, "import \"{}\"", target),
 			Expr::Assign { lhs, rhs } => write!(f, "let {} = {}", lhs.name, rhs),
+			Expr::DeclUnit { unit_name, value_expr } => write!(f, "let {} = {}", unit_name, value_expr),
 			Expr::Branch { test, then_expr, else_expr } => {
 				write!(f, "if {} then {} else {}", test, then_expr, else_expr)
 			},
@@ -211,11 +211,12 @@ impl fmt::Display for Expr {
 			Expr::ForLoop { loop_var, range, body } => {
 				write!(f, "for {} in {} do {}", loop_var.name, range, body)
 			},
+			Expr::Basic(expr) => write!(f, "basic {}", expr),
 			Expr::Break => write!(f, "break"),
-			Expr::Return { result } => write!(f, "return {}", result),
+			Expr::Return(result) => write!(f, "return {}", result),
 			Expr::Read => write!(f, "read"),
-			Expr::Write { output } => write!(f, "write {}", output),
-			Expr::GetType { expr } => write!(f, "get_type {}", expr),
+			Expr::Write(output) => write!(f, "write {}", output),
+			Expr::GetType(expr) => write!(f, "get_type {}", expr),
 		}
 	}
 }

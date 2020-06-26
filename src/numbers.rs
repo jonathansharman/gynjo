@@ -33,7 +33,7 @@ impl fmt::Display for NumErr {
 }
 
 /// Numeric Gynjo types.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Hash, Debug)]
 pub enum Num {
 	Integer(BigInt),
 	Rational(BigRational),
@@ -138,6 +138,38 @@ impl Num {
 	}
 }
 
+impl PartialEq for Num {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(Num::Real(lhs), rhs @ _) => lhs == &BigDecimal::from(rhs.clone()),
+			(lhs @ _, Num::Real(rhs)) => &BigDecimal::from(lhs.clone()) == rhs,
+			(Num::Rational(lhs), rhs @ _) => lhs == &BigRational::from(rhs.clone()),
+			(lhs @ _, Num::Rational(rhs)) => &BigRational::from(lhs.clone()) == rhs,
+			(Num::Integer(lhs), Num::Integer(rhs)) => lhs == rhs,
+		}
+	}
+}
+
+impl Eq for Num {}
+
+impl Ord for Num {
+	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+		match (self, other) {
+			(Num::Real(lhs), rhs @ _) => lhs.cmp(&BigDecimal::from(rhs.clone())),
+			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
+			(Num::Rational(lhs), rhs @ _) => lhs.cmp(&BigRational::from(rhs.clone())),
+			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
+			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.cmp(rhs),
+		}
+	}
+}
+
+impl PartialOrd for Num {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
 impl fmt::Display for Num {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
@@ -213,30 +245,6 @@ impl From<BigRational> for Num {
 impl From<BigDecimal> for Num {
 	fn from(n: BigDecimal) -> Num {
 		Num::Real(n)
-	}
-}
-
-impl PartialOrd for Num {
-	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-		match (self, other) {
-			(Num::Real(lhs), rhs @ _) => lhs.partial_cmp(&BigDecimal::from(rhs.clone())),
-			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).partial_cmp(rhs),
-			(Num::Rational(lhs), rhs @ _) => lhs.partial_cmp(&BigRational::from(rhs.clone())),
-			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).partial_cmp(rhs),
-			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.partial_cmp(rhs),
-		}
-	}
-}
-
-impl Ord for Num {
-	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-		match (self, other) {
-			(Num::Real(lhs), rhs @ _) => lhs.cmp(&BigDecimal::from(rhs.clone())),
-			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
-			(Num::Rational(lhs), rhs @ _) => lhs.cmp(&BigRational::from(rhs.clone())),
-			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
-			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.cmp(rhs),
-		}
 	}
 }
 

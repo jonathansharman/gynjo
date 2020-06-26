@@ -1,8 +1,7 @@
 use super::interpreter::eval;
-use super::numbers::Num;
+use super::quantity::Quant;
 use super::symbol::Sym;
 use super::values::Val;
-use super::unit::Unit;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -20,8 +19,8 @@ macro_rules! import_core_lib {
 pub struct Env {
 	/// Variables mappings created within the local scope.
 	local_vars: HashMap<Sym, Val>,
-	/// Unit name to (dimension, unit) mappings created within the local scope.
-	local_units: HashMap<String, (Sym, Unit)>,
+	/// Unit definitions created within the local scope.
+	local_units: HashMap<String, Quant>,
 	/// Reference to the parent environment, if any.
 	parent_env: Option<SharedEnv>,
 }
@@ -57,9 +56,9 @@ impl Env {
 		self.local_vars.insert(name, value);
 	}
 
-	/// Sets unit `name` to the given `dimension` and `scale` in this environment.
-	pub fn set_unit(&mut self, dimension: Sym, name: String, scale: Num) {
-		self.local_units.insert(name.clone(), (dimension, Unit { name, scale }));
+	/// Sets the value of `unit` to `value` in this environment.
+	pub fn set_unit(&mut self, unit_name: String, value: Quant) {
+		self.local_units.insert(unit_name, value);
 	}
 
 	/// Returns the value of the variable named `name` or `None` if the variable is undefined.
@@ -67,15 +66,15 @@ impl Env {
 		self.local_vars
 			.get(name)
 			.map(|v| v.clone())
-			.or(self.parent_env.as_ref().and_then(|p| p.lock().unwrap().get_var(name).clone()))
+			.or(self.parent_env.as_ref().and_then(|p| p.lock().unwrap().get_var(name)))
 	}
 
-	/// Returns the dimension and unit corresponding to `name` or `None` if the unit is undefined.
-	pub fn get_unit(&self, name: &String) -> Option<(Sym, Unit)> {
+	/// Returns the value corresponding to `unit` `None` if the unit is undefined.
+	pub fn get_unit(&self, unit_name: &String) -> Option<Quant> {
 		self.local_units
-			.get(name)
-			.map(|(dimension, unit)| (dimension.clone(), unit.clone()))
-			.or(self.parent_env.as_ref().and_then(|p| p.lock().unwrap().get_unit(name).clone()))
+			.get(unit_name)
+			.map(|value| value.clone())
+			.or(self.parent_env.as_ref().and_then(|p| p.lock().unwrap().get_unit(unit_name)))
 	}
 }
 

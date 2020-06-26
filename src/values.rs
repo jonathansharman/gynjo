@@ -7,7 +7,6 @@ use super::primitives::{Prim, Bool};
 use super::quantity::Quant;
 use super::types::Type;
 use super::tuple::Tuple;
-use super::unit_map::UnitMap;
 
 use num_traits::cast::ToPrimitive;
 
@@ -89,7 +88,7 @@ impl Val {
 
 	/// Constructs a dimensionless quantity value form `n`.
 	pub fn scalar<N>(n: N) -> Val where N: Into<Num> {
-		Val::Quant(Quant { val: n.into(), units: UnitMap::empty() })
+		Val::Quant(Quant::scalar(n.into()))
 	}
 
 	/// Retrives the Gynjo type of this value.
@@ -101,7 +100,7 @@ impl Val {
 				Prim::String(_) => Type::String,
 				Prim::Type(_) => Type::Type,
 			},
-			Val::Quant(quant) => Type::Quant(quant.val.get_type()),
+			Val::Quant(quant) => Type::Quant(quant.value().get_type()),
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(_) => Type::List,
 			Val::Closure(_) => Type::Closure,

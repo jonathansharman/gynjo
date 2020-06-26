@@ -25,7 +25,7 @@ A command-line calculator and programming language with an emphasis on short, ma
 
 ## Variable Assignment
 
-Variables can be set using `let` *variable* `=` *value*. The variable `ans` refers to the most recent non-`()` result.
+Variables can be set using `let` *variable* `=` *value*. Variable names can contain English letters and underscores. The variable `ans` refers to the most recent non-`()` result.
 
 ```
 >> let a = 1
@@ -62,8 +62,7 @@ Variables can be set using `let` *variable* `=` *value*. The variable `ans` refe
 |         15 | Read from console                              | `read`                                      |
 |         15 | Write to console                               | `write` *value*                             |
 |         15 | Get type                                       | `get_type` *value*                          |
-|         15 | Import                                         | `import` *string*                           |
-|         15 | Unit declaration                               | `unit` *name* `=` *dimension* *scale*       |
+|         15 | Conversion to base units                       | `basic` *value*                             |
 
 Implicit multiplication is supported and uses the same syntax as function application. This means that precedence is partially resolved during intepretation based on the values of the operands. Implicit multiplication has higher precedence than explicit multiplication/division, so for example, `2a/3b` is equal to `(2a)/(3b)`.
 
@@ -83,7 +82,25 @@ true
 
 ## Units and Dimensional Analysis
 
-Dimensional analysis on quantities with units is supported. The Gynjo core library defines basic SI and imperial units by default (see [core/units.gynj](core/units.gynj)).
+Units are a `.` followed by English letters and/or underscores. Expressions can employ units freely, and the rules of dimensional analysis apply.
+
+```
+>> 6.apple / 3.orange
+2.apple.orange^-1
+>> ans * 5.orange
+10.apple
+```
+
+By default, units are treated as base units. A unit can be defined in terms of other units using a unit declaration, using similar syntax to variable assignment.
+
+```
+>> let .N = .kg.m/.s^2
+>> let .Pa = .N/.m^2
+>> 5.Pa * 4.m^2 = 20.N
+true
+```
+
+The Gynjo core library defines some SI and imperial units by default (see [core/units.gynj](core/units.gynj)).
 
 ```
 >> let speed = 60.km/.hr
@@ -93,26 +110,20 @@ Dimensional analysis on quantities with units is supported. The Gynjo core libra
 45.km
 ```
 
-Additional units can be created using a unit declaration.
-
-```
->> unit .micron = length 10^-6
->> 1.micron = 1.um
-true
-```
-
-When performing binary operations with two different units of the same dimension, the units of the left-hand side are used for the result.
+When performing addition or subtraction with two different units of the same dimension, the units of the left-hand side are used for the result.
 
 ```
 >> 1.m + 100.cm
 2.m
 ```
 
-Quantities can be explicitly converted to different units with the same dimensions using the `in` operator.
+Quantities can be explicitly converted to different units with the same dimensions using the `in` operator, or to all base units using the `basic` operator.
 
 ```
 >> 1000.m + 100000.cm in .km
 2.km
+>> basic 90.km/.hr
+25.m.s^-1
 ```
 
 ## Blocks and Control Flow
