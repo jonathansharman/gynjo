@@ -110,18 +110,20 @@ The Gynjo core library defines some SI and imperial units by default (see [core/
 45.km
 ```
 
-When performing addition or subtraction with two different units of the same dimension, the units of the left-hand side are used for the result.
+When performing addition or subtraction with two different units of the same dimension, the units of the left-hand side are used for the result. Likewise, different units of the same dimension are merged during multiplication or division.
 
 ```
 >> 1.m + 100.cm
 2.m
+>> 1.m * 100.cm
+1.m^2
 ```
 
 Quantities can be explicitly converted to different units with the same dimensions using the `in` operator, or to all base units using the `basic` operator.
 
 ```
->> 1000.m + 100000.cm in .km
-2.km
+>> 5.Pa * 4.m^2 in .N
+20.N
 >> basic 90.km/.hr
 25.m.s^-1
 ```

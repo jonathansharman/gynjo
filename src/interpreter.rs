@@ -209,7 +209,7 @@ fn eval_in(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				return Err(RtErr::InvalidUnit);
 			}
 			match eval_expr(env, *bin_expr.left)? {
-				Val::Quant(from) => Ok(from.convert(to_units).map_err(RtErr::quant)?.into()),
+				Val::Quant(from) => Ok(from.convert_into(to_units).map_err(RtErr::quant)?.into()),
 				invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 					context: "unit conversion",
 					expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
@@ -357,7 +357,7 @@ fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr
 	match eval_expr(env, *value)? {
 		Val::Quant(value) => {
 			// Perform the unit assignment, possibly overwriting the existing value.
-			env.lock().unwrap().set_unit(unit_name, value.with_base_units().map_err(RtErr::quant)?);
+			env.lock().unwrap().set_unit(unit_name, value.convert_into_base().map_err(RtErr::quant)?);
 			Ok(Val::empty())
 		},
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
@@ -370,7 +370,7 @@ fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr
 
 fn eval_basic(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
 	match eval_expr(env, *expr)? {
-		Val::Quant(value) => Ok(value.with_base_units().map_err(RtErr::quant)?.into()),
+		Val::Quant(value) => Ok(value.convert_into_base().map_err(RtErr::quant)?.into()),
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "base units conversion",
 			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
@@ -602,7 +602,7 @@ fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedCluster
 				let left = cluster[idx].value.clone();
 				let right = cluster[idx + 1].value.clone();
 				cluster[idx].value = eval_bin_op(env, left, right, "multiplication", |a, b| {
-					Ok(Val::from(a * b))
+					Ok(Val::from((a * b).map_err(RtErr::quant)?))
 				})?;
 				cluster.remove(idx + 1);
 				return eval_evaluated_cluster(env, cluster);
@@ -617,7 +617,7 @@ fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedCluster
 				let left = cluster[idx].value.clone();
 				let right = cluster[idx + 1].value.clone();
 				cluster[idx].value = eval_bin_op(env, left, right, "multiplication", |a, b| {
-					Ok(Val::from(a * b))
+					Ok(Val::from((a * b).map_err(RtErr::quant)?))
 				})?;
 				cluster.remove(idx + 1);
 				return eval_evaluated_cluster(env, cluster);
@@ -731,6 +731,7 @@ mod tests {
 	use crate::quantity::QuantErr;
 	use crate::tuple::Tuple;
 	use crate::types::{Type, NumType};
+	use crate::units::UnitErr;
 	use crate::values::Val;
 
 	use bigdecimal::BigDecimal;
@@ -1566,21 +1567,23 @@ mod tests {
 		#[test]
 		fn invalid_addition_and_subtraction() {
 			let mut env = Env::with_core_libs();
-			assert_eq!(GynjoErr::Rt(RtErr::Quant(QuantErr::IncompatibleUnits)), eval(&mut env, "1.m + 1.s").err().unwrap());
-			assert_eq!(GynjoErr::Rt(RtErr::Quant(QuantErr::IncompatibleUnits)), eval(&mut env, "1.m - 1.s").err().unwrap());
+			let err = GynjoErr::Rt(RtErr::Quant(QuantErr::Unit(UnitErr::Incompatible)));
+			assert_eq!(err, eval(&mut env, "1.m + 1.s").err().unwrap());
+			assert_eq!(err, eval(&mut env, "1.m - 1.s").err().unwrap());
 		}
 		#[test]
 		fn multiplication() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
 			assert_eq!("6.m.s", eval(&mut env, "2.m 3.s")?.format_with_env(&env));
-			assert_eq!("6.ft.m", eval(&mut env, "2.m 3.ft")?.format_with_env(&env));
+			assert_eq!("6.m^2", eval(&mut env, "2.m 300.cm")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]
 		fn division() -> Result<(), GynjoErr> {
 			let mut env = Env::with_core_libs();
 			assert_eq!("2.m.s^-1", eval(&mut env, "4.m/2.s")?.format_with_env(&env));
-			assert_eq!("2.m.ft^-1", eval(&mut env, "4.m/2.ft")?.format_with_env(&env));
+			assert_eq!("4", eval(&mut env, "4.m/100.cm")?.format_with_env(&env));
+			assert_eq!("16", eval(&mut env, "(4.m)^2/(100.cm)^2")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]

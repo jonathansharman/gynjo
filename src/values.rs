@@ -113,7 +113,7 @@ impl Val {
 	pub fn as_i64(&self) -> Option<i64> {
 		match self {
 			Val::Prim(Prim::Num(Num::Integer(integer))) => integer.to_i64(),
-			Val::Quant(quant) => quant.clone().to_scalar().ok().and_then(|n| match n {
+			Val::Quant(quant) => quant.clone().into_scalar().ok().and_then(|n| match n {
 				Num::Integer(integer) => integer.to_i64(),
 				_ => None,
 			}),
