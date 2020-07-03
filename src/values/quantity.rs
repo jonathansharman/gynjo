@@ -1,7 +1,8 @@
-use super::env::SharedEnv;
-use super::format_with_env::FormatWithEnv;
-use super::numbers::{Num, NumErr};
-use super::units::{Units, UnitErr};
+use super::{Units, UnitErr};
+
+use crate::env::SharedEnv;
+use crate::format_with_env::FormatWithEnv;
+use crate::primitives::{Num, NumErr};
 
 use std::cmp::{Ord, PartialOrd};
 use std::fmt;

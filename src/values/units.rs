@@ -1,5 +1,6 @@
-use super::numbers::{Num, NumErr};
-use super::quantity::Quant;
+use super::Quant;
+
+use crate::primitives::{Num, NumErr};
 
 use itertools::Itertools;
 

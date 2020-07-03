@@ -1,6 +1,6 @@
-use super::intrinsics::Intrinsic;
-use super::primitives::Prim;
-use super::symbol::Sym;
+use crate::intrinsics::Intrinsic;
+use crate::primitives::Prim;
+use crate::symbol::Sym;
 
 use itertools::Itertools;
 

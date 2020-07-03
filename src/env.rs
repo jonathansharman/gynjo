@@ -1,7 +1,7 @@
-use super::interpreter::eval;
-use super::quantity::Quant;
-use super::symbol::Sym;
-use super::values::Val;
+use crate::interpreter::eval;
+use crate::symbol::Sym;
+use crate::values::Quant;
+use crate::values::Val;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

@@ -1,10 +1,5 @@
 #![feature(exclusive_range_pattern)]
 
-#[macro_use]
-mod list;
-#[macro_use]
-mod tuple;
-
 mod env;
 mod errors;
 mod exprs;
@@ -12,14 +7,11 @@ mod format_with_env;
 mod interpreter;
 mod intrinsics;
 mod lexer;
-mod numbers;
 mod parser;
 mod primitives;
-mod quantity;
 mod symbol;
 mod tokens;
-mod types;
-mod units;
+#[macro_use]
 mod values;
 
 #[macro_use]

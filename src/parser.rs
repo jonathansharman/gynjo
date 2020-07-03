@@ -1,8 +1,8 @@
-use super::errors::ParseErr;
-use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
-use super::intrinsics::Intrinsic;
-use super::symbol::Sym;
-use super::tokens::Tok;
+use crate::errors::ParseErr;
+use crate::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
+use crate::intrinsics::Intrinsic;
+use crate::symbol::Sym;
+use crate::tokens::Tok;
 
 use std::collections::HashMap;
 use std::collections::VecDeque;

@@ -1,4 +1,4 @@
-use super::env::SharedEnv;
+use crate::env::SharedEnv;
 
 pub trait FormatWithEnv {
 	/// Converts `self` to a user-readable string using `env` for formatting settings.

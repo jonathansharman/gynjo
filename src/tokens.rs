@@ -1,8 +1,6 @@
-use super::intrinsics::Intrinsic;
-use super::numbers::Num;
-use super::primitives::{Prim, Bool};
-use super::symbol::Sym;
-use super::types::{Type, NumType};
+use crate::intrinsics::Intrinsic;
+use crate::primitives::{Prim, Bool, Num, NumType, Type};
+use crate::symbol::Sym;
 
 use bigdecimal::BigDecimal;
 use logos::Logos;

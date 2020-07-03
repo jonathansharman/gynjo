@@ -1,19 +1,13 @@
-use super::env::{Env, SharedEnv};
-use super::errors::{GynjoErr, RtErr};
-use super::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterConnector, LambdaBody};
-use super::format_with_env::FormatWithEnv;
-use super::intrinsics::Intrinsic;
-use super::lexer::lex;
-use super::list::List;
-use super::numbers::Num;
-use super::primitives::{Prim, Bool};
-use super::parser::parse;
-use super::quantity::Quant;
-use super::symbol::Sym;
-use super::tuple::Tuple;
-use super::types::{Type, NumType};
-use super::units::Unit;
-use super::values::{Closure, Val};
+use crate::env::{Env, SharedEnv};
+use crate::errors::{GynjoErr, RtErr};
+use crate::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterConnector, LambdaBody};
+use crate::format_with_env::FormatWithEnv;
+use crate::intrinsics::Intrinsic;
+use crate::lexer::lex;
+use crate::primitives::{Prim, Bool, Type, Num, NumType};
+use crate::parser::parse;
+use crate::symbol::Sym;
+use crate::values::{List, Quant, Tuple, Unit, Closure, Val};
 
 use std::collections::VecDeque;
 use std::io;
@@ -725,14 +719,9 @@ mod tests {
 	use crate::errors::{GynjoErr, RtErr};
 	use crate::format_with_env::FormatWithEnv;
 	use crate::interpreter::eval;
-	use crate::list::List;
-	use crate::numbers::Num;
-	use crate::primitives::Prim;
-	use crate::quantity::QuantErr;
-	use crate::tuple::Tuple;
-	use crate::types::{Type, NumType};
-	use crate::units::UnitErr;
-	use crate::values::Val;
+	use crate::primitives::{Prim, Type, Num, NumType};
+	use crate::values::{List, QuantErr, Tuple, UnitErr, Val};
+	use crate::{make_list, make_list_value, make_tuple_value};
 
 	use bigdecimal::BigDecimal;
 

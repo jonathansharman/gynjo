@@ -1,5 +1,5 @@
-use super::errors::LexErr;
-use super::tokens::Tok;
+use crate::errors::LexErr;
+use crate::tokens::Tok;
 
 use logos::Logos;
 

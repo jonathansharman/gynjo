@@ -1,13 +1,13 @@
 // Functional list implementation based on https://rust-unofficial.github.io/too-many-lists/third-final.html.
 
-use super::env::SharedEnv;
-use super::format_with_env::FormatWithEnv;
-use super::values::Val;
+use super::Val;
+
+use crate::env::SharedEnv;
+use crate::format_with_env::FormatWithEnv;
 
 use itertools::Itertools;
 
 use std::sync::Arc;
-
 /// A functional linked list of Gynjo values.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct List {
@@ -165,8 +165,8 @@ macro_rules! make_list_value {
 
 #[cfg(test)]
 mod tests {
-	use super::Val;
-	use super::List;
+	use super::super::val::Val;
+	use super::super::list::List;
 	#[test]
 	fn head_and_tail() {
 		let list = List::empty();

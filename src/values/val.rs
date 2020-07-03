@@ -1,12 +1,9 @@
-use super::env::SharedEnv;
-use super::exprs::Lambda;
-use super::format_with_env::FormatWithEnv;
-use super::list::List;
-use super::numbers::Num;
-use super::primitives::{Prim, Bool};
-use super::quantity::Quant;
-use super::types::Type;
-use super::tuple::Tuple;
+use super::{List, Quant, Tuple};
+
+use crate::env::SharedEnv;
+use crate::exprs::Lambda;
+use crate::format_with_env::FormatWithEnv;
+use crate::primitives::{Prim, Bool, Num, Type};
 
 use num_traits::cast::ToPrimitive;
 

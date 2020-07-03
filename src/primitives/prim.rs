@@ -1,5 +1,5 @@
-use super::numbers::Num;
-use super::types::Type;
+use super::Type;
+use super::Num;
 
 use std::fmt;
 

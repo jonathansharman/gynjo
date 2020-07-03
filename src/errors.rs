@@ -1,6 +1,6 @@
-use super::quantity::QuantErr;
-use super::tokens::Tok;
-use super::types::Type;
+use crate::tokens::Tok;
+use crate::primitives::Type;
+use crate::values::QuantErr;
 
 use itertools::Itertools;
 
