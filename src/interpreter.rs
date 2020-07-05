@@ -7,7 +7,7 @@ use crate::lexer::lex;
 use crate::primitives::{Prim, Bool, Type, Num, NumType};
 use crate::parser::parse;
 use crate::symbol::Sym;
-use crate::values::{List, Quant, Tuple, Unit, Closure, Val};
+use crate::values::{Closure, List, Quant, Range, Tuple, Unit, Val};
 
 use std::collections::VecDeque;
 use std::io;
@@ -25,6 +25,7 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 		Expr::Lambda(f) => Ok(Val::Closure(Closure { f: f, env: env.clone() })),
 		Expr::TupleExpr(expr_elems) => eval_tuple_expr(&mut env, expr_elems),
 		Expr::ListExpr(expr_elems) => eval_list_expr(&mut env, expr_elems),
+		Expr::RangeExpr(exprs) => eval_range_expr(&mut env, (*exprs).0, (*exprs).1, (*exprs).2),
 		Expr::Sym(symbol) => eval_symbol(&mut env, symbol),
 		Expr::Prim(primitive) => Ok(match primitive {
 			// Convert number into dimensionless quantity.
@@ -181,6 +182,28 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 					}
 					Ok(Val::Tuple(Tuple { elems }))
 				},
+				// range -> list
+				(Val::Range(range), Type::List) => {
+					if range.start().is_none() || range.end().is_none() {
+						return Err(RtErr::UnboundedRange { context: "range to list conversion" });
+					}
+					let mut list = List::empty();
+					for val in range.into_iter() {
+						list = list.push(Val::Quant(val.map_err(RtErr::quant)?));
+					}
+					Ok(Val::List(list.reverse()))
+				},
+				// range -> tuple
+				(Val::Range(range), Type::Tuple) => {
+					if range.start().is_none() || range.end().is_none() {
+						return Err(RtErr::UnboundedRange { context: "range to tuple conversion" });
+					}
+					let mut elems = Box::new(Vec::new());
+					for val in range.into_iter() {
+						elems.push(Val::Quant(val.map_err(RtErr::quant)?));
+					}
+					Ok(Val::Tuple(Tuple { elems }))
+				},
 				// T -> string
 				(value @ _, Type::String) => Ok(Val::Prim(Prim::String(value.format_with_env(env)))),
 				// Invalid conversion
@@ -206,14 +229,14 @@ fn eval_in(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				Val::Quant(from) => Ok(from.convert_into(to_units).map_err(RtErr::quant)?.into()),
 				invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 					context: "unit conversion",
-					expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
+					expected: Type::quant_types(),
 					actual: invalid.get_type(),
 				})
 			}
 		},
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "unit conversion",
-			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
+			expected: Type::quant_types(),
 			actual: invalid.get_type(),
 		})
 	}
@@ -332,6 +355,37 @@ fn eval_list_expr(env: &mut SharedEnv, expr_elems: Box<VecDeque<Expr>>) -> EvalR
 	Ok(Val::List(list))
 }
 
+fn eval_range_expr(env: &mut SharedEnv, start_expr: Option<Expr>, end_expr: Option<Expr>, stride_expr: Option<Expr>) -> EvalResult {
+	let mut get_range_component_quantity = |component_expr: Option<Expr>, context| {
+		let component_val = match component_expr {
+			Some(expr) => Some(eval_expr(env, expr)?),
+			None => None,
+		};
+		let component = match component_val {
+			Some(Val::Quant(quant)) => Some(quant),
+			Some(invalid @ _) => return Err(RtErr::UnaryTypeMismatch {
+				context,
+				expected: Type::quant_types(),
+				actual: invalid.get_type(),
+			}),
+			None => None,
+		};
+		Ok(component)
+	};
+	let start = get_range_component_quantity(start_expr, "range expression start")?;
+	let end = get_range_component_quantity(end_expr, "range expression end")?;
+	// In the absence of an explicit stride, infer either 1 or -1, depending on bounds.
+	let stride = get_range_component_quantity(stride_expr, "range expression stride")?.unwrap_or_else(|| {
+		if let (Some(start), Some(end)) = (&start, &end) {
+			if start > end {
+				return Quant::scalar(Num::from(-1));
+			}
+		}
+		Quant::scalar(Num::from(1))
+	});
+	Ok(Val::Range(Range::new(start, end, stride)))
+}
+
 fn eval_symbol(env: &mut SharedEnv, symbol: Sym) -> EvalResult {
 	env.lock().unwrap().get_var(&symbol)
 		.map(|v| v)
@@ -356,7 +410,7 @@ fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr
 		},
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "unit declaration",
-			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
+			expected: Type::quant_types(),
 			actual: invalid.get_type(),
 		}),
 	}
@@ -367,7 +421,7 @@ fn eval_basic(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
 		Val::Quant(value) => Ok(value.convert_into_base().map_err(RtErr::quant)?.into()),
 		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "base units conversion",
-			expected: vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real)),
+			expected: Type::quant_types(),
 			actual: invalid.get_type(),
 		}),
 	}
@@ -726,12 +780,6 @@ mod tests {
 	use bigdecimal::BigDecimal;
 
 	use std::str::FromStr;
-
-	#[test]
-	fn empty_input_evaluates_to_empty() -> Result<(), GynjoErr> {
-		assert_eq!(Val::empty(), eval(&mut Env::new(None), "")?);
-		Ok(())
-	}
 
 	mod logical_operators {
 		use super::*;
@@ -1516,6 +1564,17 @@ mod tests {
 			let mut env = Env::new(None);
 			assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(2)), eval(&mut env, "(1, 2) as list")?);
 			assert_eq!(make_tuple_value!(Val::scalar(1), Val::scalar(2)), eval(&mut env, "[1, 2] as tuple")?);
+			Ok(())
+		}
+		#[test]
+		fn range_conversions() -> Result<(), GynjoErr> {
+			let mut env = Env::new(None);
+			assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(2)), eval(&mut env, "(1..2) as list")?);
+			assert_eq!(make_tuple_value!(Val::scalar(1), Val::scalar(2)), eval(&mut env, "(1..2) as tuple")?);
+			assert!(eval(&mut env, "(1..) as list").is_err());
+			assert!(eval(&mut env, "(..1) as list").is_err());
+			assert!(eval(&mut env, "(1..) as tuple").is_err());
+			assert!(eval(&mut env, "(..1) as tuple").is_err());
 			Ok(())
 		}
 		#[test]

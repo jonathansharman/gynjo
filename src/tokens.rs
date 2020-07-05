@@ -36,6 +36,11 @@ pub enum Tok {
 	Break,
 	#[token("return")]
 	Return,
+	// Range
+	#[token("..")]
+	Range,
+	#[token("by")]
+	By,
 	// Type ops
 	#[token("as")]
 	As,
@@ -186,6 +191,8 @@ impl fmt::Display for Tok {
 			Tok::Do => write!(f, "do"),
 			Tok::Break => write!(f, "break"),
 			Tok::Return => write!(f, "return"),
+			Tok::Range => write!(f, ".."),
+			Tok::By => write!(f, "by"),
 			Tok::As => write!(f, "as"),
 			Tok::GetType => write!(f, "get_type"),
 			Tok::And => write!(f, "and"),

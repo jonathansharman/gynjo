@@ -48,8 +48,40 @@ fn parse_optional_token<'a>(tokens: &'a [Tok], optional: &Tok) -> (&'a [Tok], bo
 /// If possible, parses the next single expression from `tokens`.
 /// Returns a slice of the unused tokens along with the parsed expression.
 fn parse_expr(tokens: &[Tok]) -> ParseExprResult {
+	match parse_basic_expr(tokens) {
+		Ok((tokens, expr)) => match parse_range_expr(tokens, Some(expr.clone())) {
+			result @ Ok(_) => result,
+			Err(_) => Ok((tokens, expr)),
+		},
+		Err(err) => match parse_range_expr(tokens, None) {
+			result @ Ok(_) => result,
+			Err(_) => Err(err),
+		},
+	}
+}
+
+fn parse_range_expr(tokens: &[Tok], lower_expr: Option<Expr>) -> ParseExprResult {
+	// Parse range operator "..".
+	let tokens = parse_required_token(tokens, &Tok::Range, "range expression")?;
+	// Parse optional upper bound.
+	let (tokens, upper_expr) = match parse_basic_expr(tokens) {
+		Ok((tokens, upper_expr)) => (tokens, Some(upper_expr)),
+		Err(_) => (tokens, None),
+	};
+	// Parse optional stride expression.
+	let (tokens, has_explicit_stride) = parse_optional_token(tokens, &Tok::By);
+	if has_explicit_stride {
+		// Parse stride.
+		let (tokens, stride_expr) = parse_basic_expr(tokens)?;
+		Ok((tokens, Expr::RangeExpr(Box::new((lower_expr, upper_expr, Some(stride_expr))))))
+	} else {
+		Ok((tokens, Expr::RangeExpr(Box::new((lower_expr, upper_expr, None)))))
+	}
+}
+
+/// Parses a non-range expression.
+fn parse_basic_expr(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Ok((tokens, Expr::TupleExpr(Box::new(Vec::new())))),
 		[Tok::Import, tokens @ ..] => parse_import(tokens),
 		[Tok::Let, tokens @ ..] => parse_assignment_or_unit_declaration(tokens),
 		[Tok::If, tokens @ ..] => parse_branch(tokens),
@@ -275,7 +307,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 }
 
 /// Parses a cluster item after an operator or parenthesis.
-fn parse_mandatory_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), ParseErr> {
+fn parse_required_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), ParseErr> {
 	let (after_minus, negated) = parse_optional_token(tokens, &Tok::Minus);
 	let (after_expr, expr) = parse_value(after_minus)?;
 	Ok((after_expr, ClusterItem {
@@ -303,23 +335,23 @@ fn parse_cluster(tokens: &[Tok]) -> ParseExprResult {
 		match tokens {
 			[] => break,
 			[Tok::Mul, after_connector @ ..] => {
-				let (after_item, item) = parse_mandatory_cluster_item(after_connector, ClusterConnector::Mul)?;
+				let (after_item, item) = parse_required_cluster_item(after_connector, ClusterConnector::Mul)?;
 				tokens = after_item;
 				items.push(item);
 			},
 			[Tok::Div, after_connector @ ..] => {
-				let (after_item, item) = parse_mandatory_cluster_item(after_connector, ClusterConnector::Div)?;
+				let (after_item, item) = parse_required_cluster_item(after_connector, ClusterConnector::Div)?;
 				tokens = after_item;
 				items.push(item);
 			},
 			[Tok::Exp, after_connector @ ..] => {
-				let (after_item, item) = parse_mandatory_cluster_item(after_connector, ClusterConnector::Exp)?;
+				let (after_item, item) = parse_required_cluster_item(after_connector, ClusterConnector::Exp)?;
 				tokens = after_item;
 				items.push(item);
 			},
 			[Tok::Lparen, ..] => {
 				// Don't consume the left parenthesis.
-				let (after_item, item) = parse_mandatory_cluster_item(tokens, ClusterConnector::AdjParen)?;
+				let (after_item, item) = parse_required_cluster_item(tokens, ClusterConnector::AdjParen)?;
 				tokens = after_item;
 				items.push(item);
 			},

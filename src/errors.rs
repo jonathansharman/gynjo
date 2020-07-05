@@ -81,6 +81,7 @@ pub enum RtErr {
 	Undefined(String),
 	UnusedResult(String),
 	InvalidUnit,
+	UnboundedRange { context: &'static str },
 	CouldNotOpenFile {
 		filename: String,
 		file_error: String,
@@ -118,6 +119,7 @@ impl fmt::Display for RtErr {
 			RtErr::Undefined(name) => write!(f, "\"{}\" is undefined", name),
 			RtErr::UnusedResult(value) => write!(f, "Unused result: {}", value),
 			RtErr::InvalidUnit => write!(f, "Non-unit quantity on right-hand side of unit conversion"),
+			RtErr::UnboundedRange { context } => write!(f, "Unbounded range not permitted in {}", context),
 			RtErr::CouldNotOpenFile { filename, file_error } => {
 				write!(f, "Could not open \"{}\" ({})", filename, file_error)
 			},

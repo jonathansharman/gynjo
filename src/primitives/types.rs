@@ -27,9 +27,17 @@ pub enum Type {
 	String,
 	Tuple,
 	List,
+	Range,
 	Closure,
 	Break,
 	Return,
+}
+
+impl Type {
+	/// A vector containing the possible quantity types.
+	pub fn quant_types() -> Vec<Type> {
+		vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real))
+	}
 }
 
 impl fmt::Display for Type {
@@ -41,6 +49,7 @@ impl fmt::Display for Type {
 			Type::String => write!(f, "string"),
 			Type::Tuple => write!(f, "tuple"),
 			Type::List => write!(f, "list"),
+			Type::Range => write!(f, "range"),
 			Type::Closure => write!(f, "closure"),
 			Type::Break => write!(f, "break_value"),
 			Type::Return => write!(f, "return_value"),

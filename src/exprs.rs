@@ -154,6 +154,7 @@ pub enum Expr {
 	Lambda(Lambda),
 	TupleExpr(Box<Vec<Expr>>),
 	ListExpr(Box<VecDeque<Expr>>),
+	RangeExpr(Box<(Option<Expr>, Option<Expr>, Option<Expr>)>),
 	Sym(Sym),
 	Unit(String),
 	Prim(Prim),
@@ -166,6 +167,7 @@ pub enum Expr {
 		unit_name: String,
 		value_expr: Box<Expr>,
 	},
+	Basic(Box<Expr>),
 	Branch {
 		test: Box<Expr>,
 		then_expr: Box<Expr>,
@@ -180,7 +182,6 @@ pub enum Expr {
 		range: Box<Expr>,
 		body: Box<Expr>,
 	},
-	Basic(Box<Expr>),
 	Break,
 	Return(Box<Expr>),
 	Read,
@@ -198,12 +199,19 @@ impl fmt::Display for Expr {
 			Expr::Lambda(lambda) => lambda.fmt(f),
 			Expr::TupleExpr(exprs) => write!(f, "({})", exprs.iter().map(Expr::to_string).join(", ")),
 			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
+			Expr::RangeExpr(exprs) => {
+				let start = (*exprs).0.as_ref().map_or(String::new(), |start| format!("{}", start));
+				let end = (*exprs).0.as_ref().map_or(String::new(), |end| format!("{}", end));
+				let stride = (*exprs).0.as_ref().map_or(String::new(), |stride| format!("{}", stride));
+				write!(f, "({}..{} by {})", start, end, stride)
+			},
 			Expr::Sym(symbol) => symbol.fmt(f),
 			Expr::Unit(unit) => unit.fmt(f),
 			Expr::Prim(primitive) => primitive.fmt(f),
 			Expr::Import(target) => write!(f, "import \"{}\"", target),
 			Expr::Assign { lhs, rhs } => write!(f, "let {} = {}", lhs.name, rhs),
 			Expr::DeclUnit { unit_name, value_expr } => write!(f, "let {} = {}", unit_name, value_expr),
+			Expr::Basic(expr) => write!(f, "basic {}", expr),
 			Expr::Branch { test, then_expr, else_expr } => {
 				write!(f, "if {} then {} else {}", test, then_expr, else_expr)
 			},
@@ -211,7 +219,6 @@ impl fmt::Display for Expr {
 			Expr::ForLoop { loop_var, range, body } => {
 				write!(f, "for {} in {} do {}", loop_var.name, range, body)
 			},
-			Expr::Basic(expr) => write!(f, "basic {}", expr),
 			Expr::Break => write!(f, "break"),
 			Expr::Return(result) => write!(f, "return {}", result),
 			Expr::Read => write!(f, "read"),

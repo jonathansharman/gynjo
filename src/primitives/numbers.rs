@@ -56,6 +56,24 @@ impl Num {
 		}
 	}
 
+	/// Whether the number is greater than zero in its domain.
+	pub fn is_positive(&self) -> bool {
+		match self {
+			Num::Integer(integer) => integer > &0.into(),
+			Num::Rational(rational) => rational > &BigInt::from(0).into(),
+			Num::Real(real) => real > &0.into(),
+		}
+	}
+
+	/// Whether the number is less than zero in its domain.
+	pub fn is_negative(&self) -> bool {
+		match self {
+			Num::Integer(integer) => integer < &0.into(),
+			Num::Rational(rational) => rational < &BigInt::from(0).into(),
+			Num::Real(real) => real < &0.into(),
+		}
+	}
+
 	/// Converts this number to the smallest domain that can contain its value.
 	pub fn shrink_domain(self) -> Num {
 		match self {

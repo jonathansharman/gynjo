@@ -1,27 +1,12 @@
-use super::{List, Quant, Tuple};
+use super::{Closure, List, Quant, Range, Tuple};
 
 use crate::env::SharedEnv;
-use crate::exprs::Lambda;
 use crate::format_with_env::FormatWithEnv;
 use crate::primitives::{Prim, Bool, Num, Type};
 
 use num_traits::cast::ToPrimitive;
 
 use std::boxed::Box;
-
-#[derive(Clone, Debug)]
-pub struct Closure {
-	pub f: Lambda,
-	pub env: SharedEnv,
-}
-
-impl PartialEq for Closure {
-	fn eq(&self, other: &Self) -> bool {
-		self.f == other.f
-	}
-}
-
-impl Eq for Closure {}
 
 /// Gynjo value types.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -30,6 +15,7 @@ pub enum Val {
 	Quant(Quant),
 	Tuple(Tuple),
 	List(List),
+	Range(Range),
 	Closure(Closure),
 	Break,
 	Return { result: Box<Val> },
@@ -83,7 +69,7 @@ impl Val {
 		Val::Tuple(Tuple::empty())
 	}
 
-	/// Constructs a dimensionless quantity value form `n`.
+	/// Constructs a dimensionless quantity value from `n`.
 	pub fn scalar<N>(n: N) -> Val where N: Into<Num> {
 		Val::Quant(Quant::scalar(n.into()))
 	}
@@ -100,13 +86,14 @@ impl Val {
 			Val::Quant(quant) => Type::Quant(quant.value().get_type()),
 			Val::Tuple(_) => Type::Tuple,
 			Val::List(_) => Type::List,
+			Val::Range(_) => Type::Range,
 			Val::Closure(_) => Type::Closure,
 			Val::Break => Type::Break,
 			Val::Return { .. } => Type::Return,
 		}
 	}
 
-	/// Converts this value to `i64` if it's integral, otherwise returns `None`.
+	/// Gets `self` as a `i64` if it's integral, otherwise returns `None`.
 	pub fn as_i64(&self) -> Option<i64> {
 		match self {
 			Val::Prim(Prim::Num(Num::Integer(integer))) => integer.to_i64(),
@@ -132,7 +119,8 @@ impl FormatWithEnv for Val {
 			Val::Quant(quant) => quant.format_with_env(&env),
 			Val::Tuple(tuple) => tuple.format_with_env(&env),
 			Val::List(list) => list.format_with_env(&env),
-			Val::Closure(c) => c.f.to_string(),
+			Val::Range(range) => range.format_with_env(&env),
+			Val::Closure(c) => c.format_with_env(&env),
 			Val::Break => "break".to_string(),
 			Val::Return { result } => format!("(return {})", result.format_with_env(&env)),
 		}

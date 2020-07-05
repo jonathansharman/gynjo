@@ -39,7 +39,7 @@ impl Node {
 impl List {
 	/// An empty list.
 	pub fn empty() -> Self {
-		List { head: None, len: 0 }
+		Self { head: None, len: 0 }
 	}
 
 	/// Whether this list has no elements.
@@ -53,19 +53,16 @@ impl List {
 	}
 
 	/// A shallow copy of this list with `elem` added as the head.
-	pub fn push(&self, elem: Val) -> List {
-		List {
-			head: Some(Arc::new(Node {
-				elem: elem,
-				next: self.head.clone(),
-			})),
+	pub fn push(&self, elem: Val) -> Self {
+		Self {
+			head: Some(Arc::new(Node { elem, next: self.head.clone(), })),
 			len: self.len + 1,
 		}
 	}
 
 	/// A shallow copy of this list's tail.
-	pub fn tail(&self) -> Option<List> {
-		self.head.as_ref().map(|node| List { head: node.next.clone(), len: self.len - 1 })
+	pub fn tail(&self) -> Option<Self> {
+		self.head.as_ref().map(|node| Self { head: node.next.clone(), len: self.len - 1 })
 	}
 
 	/// A reference to the first element of this list, if there is one.
@@ -74,12 +71,11 @@ impl List {
 	}
 
 	/// Concatenates `self` with `other`. The head of `self` is the head of the result.
-	pub fn concat(&self, other: Self) -> List {
+	pub fn concat(&self, other: Self) -> Self {
 		match &self.head {
-			Some(node) => List {
-				head: node.next.clone(),
-				len: self.len - 1,
-			}.concat(other).push(node.elem.clone()),
+			Some(node) => Self { head: node.next.clone(), len: self.len - 1, }
+				.concat(other)
+				.push(node.elem.clone()),
 			None => other,
 		}
 	}
@@ -90,8 +86,8 @@ impl List {
 	}
 
 	/// Produces a new list by applying `f` to each element.
-	pub fn map<F, E>(&self, f: F) -> Result<List, E> where F: FnMut(&Val) -> Result<Val, E> {
-		Ok(List {
+	pub fn map<F, E>(&self, f: F) -> Result<Self, E> where F: FnMut(&Val) -> Result<Val, E> {
+		Ok(Self {
 			head: match self.head.clone() {
 				Some(node) => Some(Arc::new(node.map(f)?)),
 				None => None,
@@ -109,6 +105,15 @@ impl List {
 			idx -= 1;
 		}
 		result.map(|val| val.clone())
+	}
+
+	/// A new list with this list's elements in reverse order.
+	pub fn reverse(&self) -> Self {
+		let mut result = Self::empty();
+		for val in self.iter() {
+			result = result.push(val.clone());
+		}
+		result
 	}
 }
 
@@ -204,5 +209,15 @@ mod tests {
 	fn map() {
 		assert_eq!(List::empty(), List::empty().map(|_| -> Result<Val, ()> { Ok(Val::empty()) }).unwrap());
 		assert_eq!(make_list!(Val::empty()), make_list!(Val::from(1)).map(|_| -> Result<Val, ()> { Ok(Val::empty()) }).unwrap());
+	}
+	#[test]
+	fn nth() {
+		assert_eq!(None, List::empty().nth(0));
+		assert_eq!(Some(Val::from(2)), make_list!(Val::from(1), Val::from(2)).nth(1));
+	}
+	#[test]
+	fn reverse() {
+		assert_eq!(List::empty(), List::empty().reverse());
+		assert_eq!(make_list!(Val::from(1), Val::from(2)), make_list!(Val::from(2), Val::from(1)).reverse());
 	}
 }
