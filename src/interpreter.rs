@@ -503,38 +503,49 @@ fn eval_while_loop(env: &mut SharedEnv, test: Box<Expr>, body: Box<Expr>) -> Eva
 }
 
 fn eval_for_loop(env: &mut SharedEnv, loop_var: Sym, range: Box<Expr>, body: Box<Expr>) -> EvalResult {
-	let range_value = eval_expr(env, *range)?;
-	match range_value {
+	// Common loop body logic. The return value is
+	// (1) An error if body evaluation encountered an error,
+	// (2) `None` if the loop should continue, or
+	// (3) The loop result value if the loop hit a break/return.
+	let eval_loop_body = |env: &mut SharedEnv| -> Result<Option<EvalResult>, RtErr> {
+		match eval_expr(env, (*body).clone())? {
+			// Non-final empty result. Continue the loop.
+			Val::Tuple(Tuple { elems }) if elems.is_empty() => Ok(None),
+			// Break expression. Break out of loop.
+			Val::Break => Ok(Some(Ok(Val::empty()))),
+			// Return expression. Exit loop via return.
+			result @ Val::Return { .. } => Ok(Some(Ok(result))),
+			// Error: non-final, non-returned, non-empty result.
+			unused @ _ => Ok(Some(Err(RtErr::UnusedResult(unused.format_with_env(env))))),
+		}
+	};
+	match eval_expr(env, *range)? {
 		Val::List(range_list) => {
 			for value in range_list.iter() {
 				// Assign the loop variable to the current value in the range list.
 				env.lock().unwrap().set_var(loop_var.clone(), value.clone());
 				// Evaluate the loop body in this context.
-				match eval_expr(env, (*body).clone())? {
-					Val::Tuple(Tuple { elems }) if elems.is_empty() => {
-						// Non-final empty results are okay.
-					},
-					Val::Break => {
-						// Break out of loop.
-						return Ok(Val::empty())
-					}
-					result @ Val::Return { .. } => {
-						// Exit loop via return.
-						return Ok(result)
-					},
-					unused @ _ => {
-						// Non-final, non-returned, non-empty results are errors.
-						return Err(RtErr::UnusedResult(unused.format_with_env(env)));
-					},
+				if let Some(result) = eval_loop_body(env)? {
+					return result;
 				}
-
 			}
 			Ok(Val::empty())
 		},
-		_ => Err(RtErr::UnaryTypeMismatch {
+		Val::Range(range) => {
+			for value in range.into_iter() {
+				// Assign the loop variable to the current value in the range list.
+				env.lock().unwrap().set_var(loop_var.clone(), Val::Quant(value.map_err(RtErr::quant)?));
+				// Evaluate the loop body in this context.
+				if let Some(result) = eval_loop_body(env)? {
+					return result;
+				}
+			}
+			Ok(Val::empty())
+		},
+		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
 			context: "for-loop range".into(),
-			expected: vec!(Type::List),
-			actual: range_value.get_type()
+			expected: vec!(Type::List, Type::Range),
+			actual: invalid.get_type()
 		}),
 	}
 }
@@ -1418,14 +1429,34 @@ mod tests {
 	mod for_loops {
 		use super::*;
 		#[test]
-		fn basic_for_loops() -> Result<(), GynjoErr> {
+		fn for_loop_over_list() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
-			eval(&mut env, r"{
+			let result = eval(&mut env, r"{
 				let a = 0;
 				for x in [1, 2, 3] do let a = a + x;
 				for x in [] do let a = 10;
+				a
 			}")?;
-			assert_eq!(Val::scalar(6), eval(&mut env, "a")?);
+			assert_eq!(Val::scalar(6), result);
+			let result = eval(&mut env, r"{
+				let a = 0;
+				for x in [1, 2, 3] do let a = a + x;
+				for x in [] do let a = 10;
+				a
+			}")?;
+			assert_eq!(Val::scalar(6), result);
+			Ok(())
+		}
+		#[test]
+		fn for_loop_over_range() -> Result<(), GynjoErr> {
+			let mut env = Env::new(None);
+			let result = eval(&mut env, r"{
+				let a = 0;
+				for x in 1..3 do let a = a + x;
+				for x in [] do let a = 10;
+				a
+			}")?;
+			assert_eq!(Val::scalar(6), result);
 			Ok(())
 		}
 		#[test]
@@ -1729,13 +1760,6 @@ mod tests {
 				Ok(())
 			}
 			#[test]
-			fn nth() -> Result<(), GynjoErr> {
-				let mut env = Env::with_core_libs();
-				assert_eq!(GynjoErr::Rt(RtErr::OutOfBounds),  eval(&mut env, "nth([], 0)").err().unwrap());
-				assert_eq!(Val::scalar(2), eval(&mut env, "nth([1, 2, 3], 1)")?);
-				Ok(())
-			}
-			#[test]
 			fn reverse() -> Result<(), GynjoErr> {
 				let mut env = Env::with_core_libs();
 				assert_eq!(make_list_value!(Val::scalar(3), Val::scalar(2), Val::scalar(1)), eval(&mut env, "reverse [1, 2, 3]")?);
@@ -1783,12 +1807,6 @@ mod tests {
 				let mut env = Env::with_core_libs();
 				let expected = make_list_value!(Val::scalar(1), Val::scalar(1), Val::scalar(2), Val::scalar(2));
 				assert_eq!(expected, eval(&mut env, "flatmap([1, 2], x -> [x, x])")?);
-				Ok(())
-			}
-			#[test]
-			fn range() -> Result<(), GynjoErr> {
-				let mut env = Env::with_core_libs();
-				assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(2), Val::scalar(3)), eval(&mut env, "range(1, 3)")?);
 				Ok(())
 			}
 		}

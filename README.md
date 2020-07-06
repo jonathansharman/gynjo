@@ -58,11 +58,12 @@ Variables can be set using `let` *variable* `=` *value*. Variable names can cont
 |         14 | Logical disjunction                            | *boolean* `or` *boolean*                    |
 |         15 | Logical negation                               | `not` *boolean*                             |
 |         15 | Break out of loop early                        | `break`                                     |
-|         15 | Return from function early                     | `return` *value*                            |
-|         15 | Read from console                              | `read`                                      |
-|         15 | Write to console                               | `write` *value*                             |
-|         15 | Get type                                       | `get_type` *value*                          |
-|         15 | Conversion to base units                       | `basic` *value*                             |
+|         16 | Range creation                                 | *value*`..`*value* [ `by` *value* ]         |
+|         17 | Return from function early                     | `return` *value*                            |
+|         17 | Read from console                              | `read`                                      |
+|         17 | Write to console                               | `write` *value*                             |
+|         17 | Get type                                       | `get_type` *value*                          |
+|         17 | Conversion to base units                       | `basic` *value*                             |
 
 Implicit multiplication is supported and uses the same syntax as function application. This means that precedence is partially resolved during intepretation based on the values of the operands. Implicit multiplication has higher precedence than explicit multiplication/division, so for example, `2a/3b` is equal to `(2a)/(3b)`.
 
@@ -150,31 +151,36 @@ Blocks allow sequential evaluation of a semicolon-separated list of expressions 
 >> if 2 < 1 then "foo" // Empty else evaluates to ()
 >> if 2 < 1 then "foo" else "bar"
 "bar"
->> for a in [1, 2, 3] do print a
+>> for a in ["one", "two", "three"] do write a
+"one"
+"two"
+"three"
+>> for a in 1..5 by 2 do write a
 1
-2
 3
->> while a > 0 do { print a; let a = a - 1 }
+5
+>> while a > 0 do { write a; let a = a - 2 }
+5
 3
-2
 1
 ```
 
 ## Value Types
 
-| Type             | Description                               | Examples                      |
-| :--------------- | :---------------------------------------- | :---------------------------- |
-| `type`           | One of the types in this table            | `integer`, `get_type(1)`      |
-| `boolean`        | `true` or `false`                         | `true`, `false`               |
-| `integer`        | Arbitrary-precision integer quantity      | `0`, `-1`, `2.s`              |
-| `rational`       | Arbitrary-precision rational quantity     | `1/2`, `-5/3`, `2.m/3.kg`     |
-| `real`           | High-precision floating-point quantity    | `0.1`, `-42.5`, `1.5.m`       |
-| `string`         | String of ASCII text                      | `"hello"`, `"world"`          |
-| `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                |
-| `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                |
-| `closure`        | A function with its captured environment  | `x -> x`, `(a, b) -> a + b`   |
-| `break_value`    | The result of a break expression          | `break`                       |
-| `return_value`   | The result of a `return` expression       | `return 1`                    |
+| Type             | Description                               | Examples                             |
+| :--------------- | :---------------------------------------- | :----------------------------------- |
+| `type`           | One of the types in this table            | `integer`, `get_type(1)`             |
+| `boolean`        | `true` or `false`                         | `true`, `false`                      |
+| `integer`        | Arbitrary-precision integer quantity      | `0`, `-1`, `2.s`                     |
+| `rational`       | Arbitrary-precision rational quantity     | `1/2`, `-5/3`, `2.m/3.kg`            |
+| `real`           | High-precision floating-point quantity    | `0.1`, `-42.5`, `1.5.m`              |
+| `string`         | String of ASCII text                      | `"hello"`, `"world"`                 |
+| `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                       |
+| `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                       |
+| `range`          | A lazy, inclusive range of values         | `0..5`, `0..-5`, `0.m .. 8.m by 2.m` |
+| `closure`        | A function with its captured environment  | `x -> x`, `(a, b) -> a + b`          |
+| `break_value`    | The result of a break expression          | `break`                              |
+| `return_value`   | The result of a `return` expression       | `return 1`                           |
 
 The Gynjo runtime tries to store numerical values as an integer if possible. The expression `(3/2) * 2` is a `rational` times an `integer`, which in general is a `rational`, but since the resulting value is integral (in the mathematical sense), its type is actually `integer`. That also means that `1.0` evaluates to an object of type `integer`. The runtime does not attempt to shrink `real`s into `rational`s since there could be round-off error.
 

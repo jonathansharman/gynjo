@@ -10,14 +10,6 @@
 		result
 	};
 
-	let nth = (l, n) -> {
-		while n > 0 do {
-			let n = n - 1;
-			let l = pop(l);
-		};
-		l[0]
-	};
-
 	let reverse = l -> {
 		let result = [];
 		while l != [] do {
@@ -70,15 +62,6 @@
 	};
 
 	let flatmap = (l, f) -> reduce(map(l, f), [], (a, b) -> a | b);
-
-	let range = (start, end) -> {
-		let result = [];
-		while end >= start do {
-			let result = [end] | result;
-			let end = end - 1;
-		};
-		result
-	};
 
 	// Basic math
 
