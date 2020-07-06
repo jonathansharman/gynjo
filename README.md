@@ -196,6 +196,8 @@ Why have both `tuple` and `list` when both are just lists of values? The reason 
 | `rational` | `real`     |
 | `list`     | `tuple`    |
 | `tuple`    | `list`     |
+| `range`    | `list`     |
+| `range`    | `tuple`    |
 
 ## Functions
 
