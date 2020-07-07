@@ -1,6 +1,6 @@
 use crate::env::{Env, SharedEnv};
 use crate::errors::{GynjoErr, RtErr};
-use crate::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterConnector, LambdaBody};
+use crate::expressions::{Expr, BinExpr, BinOp, Cluster, ClusterConnector, LambdaBody};
 use crate::format_with_env::FormatWithEnv;
 use crate::intrinsics::Intrinsic;
 use crate::lexer::lex;

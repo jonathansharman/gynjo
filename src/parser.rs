@@ -1,5 +1,5 @@
 use crate::errors::ParseErr;
-use crate::exprs::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
+use crate::expressions::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
 use crate::intrinsics::Intrinsic;
 use crate::symbol::Sym;
 use crate::tokens::Tok;

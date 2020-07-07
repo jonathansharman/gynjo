@@ -2,7 +2,7 @@
 
 mod env;
 mod errors;
-mod exprs;
+mod expressions;
 mod format_with_env;
 mod interpreter;
 mod intrinsics;
@@ -48,7 +48,7 @@ fn repl_iter(mut env: &mut env::SharedEnv) -> Result<(), errors::GynjoErr> {
 	Ok(())
 }
 
-fn get_expr() -> Result<exprs::Expr, errors::GynjoErr> {
+fn get_expr() -> Result<expressions::Expr, errors::GynjoErr> {
 	// Read first line of input.
 	let mut tokens = get_token_line(">> ")?;
 	loop {

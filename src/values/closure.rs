@@ -1,5 +1,5 @@
 use crate::env::SharedEnv;
-use crate::exprs::Lambda;
+use crate::expressions::Lambda;
 use crate::format_with_env::FormatWithEnv;
 
 #[derive(Clone, Debug)]
