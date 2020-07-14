@@ -205,7 +205,7 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 					Ok(Val::Tuple(Tuple { elems }))
 				},
 				// T -> string
-				(value @ _, Type::String) => Ok(Val::Prim(Prim::String(value.format_with_env(env)))),
+				(value @ _, Type::Text) => Ok(Val::Prim(Prim::Text(value.format_with_env(env).into()))),
 				// Invalid conversion
 				(value @ _, to @ _) => Err(RtErr::InvalidTypeCast { from: value.get_type(), to }),
 			}
@@ -308,13 +308,13 @@ fn eval_concat(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 	let right = eval_expr(env, *bin_expr.right)?;
 	match (left, right) {
 		// String concatenation
-		(Val::Prim(Prim::String(left)), Val::Prim(Prim::String(right))) => {
+		(Val::Prim(Prim::Text(left)), Val::Prim(Prim::Text(right))) => {
 			Ok(Val::from(format!("{}{}", left, right)))
 		},
-		(Val::Prim(Prim::String(left)), right @ _) => {
+		(Val::Prim(Prim::Text(left)), right @ _) => {
 			Ok(Val::from(format!("{}{}", left, right.format_with_env(&env))))
 		},
-		(left @ _, Val::Prim(Prim::String(right))) => {
+		(left @ _, Val::Prim(Prim::Text(right))) => {
 			Ok(Val::from(format!("{}{}", left.format_with_env(&env), right)))
 		},
 		// List concatenation
@@ -374,15 +374,7 @@ fn eval_range_expr(env: &mut SharedEnv, start_expr: Option<Expr>, end_expr: Opti
 	};
 	let start = get_range_component_quantity(start_expr, "range expression start")?;
 	let end = get_range_component_quantity(end_expr, "range expression end")?;
-	// In the absence of an explicit stride, infer either 1 or -1, depending on bounds.
-	let stride = get_range_component_quantity(stride_expr, "range expression stride")?.unwrap_or_else(|| {
-		if let (Some(start), Some(end)) = (&start, &end) {
-			if start > end {
-				return Quant::scalar(Num::from(-1));
-			}
-		}
-		Quant::scalar(Num::from(1))
-	});
+	let stride = get_range_component_quantity(stride_expr, "range expression stride")?;
 	Ok(Val::Range(Range::new(start, end, stride)))
 }
 
@@ -429,7 +421,8 @@ fn eval_basic(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
 
 fn eval_import(env: &mut SharedEnv, target: Box<Expr>) -> EvalResult {
 	match eval_expr(env, *target)? {
-	Val::Prim(Prim::String(filename)) => {
+	Val::Prim(Prim::Text(filename)) => {
+		let filename: String = filename.into();
 		let lib_text = std::fs::read_to_string(&filename)
 			.map_err(|err| RtErr::CouldNotOpenFile {
 				filename: filename.clone(),
@@ -443,7 +436,7 @@ fn eval_import(env: &mut SharedEnv, target: Box<Expr>) -> EvalResult {
 	invalid @ _ => {
 		Err(RtErr::UnaryTypeMismatch {
 			context: "import",
-			expected: vec!(Type::String),
+			expected: vec!(Type::Text),
 			actual: invalid.get_type(),
 		})
 	}
@@ -580,19 +573,6 @@ struct EvaluatedClusterItem {
 	connector: ClusterConnector,
 }
 
-/// Tries to extract an idex from `list`, mod `n`.
-fn get_idx_from_list(env: &SharedEnv, list: List, n: usize) -> Result<usize, RtErr> {
-	// Check for exactly one element that fits in an i64.
-	if let (Some(value), Some(true)) = (list.head(), list.tail().as_ref().map(List::is_empty)) {
-		if let Some(signed_idx) = value.as_i64() {
-			let signed_len = n as i64;
-			let signed_idx = ((signed_idx % signed_len) + signed_len) % signed_len;
-			return Ok(signed_idx as usize);
-		}
-	}
-	Err(RtErr::InvalidIndex { idx: list.format_with_env(&env) })
-}
-
 fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedClusterItem>) -> EvalResult {
 	// Parenthesized applications
 	for idx in 0..cluster.len() - 1 {
@@ -607,29 +587,18 @@ fn eval_evaluated_cluster(env: &mut SharedEnv, mut cluster: Vec<EvaluatedCluster
 	// List/string indexing
 	for idx in 0..cluster.len() - 1 {
 		if let ClusterConnector::AdjNonparen = &cluster[idx + 1].connector {
-			cluster[idx].value = match (&cluster[idx].value, &cluster[idx + 1].value) {
-				// List index
-				(Val::List(left), Val::List(right)) => {
-					if left.is_empty() {
-						Err(RtErr::OutOfBounds)
-					} else {
-						// Can safely unwrap because idx is guaranteed to be in bounds.
-						Ok(left.nth(get_idx_from_list(&env, right.clone(), left.len())?).unwrap())
-					}
-				},
-				// String index
-				(Val::Prim(Prim::String(left)), Val::List(right)) => {
-					if left.is_empty() {
-						Err(RtErr::OutOfBounds)
-					} else {
-						// Can safely unwrap because idx is guaranteed to be in bounds.
-						Ok(Val::from(left.chars().nth(get_idx_from_list(&env, right.clone(), left.len())?).unwrap().to_string()))
-					}
-				},
-				_ => continue,
-			}?;
-			cluster.remove(idx + 1);
-			return eval_evaluated_cluster(env, cluster);
+			if let Val::List(right) = &cluster[idx + 1].value {
+				// The RHS may be an index/slice.
+				cluster[idx].value = match &cluster[idx].value {
+					// List index/slice operation
+					Val::List(left) => Ok(left.slice(&env, right.clone())?),
+					// String index/slice operation
+					Val::Prim(Prim::Text(left)) => Ok(left.slice(&env, right.clone())?),
+					_ => continue,
+				}?;
+				cluster.remove(idx + 1);
+				return eval_evaluated_cluster(env, cluster);
+			}
 		}
 	}
 	// Exponentiations
@@ -1198,7 +1167,7 @@ mod tests {
 		}
 	}
 
-	mod indexing {
+	mod indexing_and_slicing {
 		use super::*;
 		#[test]
 		fn valid_list_indexing() -> Result<(), GynjoErr> {
@@ -1207,6 +1176,18 @@ mod tests {
 			assert_eq!(Val::scalar(2), eval(&mut env, "[1, 2][1]")?);
 			assert_eq!(Val::scalar(1), eval(&mut env, "[1, 2][2]")?);
 			assert_eq!(Val::scalar(2), eval(&mut env, "[1, 2][-1]")?);
+			Ok(())
+		}
+		#[test]
+		fn valid_list_slicing() -> Result<(), GynjoErr> {
+			let mut env = Env::new(None);
+			assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(2)), eval(&mut env, "[1, 2][..]")?);
+			assert_eq!(make_list_value!(Val::scalar(2)), eval(&mut env, "[1, 2][1..]")?);
+			assert_eq!(make_list_value!(Val::scalar(1)), eval(&mut env, "[1, 2][..0]")?);
+			assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(2)), eval(&mut env, "[1, 2][..-1]")?);
+			assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(2), Val::scalar(1), Val::scalar(2)), eval(&mut env, "[1, 2][..3]")?);
+			assert_eq!(make_list_value!(Val::scalar(4), Val::scalar(1)), eval(&mut env, "[1, 2, 3, 4][-1..0]")?);
+			assert_eq!(make_list_value!(Val::scalar(1), Val::scalar(4)), eval(&mut env, "[1, 2, 3, 4][0..-1]")?);
 			Ok(())
 		}
 		#[test]
@@ -1229,6 +1210,18 @@ mod tests {
 			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[1]"#)?);
 			assert_eq!(Val::from("h".to_string()), eval(&mut env, r#""hi"[2]"#)?);
 			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[-1]"#)?);
+			Ok(())
+		}
+		#[test]
+		fn valid_string_slicing() -> Result<(), GynjoErr> {
+			let mut env = Env::new(None);
+			assert_eq!(Val::from("hi".to_string()), eval(&mut env, r#""hi"[..]"#)?);
+			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[1..]"#)?);
+			assert_eq!(Val::from("h".to_string()), eval(&mut env, r#""hi"[..0]"#)?);
+			assert_eq!(Val::from("hi".to_string()), eval(&mut env, r#""hi"[..-1]"#)?);
+			assert_eq!(Val::from("hihi".to_string()), eval(&mut env, r#""hi"[..3]"#)?);
+			assert_eq!(Val::from("oh".to_string()), eval(&mut env, r#""hello"[-1..0]"#)?);
+			assert_eq!(Val::from("ho".to_string()), eval(&mut env, r#""hello"[0..-1]"#)?);
 			Ok(())
 		}
 		#[test]
@@ -1578,7 +1571,7 @@ mod tests {
 		fn type_to_itself() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::scalar(1), eval(&mut env, "1 as integer")?);
-			assert_eq!(Val::from("hello".to_string()), eval(&mut env, r#""hello" as string"#)?);
+			assert_eq!(Val::from("hello".to_string()), eval(&mut env, r#""hello" as text"#)?);
 			assert_eq!(Val::from(true), eval(&mut env, "(x -> x) = (x -> x) as closure")?);
 			Ok(())
 		}
@@ -1609,18 +1602,18 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn conversion_to_string() -> Result<(), GynjoErr> {
+		fn conversion_to_text() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
-			assert_eq!(Val::from("true".to_string()), eval(&mut env, "true as string")?);
-			assert_eq!(Val::from("1".to_string()), eval(&mut env, "1 as string")?);
-			assert_eq!(Val::from("(1, 2)".to_string()), eval(&mut env, "(1, 2) as string")?);
+			assert_eq!(Val::from("true".to_string()), eval(&mut env, "true as text")?);
+			assert_eq!(Val::from("1".to_string()), eval(&mut env, "1 as text")?);
+			assert_eq!(Val::from("(1, 2)".to_string()), eval(&mut env, "(1, 2) as text")?);
 			Ok(())
 		}
 		#[test]
 		fn invalid_conversions() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
 			let real_to_integer = GynjoErr::Rt(RtErr::InvalidTypeCast { from: Type::Quant(NumType::Real), to: Type::Quant(NumType::Integer) });
-			let string_to_real = GynjoErr::Rt(RtErr::InvalidTypeCast { from: Type::String, to: Type::Quant(NumType::Real) });
+			let string_to_real = GynjoErr::Rt(RtErr::InvalidTypeCast { from: Type::Text, to: Type::Quant(NumType::Real) });
 			let closure_to_boolean = GynjoErr::Rt(RtErr::InvalidTypeCast { from: Type::Closure, to: Type::Boolean });
 			assert_eq!(real_to_integer, eval(&mut env, "1.5 as integer").err().unwrap());
 			assert_eq!(string_to_real, eval(&mut env, r#""five" as real"#).err().unwrap());

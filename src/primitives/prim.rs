@@ -1,3 +1,4 @@
+use super::Text;
 use super::Type;
 use super::Num;
 
@@ -38,7 +39,7 @@ impl From<bool> for Bool {
 pub enum Prim {
 	Bool(Bool),
 	Num(Num),
-	String(String),
+	Text(Text),
 	Type(Type),
 }
 
@@ -47,7 +48,7 @@ impl fmt::Display for Prim {
 		match self {
 			Prim::Bool(b) => b.fmt(f),
 			Prim::Num(n) => n.fmt(f),
-			Prim::String(s) => write!(f, "\"{}\"", s),
+			Prim::Text(t) => t.fmt(f),
 			Prim::Type(t) => t.fmt(f),
 		}
 	}
@@ -73,6 +74,6 @@ impl From<f64> for Prim {
 
 impl From<String> for Prim {
 	fn from(s: String) -> Prim {
-		Prim::String(s)
+		Prim::Text(s.into())
 	}
 }

@@ -41,7 +41,7 @@ Variables can be set using `let` *variable* `=` *value*. Variable names can cont
 |            | Operation                                      | Syntax                                      |
 | ---------: | :--------------------------------------------- | :------------------------------------------ |
 |          1 | Function application with parentheses          | *f*`(`*arg1*`,` *arg2*`,` *...*`)`          |
-|          2 | List/string index                              | *list/string*`[`*index*`]`                  |
+|          2 | List/string index or slice                     | *list/string*`[`*index* or *range*`]`       |
 |          3 | Exponentiation                                 | *value* `**` *value* or *value* `^` *value* |
 |          4 | Function application without parentheses       | *f* *arg*                                   |
 |          5 | Implicit multiplication                        | *value* *value*                             |
@@ -69,7 +69,7 @@ Implicit multiplication is supported and uses the same syntax as function applic
 
 Function application varies in precedence depending on the use of parentheses so that, for example, `sin x^2` does `x^2` first but `sin(x)^2` does `sin(x)` first, to better match expectations.
 
-List and string indexes are modulo length, so `[1, 2, 3][-1]` is equal to `3`, and `"hello"[5]` is equal to `"h"`.
+List and string indexes (including in slices) are modulo length, so `[1, 2, 3][-1]` is equal to `3`, and `"hello"[-1..0]` is equal to `"oh"`. Within a slice expression, an empty range start defaults to `0`, and an empty range end defaults to one less than the length of the list/string.
 
 Lists can be concatenated with lists, and strings can be concatenated with arbitrary values on either side.
 

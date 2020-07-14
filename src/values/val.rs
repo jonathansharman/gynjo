@@ -59,7 +59,7 @@ impl From<f64> for Val {
 
 impl From<String> for Val {
 	fn from(s: String) -> Val {
-		Val::Prim(Prim::String(s))
+		Val::Prim(Prim::Text(s.into()))
 	}
 }
 
@@ -80,7 +80,7 @@ impl Val {
 			Val::Prim(prim) => match prim {
 				Prim::Bool(_) => Type::Boolean,
 				Prim::Num(number) => Type::Quant(number.get_type()),
-				Prim::String(_) => Type::String,
+				Prim::Text(_) => Type::Text,
 				Prim::Type(_) => Type::Type,
 			},
 			Val::Quant(quant) => Type::Quant(quant.value().get_type()),
@@ -113,7 +113,7 @@ impl FormatWithEnv for Val {
 			Val::Prim(primitive) => match primitive {
 				Prim::Bool(b) => b.to_string(),
 				Prim::Num(number) => number.format_with_env(&env),
-				Prim::String(s) => format!("\"{}\"", s),
+				Prim::Text(t) => t.to_string(),
 				Prim::Type(t) => t.to_string(),
 			},
 			Val::Quant(quant) => quant.format_with_env(&env),

@@ -132,7 +132,7 @@ pub enum Tok {
 	#[token("integer", |_| Some(Prim::Type(Type::Quant(NumType::Integer))))]
 	#[token("rational", |_| Some(Prim::Type(Type::Quant(NumType::Rational))))]
 	#[token("real", |_| Some(Prim::Type(Type::Quant(NumType::Real))))]
-	#[token("string", |_| Some(Prim::Type(Type::String)))]
+	#[token("text", |_| Some(Prim::Type(Type::Text)))]
 	#[token("tuple", |_| Some(Prim::Type(Type::Tuple)))]
 	#[token("list", |_| Some(Prim::Type(Type::List)))]
 	#[token("closure", |_| Some(Prim::Type(Type::Closure)))]

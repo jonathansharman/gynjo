@@ -1,13 +1,19 @@
 // Functional list implementation based on https://rust-unofficial.github.io/too-many-lists/third-final.html.
 
+use super::Range;
 use super::Val;
+use super::Quant;
 
 use crate::env::SharedEnv;
+use crate::errors::RtErr;
 use crate::format_with_env::FormatWithEnv;
+use crate::primitives::Num;
 
 use itertools::Itertools;
+use num_traits::cast::ToPrimitive;
 
 use std::sync::Arc;
+
 /// A functional linked list of Gynjo values.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct List {
@@ -96,15 +102,65 @@ impl List {
 		})
 	}
 
-	/// Gets the nth element of this list or `None` if out of bounds.
-	pub fn nth(&self, mut idx: usize) -> Option<Val> {
-		let mut iter = self.iter();
-		let mut result = iter.next();
-		while result.is_some() && idx != 0 {
-			result = iter.next();
-			idx -= 1;
+	/// Gets the element of this list at index `idx` modulo the list length.
+	///
+	/// `env`: Used for formatting error messages if the index is not a scalar integer.
+	/// `idx`: The index to retrieve. Must be an integer.
+	pub fn nth(&self, env: &SharedEnv, idx: Quant) -> Result<Val, RtErr> {
+		if self.is_empty() {
+			return Err(RtErr::OutOfBounds);
 		}
-		result.map(|val| val.clone())
+		let idx = idx.into_scalar().map_err(RtErr::quant)?;
+		if let Num::Integer(idx) = idx {
+			let idx = idx.to_i64().ok_or(RtErr::OutOfBounds)?;
+			let signed_len = self.len() as i64;
+			let mut idx = ((idx % signed_len) + signed_len) % signed_len;
+			let mut iter = self.iter();
+			let mut result = iter.next();
+			while result.is_some() && idx != 0 {
+				result = iter.next();
+				idx -= 1;
+			}
+			result.map(|val| val.clone()).ok_or(RtErr::OutOfBounds)
+		} else {
+			Err(RtErr::InvalidIndex { idx: idx.format_with_env(&env) })
+		}
+	}
+
+	/// Copies a slice from this list, based on `index`.
+	///
+	/// `env`: Used for formatting error messages if an error occurs.
+	/// `index`: Either an single integral index or a `Range` of indices.
+	///
+	/// Empty lower/upper bounds use the beginning/end of the list.
+	///
+	/// Individual indices are copied modulo the length of the list.
+	pub fn slice(&self, env: &SharedEnv, idx: List) -> Result<Val, RtErr> {
+		if idx.len() != 1 {
+			return Err(RtErr::InvalidIndex { idx: idx.format_with_env(&env) });
+		}
+		match idx.head().unwrap().clone() {
+			Val::Quant(idx) => Ok(self.nth(&env, idx)?),
+			Val::Range(range) => {
+				let mut result = Self::empty();
+				let (start, end, mut stride) = range.into_start_end_stride();
+				let start = start.or(Some(Quant::scalar(Num::from(0))));
+				let end = end.or(Some(Quant::scalar(Num::from((self.len() - 1) as i64))));
+				// Check if the stride needs to be reversed.
+				if let (Some(start), Some(end)) = (&start, &end) {
+					if (start < end && stride.value().is_negative()) || (start > end && stride.value().is_positive()) {
+						stride = -stride;
+					}
+				}
+				let range = Range::new(start, end, Some(stride));
+				// Iterate in reverse since lists are built last-in-first-out.
+				for idx in range.reverse().into_iter() {
+					result = result.push(self.nth(&env, idx.map_err(RtErr::quant)?)?);
+				}
+				Ok(Val::List(result))
+			},
+			invalid @ _ => Err(RtErr::InvalidIndex { idx: invalid.format_with_env(&env) }),
+		}
 	}
 
 	/// A new list with this list's elements in reverse order.
@@ -211,9 +267,13 @@ mod tests {
 		assert_eq!(make_list!(Val::empty()), make_list!(Val::from(1)).map(|_| -> Result<Val, ()> { Ok(Val::empty()) }).unwrap());
 	}
 	#[test]
-	fn nth() {
-		assert_eq!(None, List::empty().nth(0));
-		assert_eq!(Some(Val::from(2)), make_list!(Val::from(1), Val::from(2)).nth(1));
+	fn nth() -> Result<(), crate::errors::RtErr> {
+		use crate::env::Env;
+		use crate::values::Quant;
+		let env = Env::new(None);
+		assert!(List::empty().nth(&env, Quant::scalar(0.into())).is_err());
+		assert_eq!(Val::from(2), make_list!(Val::from(1), Val::from(2)).nth(&env, Quant::scalar(1.into()))?);
+		Ok(())
 	}
 	#[test]
 	fn reverse() {
