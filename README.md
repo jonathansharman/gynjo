@@ -15,7 +15,7 @@ A command-line calculator and programming language with an emphasis on short, ma
 ```
 
 ## Contents
-1. [Variable Assignment](#variables)
+1. [Variable Assignment](#variable-assignment)
 1. [Operators and Precedence](#operators-and-precedence)
 1. [Units and Dimensional Analysis](#units-and-dimensional-analysis)
 1. [Blocks and Control Flow](#blocks-and-control-flow)
