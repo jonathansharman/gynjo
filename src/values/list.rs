@@ -204,7 +204,7 @@ impl List {
 	pub fn as_index(&self, env: &SharedEnv) -> Result<Index, RtErr> {
 		match (self.head(), self.tail()) {
 			// There must be exactly one element.
-			(Some(head), None) => match head {
+			(Some(head), Some(tail)) if tail.is_empty() => match head {
 				Val::Quant(idx) => {
 					idx.as_i64()
 						.map(|idx| Index::Element(idx))
