@@ -1,12 +1,14 @@
-use super::{Units, UnitErr};
+use super::{UnitErr, Units};
 
 use crate::env::SharedEnv;
 use crate::format_with_env::FormatWithEnv;
 use crate::primitives::{Num, NumErr};
 
+use bigdecimal::ToPrimitive;
+
 use std::cmp::{Ord, PartialOrd};
 use std::fmt;
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum QuantErr {
@@ -50,7 +52,10 @@ impl Quant {
 
 	/// Constructs a dimensionless quantity with `val`.
 	pub fn scalar(val: Num) -> Self {
-		Quant { val, units: Units::empty() }
+		Quant {
+			val,
+			units: Units::empty(),
+		}
 	}
 
 	/// The numeric value of this quantity.
@@ -73,16 +78,34 @@ impl Quant {
 		Ok(self.convert_into(Units::empty())?.val)
 	}
 
+	/// Gets `self` as an `i64` if it's integral, otherwise returns `None`.
+	pub fn as_i64(&self) -> Option<i64> {
+		return self.clone().into_scalar().ok().and_then(|n| match n {
+			Num::Integer(i) => i.to_i64(),
+			_ => None,
+		});
+	}
+
 	/// Converts `self` into a quantity that uses only base units.
 	pub fn convert_into_base(self) -> Result<Self, QuantErr> {
-		let (units, factor) = self.units.to_base_units_and_factor().map_err(QuantErr::num)?;
-		Ok(Self { val: self.val * factor, units })
+		let (units, factor) = self
+			.units
+			.to_base_units_and_factor()
+			.map_err(QuantErr::num)?;
+		Ok(Self {
+			val: self.val * factor,
+			units,
+		})
 	}
 
 	/// Converts `self` into a quantity that uses `to_units`, if the dimensions match.
 	pub fn convert_into(self, to_units: Units) -> Result<Self, QuantErr> {
+		let right = self
+			.units
+			.conversion_factor(to_units.clone())
+			.map_err(QuantErr::unit)?;
 		Ok(Self {
-			val: self.val * self.units.conversion_factor(to_units.clone()).map_err(QuantErr::unit)?,
+			val: self.val * right,
 			units: to_units,
 		})
 	}
@@ -114,13 +137,17 @@ impl From<Num> for Quant {
 
 impl From<Units> for Quant {
 	fn from(units: Units) -> Self {
-		Self { val: 1.into(), units }
+		Self {
+			val: 1.into(),
+			units,
+		}
 	}
 }
 
 impl PartialEq for Quant {
 	fn eq(&self, other: &Self) -> bool {
-		other.clone()
+		other
+			.clone()
 			.convert_into(self.units.clone())
 			.map_or(false, |other| self.val.eq(&other.val))
 	}
@@ -130,9 +157,11 @@ impl Eq for Quant {}
 
 impl PartialOrd for Quant {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-		other.clone()
+		other
+			.clone()
 			.convert_into(self.units.clone())
-			.map(|same_units| self.val.cmp(&same_units.val)).ok()
+			.map(|same_units| self.val.cmp(&same_units.val))
+			.ok()
 	}
 }
 
@@ -170,7 +199,10 @@ impl Mul for Quant {
 impl Div for Quant {
 	type Output = Result<Self, QuantErr>;
 	fn div(self, rhs: Self) -> Self::Output {
-		let (units, factor) = self.units.merge_units(rhs.units.inverse()).map_err(QuantErr::num)?;
+		let (units, factor) = self
+			.units
+			.merge_units(rhs.units.inverse())
+			.map_err(QuantErr::num)?;
 		Ok(Self {
 			val: (self.val / (rhs.val * factor)).map_err(QuantErr::num)?,
 			units,
@@ -181,6 +213,9 @@ impl Div for Quant {
 impl Neg for Quant {
 	type Output = Self;
 	fn neg(self) -> Self::Output {
-		Self { val: -self.val, units: self.units }
+		Self {
+			val: -self.val,
+			units: self.units,
+		}
 	}
 }

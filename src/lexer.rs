@@ -11,7 +11,9 @@ pub fn lex(input: &str) -> LexResult {
 	let mut tokens: Vec<Tok> = Vec::new();
 	for (token, span) in Tok::lexer(input).spanned() {
 		if token == Tok::Err {
-			return Err(LexErr { unrecognized_token: input[span].to_string() });
+			return Err(LexErr {
+				unrecognized_token: input[span].to_string(),
+			});
 		} else {
 			tokens.push(token)
 		}
@@ -28,18 +30,30 @@ mod tests {
 	use crate::tokens::Tok;
 
 	impl Tok {
-		fn from_string<S>(s: S) -> Tok where S: Into<String> {
+		fn from_string<S>(s: S) -> Tok
+		where
+			S: Into<String>,
+		{
 			Tok::Prim(Prim::from(s.into()))
 		}
-	
-		fn from_symbol<S>(s: S) -> Tok where S: Into<String> {
+
+		fn from_symbol<S>(s: S) -> Tok
+		where
+			S: Into<String>,
+		{
 			Tok::Sym(Sym::from(s))
 		}
 	}
-	
+
 	#[test]
 	fn whitespace() -> Result<(), LexErr> {
-		let expected: Vec<Tok> = vec!(Tok::from(1), Tok::Plus, Tok::from(2), Tok::Plus, Tok::from(3));
+		let expected: Vec<Tok> = vec![
+			Tok::from(1),
+			Tok::Plus,
+			Tok::from(2),
+			Tok::Plus,
+			Tok::from(3),
+		];
 		let actual = lex(" \t \n 1 \n + \t 2+3 \t \n ")?;
 		assert_eq!(expected, actual);
 		Ok(())
@@ -47,7 +61,7 @@ mod tests {
 
 	#[test]
 	fn numbers_operators_and_separators() -> Result<(), LexErr> {
-		let expected = vec!(
+		let expected = vec![
 			Tok::Let,
 			Tok::Eq,
 			Tok::Neq,
@@ -75,7 +89,7 @@ mod tests {
 			Tok::Question,
 			Tok::Colon,
 			Tok::Concat,
-		);
+		];
 		let actual = lex("let=!=<<=>>=~*(+-->)[]^***/.1 0 0.1,?:|")?;
 		assert_eq!(expected, actual);
 		Ok(())
@@ -83,7 +97,7 @@ mod tests {
 
 	#[test]
 	fn line_comments() -> Result<(), LexErr> {
-		let expected = vec!(Tok::from(1), Tok::Plus, Tok::from(2));
+		let expected = vec![Tok::from(1), Tok::Plus, Tok::from(2)];
 		let actual = lex("1+2 // This is a line comment.")?;
 		assert_eq!(expected, actual);
 		Ok(())
@@ -91,11 +105,17 @@ mod tests {
 
 	#[test]
 	fn symbol_with_keyword_prefix() -> Result<(), LexErr> {
-		let expected = vec!(
-			Tok::Import, Tok::from(1), Tok::from_symbol("importa"),
-			Tok::If, Tok::from(1), Tok::from_symbol("ifb"),
-			Tok::Then, Tok::from(1), Tok::from_symbol("thenc"),
-		);
+		let expected = vec![
+			Tok::Import,
+			Tok::from(1),
+			Tok::from_symbol("importa"),
+			Tok::If,
+			Tok::from(1),
+			Tok::from_symbol("ifb"),
+			Tok::Then,
+			Tok::from(1),
+			Tok::from_symbol("thenc"),
+		];
 		let actual = lex("import1 importa if1 ifb then1 thenc")?;
 		assert_eq!(expected, actual);
 		Ok(())

@@ -1,5 +1,5 @@
 use crate::intrinsics::Intrinsic;
-use crate::primitives::{Prim, Bool, Num, NumType, Type};
+use crate::primitives::{Bool, Num, NumType, Prim, Type};
 use crate::symbol::Sym;
 
 use bigdecimal::BigDecimal;

@@ -2,9 +2,7 @@ use super::{Closure, List, Quant, Range, Tuple};
 
 use crate::env::SharedEnv;
 use crate::format_with_env::FormatWithEnv;
-use crate::primitives::{Prim, Bool, Num, Type};
-
-use num_traits::cast::ToPrimitive;
+use crate::primitives::{Bool, Num, Prim, Type};
 
 use std::boxed::Box;
 
@@ -70,7 +68,10 @@ impl Val {
 	}
 
 	/// Constructs a dimensionless quantity value from `n`.
-	pub fn scalar<N>(n: N) -> Val where N: Into<Num> {
+	pub fn scalar<N>(n: N) -> Val
+	where
+		N: Into<Num>,
+	{
 		Val::Quant(Quant::scalar(n.into()))
 	}
 
@@ -93,14 +94,11 @@ impl Val {
 		}
 	}
 
-	/// Gets `self` as a `i64` if it's integral, otherwise returns `None`.
+	/// Gets `self` as an `i64` if it's integral, otherwise returns `None`.
 	pub fn as_i64(&self) -> Option<i64> {
 		match self {
-			Val::Prim(Prim::Num(Num::Integer(integer))) => integer.to_i64(),
-			Val::Quant(quant) => quant.clone().into_scalar().ok().and_then(|n| match n {
-				Num::Integer(integer) => integer.to_i64(),
-				_ => None,
-			}),
+			Val::Prim(Prim::Num(n)) => n.as_i64(),
+			Val::Quant(quant) => quant.as_i64(),
 			_ => None,
 		}
 	}

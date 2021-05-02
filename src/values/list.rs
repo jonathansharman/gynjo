@@ -1,8 +1,7 @@
 // Functional list implementation based on https://rust-unofficial.github.io/too-many-lists/third-final.html.
 
-use super::Range;
-use super::Val;
 use super::Quant;
+use super::Val;
 
 use crate::env::SharedEnv;
 use crate::errors::RtErr;
@@ -31,7 +30,10 @@ struct Node {
 
 impl Node {
 	/// Produces a new node by applying `f` to each element.
-	pub fn map<F, E>(&self, mut f: F) -> Result<Node, E> where F: FnMut(&Val) -> Result<Val, E> {
+	pub fn map<F, E>(&self, mut f: F) -> Result<Node, E>
+	where
+		F: FnMut(&Val) -> Result<Val, E>,
+	{
 		Ok(Node {
 			elem: f(&self.elem)?,
 			next: match self.next.clone() {
@@ -61,14 +63,20 @@ impl List {
 	/// A shallow copy of this list with `elem` added as the head.
 	pub fn push(&self, elem: Val) -> Self {
 		Self {
-			head: Some(Arc::new(Node { elem, next: self.head.clone(), })),
+			head: Some(Arc::new(Node {
+				elem,
+				next: self.head.clone(),
+			})),
 			len: self.len + 1,
 		}
 	}
 
 	/// A shallow copy of this list's tail.
 	pub fn tail(&self) -> Option<Self> {
-		self.head.as_ref().map(|node| Self { head: node.next.clone(), len: self.len - 1 })
+		self.head.as_ref().map(|node| Self {
+			head: node.next.clone(),
+			len: self.len - 1,
+		})
 	}
 
 	/// A reference to the first element of this list, if there is one.
@@ -79,20 +87,28 @@ impl List {
 	/// Concatenates `self` with `other`. The head of `self` is the head of the result.
 	pub fn concat(&self, other: Self) -> Self {
 		match &self.head {
-			Some(node) => Self { head: node.next.clone(), len: self.len - 1, }
-				.concat(other)
-				.push(node.elem.clone()),
+			Some(node) => Self {
+				head: node.next.clone(),
+				len: self.len - 1,
+			}
+			.concat(other)
+			.push(node.elem.clone()),
 			None => other,
 		}
 	}
 
 	/// Creates a reference iterator into this list's elements.
 	pub fn iter(&self) -> Iter<'_> {
-		Iter { next: self.head.as_ref().map(|node| &**node) }
+		Iter {
+			next: self.head.as_ref().map(|node| &**node),
+		}
 	}
 
 	/// Produces a new list by applying `f` to each element.
-	pub fn map<F, E>(&self, f: F) -> Result<Self, E> where F: FnMut(&Val) -> Result<Val, E> {
+	pub fn map<F, E>(&self, f: F) -> Result<Self, E>
+	where
+		F: FnMut(&Val) -> Result<Val, E>,
+	{
 		Ok(Self {
 			head: match self.head.clone() {
 				Some(node) => Some(Arc::new(node.map(f)?)),
@@ -100,6 +116,51 @@ impl List {
 			},
 			len: self.len,
 		})
+	}
+
+	/// Copies a value or slice of values from this list, based on `idx`.
+	///
+	/// `env`: Used for formatting error messages if an error occurs.
+	pub fn slice(&self, idx: Index) -> Result<Val, RtErr> {
+		match idx {
+			Index::Element(idx) => self
+				.iter()
+				.nth(idx as usize)
+				.ok_or(RtErr::OutOfBounds)
+				.map(|val| val.clone()),
+			Index::Slice {
+				mut start,
+				mut end,
+				mut stride,
+			} => {
+				let mut result = Self::empty();
+				// Ensure positive iteration direction. Note that lists are built last-in-first-out.
+				if stride < 0 {
+					start = self.len() as i64 - start;
+					end = self.len() as i64 - end;
+					stride = -stride;
+					let iter = self
+						.iter()
+						.skip(start as usize)
+						.step_by(stride as usize)
+						.take(((end - start) / stride) as usize);
+					for val in iter {
+						result = result.push(val.clone());
+					}
+				} else {
+					let reversed = self.reverse();
+					let iter = reversed
+						.iter()
+						.skip(start as usize)
+						.step_by(stride as usize)
+						.take(((end - start) / stride) as usize);
+					for val in iter {
+						result = result.push(val.clone());
+					}
+				};
+				Ok(Val::List(result))
+			}
+		}
 	}
 
 	/// Gets the element of this list at index `idx` modulo the list length.
@@ -123,43 +184,9 @@ impl List {
 			}
 			result.map(|val| val.clone()).ok_or(RtErr::OutOfBounds)
 		} else {
-			Err(RtErr::InvalidIndex { idx: idx.format_with_env(&env) })
-		}
-	}
-
-	/// Copies a slice from this list, based on `index`.
-	///
-	/// `env`: Used for formatting error messages if an error occurs.
-	/// `index`: Either an single integral index or a `Range` of indices.
-	///
-	/// Empty lower/upper bounds use the beginning/end of the list.
-	///
-	/// Individual indices are copied modulo the length of the list.
-	pub fn slice(&self, env: &SharedEnv, idx: List) -> Result<Val, RtErr> {
-		if idx.len() != 1 {
-			return Err(RtErr::InvalidIndex { idx: idx.format_with_env(&env) });
-		}
-		match idx.head().unwrap().clone() {
-			Val::Quant(idx) => Ok(self.nth(&env, idx)?),
-			Val::Range(range) => {
-				let mut result = Self::empty();
-				let (start, end, mut stride) = range.into_start_end_stride();
-				let start = start.or(Some(Quant::scalar(Num::from(0))));
-				let end = end.or(Some(Quant::scalar(Num::from((self.len() - 1) as i64))));
-				// Check if the stride needs to be reversed.
-				if let (Some(start), Some(end)) = (&start, &end) {
-					if (start < end && stride.value().is_negative()) || (start > end && stride.value().is_positive()) {
-						stride = -stride;
-					}
-				}
-				let range = Range::new(start, end, Some(stride));
-				// Iterate in reverse since lists are built last-in-first-out.
-				for idx in range.reverse().into_iter() {
-					result = result.push(self.nth(&env, idx.map_err(RtErr::quant)?)?);
-				}
-				Ok(Val::List(result))
-			},
-			invalid @ _ => Err(RtErr::InvalidIndex { idx: invalid.format_with_env(&env) }),
+			Err(RtErr::InvalidIndex {
+				idx: idx.format_with_env(&env),
+			})
 		}
 	}
 
@@ -170,6 +197,34 @@ impl List {
 			result = result.push(val.clone());
 		}
 		result
+	}
+
+	/// Converts this list to an `Index` if it contains a single element which
+	/// is either a single integer `Quant` or a single `Range`.
+	pub fn as_index(&self, env: &SharedEnv) -> Result<Index, RtErr> {
+		match (self.head(), self.tail()) {
+			// There must be exactly one element.
+			(Some(head), None) => match head {
+				Val::Quant(idx) => {
+					idx.as_i64()
+						.map(|idx| Index::Element(idx))
+						.ok_or(RtErr::InvalidIndex {
+							idx: idx.format_with_env(&env),
+						})
+				}
+				Val::Range(range) => {
+					let (start, end, stride) =
+						range.clone().into_start_end_stride(self.len() as i64)?;
+					Ok(Index::Slice { start, end, stride })
+				}
+				invalid @ _ => Err(RtErr::InvalidIndex {
+					idx: invalid.format_with_env(&env),
+				}),
+			},
+			_ => Err(RtErr::InvalidIndex {
+				idx: self.format_with_env(&env),
+			}),
+		}
 	}
 }
 
@@ -201,9 +256,19 @@ impl<'a> Iterator for Iter<'a> {
 	}
 }
 
+pub enum Index {
+	Element(i64),
+	Slice { start: i64, end: i64, stride: i64 },
+}
+
 impl FormatWithEnv for List {
 	fn format_with_env(&self, env: &SharedEnv) -> String {
-		format!("[{}]", self.iter().map(|elem| elem.format_with_env(&env)).join(", "))
+		format!(
+			"[{}]",
+			self.iter()
+				.map(|elem| elem.format_with_env(&env))
+				.join(", ")
+		)
 	}
 }
 
@@ -226,8 +291,8 @@ macro_rules! make_list_value {
 
 #[cfg(test)]
 mod tests {
-	use super::super::val::Val;
 	use super::super::list::List;
+	use super::super::val::Val;
 	#[test]
 	fn head_and_tail() {
 		let list = List::empty();
@@ -263,8 +328,18 @@ mod tests {
 	}
 	#[test]
 	fn map() {
-		assert_eq!(List::empty(), List::empty().map(|_| -> Result<Val, ()> { Ok(Val::empty()) }).unwrap());
-		assert_eq!(make_list!(Val::empty()), make_list!(Val::from(1)).map(|_| -> Result<Val, ()> { Ok(Val::empty()) }).unwrap());
+		assert_eq!(
+			List::empty(),
+			List::empty()
+				.map(|_| -> Result<Val, ()> { Ok(Val::empty()) })
+				.unwrap()
+		);
+		assert_eq!(
+			make_list!(Val::empty()),
+			make_list!(Val::from(1))
+				.map(|_| -> Result<Val, ()> { Ok(Val::empty()) })
+				.unwrap()
+		);
 	}
 	#[test]
 	fn nth() -> Result<(), crate::errors::RtErr> {
@@ -272,12 +347,18 @@ mod tests {
 		use crate::values::Quant;
 		let env = Env::new(None);
 		assert!(List::empty().nth(&env, Quant::scalar(0.into())).is_err());
-		assert_eq!(Val::from(2), make_list!(Val::from(1), Val::from(2)).nth(&env, Quant::scalar(1.into()))?);
+		assert_eq!(
+			Val::from(2),
+			make_list!(Val::from(1), Val::from(2)).nth(&env, Quant::scalar(1.into()))?
+		);
 		Ok(())
 	}
 	#[test]
 	fn reverse() {
 		assert_eq!(List::empty(), List::empty().reverse());
-		assert_eq!(make_list!(Val::from(1), Val::from(2)), make_list!(Val::from(2), Val::from(1)).reverse());
+		assert_eq!(
+			make_list!(Val::from(1), Val::from(2)),
+			make_list!(Val::from(2), Val::from(1)).reverse()
+		);
 	}
 }

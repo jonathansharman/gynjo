@@ -1,5 +1,7 @@
 use crate::errors::ParseErr;
-use crate::expressions::{Expr, BinExpr, BinOp, Cluster, ClusterItem, ClusterConnector, Lambda, LambdaBody};
+use crate::expressions::{
+	BinExpr, BinOp, Cluster, ClusterConnector, ClusterItem, Expr, Lambda, LambdaBody,
+};
 use crate::intrinsics::Intrinsic;
 use crate::symbol::Sym;
 use crate::tokens::Tok;
@@ -16,13 +18,19 @@ pub fn parse(tokens: &[Tok]) -> Result<Expr, ParseErr> {
 	if tokens.is_empty() {
 		Ok(expr)
 	} else {
-		Err(ParseErr::UnusedInput { first_unused: tokens.first().unwrap().clone() })
+		Err(ParseErr::UnusedInput {
+			first_unused: tokens.first().unwrap().clone(),
+		})
 	}
 }
 
 /// Parses a single `required` token from `tokens` and returns the remaining tokens.
 /// `context` - The expression in which the token is required, for the purpose of error reporting.
-fn parse_required_token<'a>(tokens: &'a [Tok], required: &Tok, context: &'static str) -> Result<&'a [Tok], ParseErr> {
+fn parse_required_token<'a>(
+	tokens: &'a [Tok],
+	required: &Tok,
+	context: &'static str,
+) -> Result<&'a [Tok], ParseErr> {
 	match tokens {
 		[] => Err(ParseErr::EndOfInput {
 			context,
@@ -73,9 +81,15 @@ fn parse_range_expr(tokens: &[Tok], lower_expr: Option<Expr>) -> ParseExprResult
 	if has_explicit_stride {
 		// Parse stride.
 		let (tokens, stride_expr) = parse_basic_expr(tokens)?;
-		Ok((tokens, Expr::RangeExpr(Box::new((lower_expr, upper_expr, Some(stride_expr))))))
+		Ok((
+			tokens,
+			Expr::RangeExpr(Box::new((lower_expr, upper_expr, Some(stride_expr)))),
+		))
 	} else {
-		Ok((tokens, Expr::RangeExpr(Box::new((lower_expr, upper_expr, None)))))
+		Ok((
+			tokens,
+			Expr::RangeExpr(Box::new((lower_expr, upper_expr, None))),
+		))
 	}
 }
 
@@ -94,7 +108,10 @@ fn parse_basic_expr(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a function body.
 fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 	match tokens {
-		[] => Err(ParseErr::EndOfInput { context: "lambda", expected: "function body".into() }),
+		[] => Err(ParseErr::EndOfInput {
+			context: "lambda",
+			expected: "function body".into(),
+		}),
 		[Tok::Arrow, tokens @ ..] => parse_expr(tokens),
 		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "lambda",
@@ -123,31 +140,35 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					let mut tokens = after_first_elem;
 					loop {
 						match tokens {
-							[] => return Err(ParseErr::EndOfInput {
-								context: "tuple expression",
-								expected: "',' or ')'".into(),
-							}),
+							[] => {
+								return Err(ParseErr::EndOfInput {
+									context: "tuple expression",
+									expected: "',' or ')'".into(),
+								})
+							}
 							// Additional tuple element
 							[Tok::Comma, after_comma @ ..] => {
 								tokens = after_comma;
 								let (after_next_elem, next_elem) = parse_expr(tokens)?;
 								tokens = after_next_elem;
 								elems.push(next_elem);
-							},
+							}
 							// End of tuple
 							[Tok::Rparen, after_rparen @ ..] => {
 								tokens = after_rparen;
 								break;
-							},
-							[invalid @ _, ..] => return Err(ParseErr::InvalidInput {
-								context: "tuple expression",
-								expected: Some(r#""," or ")""#.into()),
-								actual: invalid.clone(),
-							}),
+							}
+							[invalid @ _, ..] => {
+								return Err(ParseErr::InvalidInput {
+									context: "tuple expression",
+									expected: Some(r#""," or ")""#.into()),
+									actual: invalid.clone(),
+								})
+							}
 						}
 					}
 					tokens
-				},
+				}
 				// Empty tuple; parse close parenthesis.
 				_ => parse_required_token(&tokens[1..], &Tok::Rparen, "tuple expression")?,
 			};
@@ -160,17 +181,20 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					_ => {
 						could_be_lambda = false;
 						break;
-					},
+					}
 				}
 			}
 			if could_be_lambda {
 				// Try to parse a lambda body.
 				if let Ok((after_body, body_expr)) = parse_body(after_tuple) {
 					// Assemble lambda from parameter tuple and body.
-					return Ok((after_body, Expr::Lambda(Lambda {
-						params: params,
-						body: LambdaBody::UserDefined(Box::new(body_expr)),
-					})));
+					return Ok((
+						after_body,
+						Expr::Lambda(Lambda {
+							params: params,
+							body: LambdaBody::UserDefined(Box::new(body_expr)),
+						}),
+					));
 				}
 			}
 			// Collapse singletons back into their contained values. This allows use of parentheses for
@@ -182,7 +206,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				// Return unmodified tuple.
 				Ok((after_tuple, Expr::TupleExpr(Box::new(elems))))
 			}
-		},
+		}
 		// List
 		[Tok::Lsquare, after_lsquare @ ..] => {
 			let mut tokens = after_lsquare;
@@ -194,27 +218,31 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				// Try to parse additional comma-delimited expressions.
 				loop {
 					match tokens {
-						[] => return Err(ParseErr::EndOfInput {
-							context: "list expression",
-							expected: r#"," or "]""#.into(),
-						}),
+						[] => {
+							return Err(ParseErr::EndOfInput {
+								context: "list expression",
+								expected: r#"," or "]""#.into(),
+							})
+						}
 						// Additional list element
 						[Tok::Comma, after_comma @ ..] => {
 							tokens = after_comma;
 							let (after_next_elem, next_elem) = parse_expr(tokens)?;
 							tokens = after_next_elem;
 							elems.push_front(next_elem);
-						},
+						}
 						// End of list
 						[Tok::Rsquare, after_rsquare @ ..] => {
 							tokens = after_rsquare;
 							break;
-						},
-						[invalid @ _, ..] => return Err(ParseErr::InvalidInput {
-							context: "list expression",
-							expected: Some(r#""," or ")""#.into()),
-							actual: invalid.clone(),
-						}),
+						}
+						[invalid @ _, ..] => {
+							return Err(ParseErr::InvalidInput {
+								context: "list expression",
+								expected: Some(r#""," or ")""#.into()),
+								actual: invalid.clone(),
+							})
+						}
 					}
 				}
 			} else {
@@ -222,7 +250,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				tokens = parse_required_token(&tokens, &Tok::Rsquare, "list expression")?;
 			}
 			Ok((tokens, Expr::ListExpr(elems)))
-		},
+		}
 		// Block
 		[Tok::Lcurly, after_lcurly @ ..] => {
 			let mut tokens = after_lcurly;
@@ -231,38 +259,46 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 			let mut final_semicolon = false;
 			loop {
 				match tokens {
-					[] => return Err(ParseErr::EndOfInput {
-						context: "block",
-						expected: r#""," or "}""#.into(),
-					}),
+					[] => {
+						return Err(ParseErr::EndOfInput {
+							context: "block",
+							expected: r#""," or "}""#.into(),
+						})
+					}
 					[Tok::Semicolon, after_semicolon @ ..] => {
 						// Semicolons optionally separate block expressions.
 						tokens = after_semicolon;
 						final_semicolon = true;
-					},
+					}
 					[Tok::Rcurly, after_rclurly @ ..] => {
 						// End of block. If block ended with a semicolon, the result is ().
 						if final_semicolon {
 							exprs.push(Expr::TupleExpr(Box::new(Vec::new())));
 						}
-						return Ok((after_rclurly, Expr::Block(exprs)))
-					},
+						return Ok((after_rclurly, Expr::Block(exprs)));
+					}
 					_ => {
 						let (after_expr, expr) = parse_expr(tokens)?;
 						tokens = after_expr;
 						exprs.push(expr);
 						final_semicolon = false;
-					},
+					}
 				}
 			}
-		},
+		}
 		// Intrinsic function
 		[Tok::Intrinsic(f), tokens @ ..] => {
 			let params = match f {
-				Intrinsic::Pop => vec!(Sym::from("list")),
+				Intrinsic::Pop => vec![Sym::from("list")],
 			};
-			Ok((tokens, Expr::Lambda(Lambda { params, body: LambdaBody::Intrinsic(*f) })))
-		},
+			Ok((
+				tokens,
+				Expr::Lambda(Lambda {
+					params,
+					body: LambdaBody::Intrinsic(*f),
+				}),
+			))
+		}
 		// Base unit conversion
 		[Tok::Basic, tokens @ ..] => parse_base_conversion(tokens),
 		// Control flow
@@ -273,26 +309,29 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		[Tok::Write, tokens @ ..] => {
 			let (tokens, output) = parse_expr(tokens)?;
 			Ok((tokens, Expr::Write(Box::new(output))))
-		},
+		}
 		// Get type
 		[Tok::GetType, tokens @ ..] => {
 			let (tokens, expr) = parse_expr(tokens)?;
 			Ok((tokens, Expr::GetType(Box::new(expr))))
-		},
+		}
 		// Symbol or lambda
 		[Tok::Sym(symbol), tokens @ ..] => {
 			// Could be a parentheses-less unary lambda. Try to parse a lambda body.
 			if let Ok((tokens, body_expr)) = parse_body(tokens) {
 				// Assemble lambda from the parameter wrapped in a tuple and the body.
-				Ok((tokens, Expr::Lambda(Lambda {
-					params: vec!(symbol.clone()),
-					body: LambdaBody::UserDefined(Box::new(body_expr)),
-				})))
+				Ok((
+					tokens,
+					Expr::Lambda(Lambda {
+						params: vec![symbol.clone()],
+						body: LambdaBody::UserDefined(Box::new(body_expr)),
+					}),
+				))
 			} else {
 				// It's just a symbol.
 				Ok((tokens, Expr::Sym(symbol.clone())))
 			}
-		},
+		}
 		// Primitive
 		[Tok::Prim(primitive), tokens @ ..] => Ok((tokens, Expr::Prim(primitive.clone()))),
 		// Unit
@@ -307,14 +346,20 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 }
 
 /// Parses a cluster item after an operator or parenthesis.
-fn parse_required_cluster_item(tokens: &[Tok], connector: ClusterConnector) -> Result<(&[Tok], ClusterItem), ParseErr> {
+fn parse_required_cluster_item(
+	tokens: &[Tok],
+	connector: ClusterConnector,
+) -> Result<(&[Tok], ClusterItem), ParseErr> {
 	let (after_minus, negated) = parse_optional_token(tokens, &Tok::Minus);
 	let (after_expr, expr) = parse_value(after_minus)?;
-	Ok((after_expr, ClusterItem {
-		expr: Box::new(expr),
-		negated: negated,
-		connector: connector,
-	}))
+	Ok((
+		after_expr,
+		ClusterItem {
+			expr: Box::new(expr),
+			negated: negated,
+			connector: connector,
+		},
+	))
 }
 
 /// Parses a cluster of function calls, exponentiations, (possibly implicit) multiplications,
@@ -324,37 +369,41 @@ fn parse_cluster(tokens: &[Tok]) -> ParseExprResult {
 	// Parse the first cluster item.
 	let (tokens, cluster_negated) = parse_optional_token(tokens, &Tok::Minus);
 	let (tokens, first_expr) = parse_value(tokens)?;
-	let mut items = vec!(ClusterItem {
+	let mut items = vec![ClusterItem {
 		expr: Box::new(first_expr),
 		negated: false,
 		connector: ClusterConnector::None,
-	});
+	}];
 	// Parse subsequent cluster items.
 	let mut tokens = tokens;
 	loop {
 		match tokens {
 			[] => break,
 			[Tok::Mul, after_connector @ ..] => {
-				let (after_item, item) = parse_required_cluster_item(after_connector, ClusterConnector::Mul)?;
+				let (after_item, item) =
+					parse_required_cluster_item(after_connector, ClusterConnector::Mul)?;
 				tokens = after_item;
 				items.push(item);
-			},
+			}
 			[Tok::Div, after_connector @ ..] => {
-				let (after_item, item) = parse_required_cluster_item(after_connector, ClusterConnector::Div)?;
+				let (after_item, item) =
+					parse_required_cluster_item(after_connector, ClusterConnector::Div)?;
 				tokens = after_item;
 				items.push(item);
-			},
+			}
 			[Tok::Exp, after_connector @ ..] => {
-				let (after_item, item) = parse_required_cluster_item(after_connector, ClusterConnector::Exp)?;
+				let (after_item, item) =
+					parse_required_cluster_item(after_connector, ClusterConnector::Exp)?;
 				tokens = after_item;
 				items.push(item);
-			},
+			}
 			[Tok::Lparen, ..] => {
 				// Don't consume the left parenthesis.
-				let (after_item, item) = parse_required_cluster_item(tokens, ClusterConnector::AdjParen)?;
+				let (after_item, item) =
+					parse_required_cluster_item(tokens, ClusterConnector::AdjParen)?;
 				tokens = after_item;
 				items.push(item);
-			},
+			}
 			_ => {
 				// Try to parse an adjacent (non-negated) value, but it's not required.
 				if let Ok((after_expr, expr)) = parse_value(tokens) {
@@ -367,19 +416,29 @@ fn parse_cluster(tokens: &[Tok]) -> ParseExprResult {
 				} else {
 					break;
 				}
-			},
+			}
 		}
 	}
 	if items.len() == 1 && !cluster_negated {
 		// Found a single non-negated value. Just extract it here.
 		Ok((tokens, *items.remove(0).expr))
 	} else {
-		Ok((tokens, Expr::Cluster(Cluster { negated: cluster_negated, items })))
+		Ok((
+			tokens,
+			Expr::Cluster(Cluster {
+				negated: cluster_negated,
+				items,
+			}),
+		))
 	}
 }
 
 /// Parses a series of left-associative binary expressions with equal precedence, using `subparse` to parse each operand.
-fn parse_binary_expressions<'a>(tokens: &'a [Tok], subparse: fn(&'a [Tok]) -> ParseExprResult, op_map: &HashMap<Tok, BinOp>) -> ParseExprResult<'a> {
+fn parse_binary_expressions<'a>(
+	tokens: &'a [Tok],
+	subparse: fn(&'a [Tok]) -> ParseExprResult,
+	op_map: &HashMap<Tok, BinOp>,
+) -> ParseExprResult<'a> {
 	// Parse first expression.
 	let (mut tokens, mut exprs) = subparse(tokens)?;
 	// Parse subsequent expressions.
@@ -395,7 +454,7 @@ fn parse_binary_expressions<'a>(tokens: &'a [Tok], subparse: fn(&'a [Tok]) -> Pa
 						left: Box::new(exprs),
 						right: Box::new(next_expr),
 					});
-				},
+				}
 				None => break,
 			},
 			None => break,
@@ -406,41 +465,86 @@ fn parse_binary_expressions<'a>(tokens: &'a [Tok], subparse: fn(&'a [Tok]) -> Pa
 
 /// Parses a series of concatenations.
 fn parse_concatenations(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_cluster, &[(Tok::Concat, BinOp::Concat)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_cluster,
+		&[(Tok::Concat, BinOp::Concat)].iter().cloned().collect(),
+	)
 }
 
 /// Parses a series of additions and subtractions.
 fn parse_terms(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_concatenations,
-		&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_concatenations,
+		&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)]
+			.iter()
+			.cloned()
+			.collect(),
+	)
 }
 
 /// Parses a series of type casts or unit conversions.
 fn parse_conversions(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_terms,
-		&[(Tok::As, BinOp::As), (Tok::In, BinOp::In)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_terms,
+		&[(Tok::As, BinOp::As), (Tok::In, BinOp::In)]
+			.iter()
+			.cloned()
+			.collect(),
+	)
 }
 
 /// Parses a series of comparison checks (not including equality, inequality, or approximate equality).
 fn parse_comparisons(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_conversions,
-		&[(Tok::Lt, BinOp::Lt), (Tok::Leq, BinOp::Leq), (Tok::Gt, BinOp::Gt), (Tok::Geq, BinOp::Geq)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_conversions,
+		&[
+			(Tok::Lt, BinOp::Lt),
+			(Tok::Leq, BinOp::Leq),
+			(Tok::Gt, BinOp::Gt),
+			(Tok::Geq, BinOp::Geq),
+		]
+		.iter()
+		.cloned()
+		.collect(),
+	)
 }
 
 /// Parses a series of equality, inequality, or approximate equality checks.
 fn parse_eq_checks(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_comparisons,
-		&[(Tok::Eq, BinOp::Eq), (Tok::Neq, BinOp::Neq), (Tok::Approx, BinOp::Approx)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_comparisons,
+		&[
+			(Tok::Eq, BinOp::Eq),
+			(Tok::Neq, BinOp::Neq),
+			(Tok::Approx, BinOp::Approx),
+		]
+		.iter()
+		.cloned()
+		.collect(),
+	)
 }
 
 /// Parses a series of logical conjunctions.
 fn parse_conjunctions(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_eq_checks, &[(Tok::And, BinOp::And)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_eq_checks,
+		&[(Tok::And, BinOp::And)].iter().cloned().collect(),
+	)
 }
 
 /// Parses a series of logical disjunctions.
 fn parse_disjunctions(tokens: &[Tok]) -> ParseExprResult {
-	parse_binary_expressions(tokens, parse_conjunctions, &[(Tok::Or, BinOp::Or)].iter().cloned().collect())
+	parse_binary_expressions(
+		tokens,
+		parse_conjunctions,
+		&[(Tok::Or, BinOp::Or)].iter().cloned().collect(),
+	)
 }
 
 /// Parses a logical negation. Note that negation is right-associative.
@@ -449,7 +553,7 @@ fn parse_logical_negation(tokens: &[Tok]) -> ParseExprResult {
 		[Tok::Not, tokens @ ..] => {
 			let (tokens, expr) = parse_logical_negation(tokens)?;
 			Ok((tokens, Expr::Not(Box::new(expr))))
-		},
+		}
 		_ => parse_disjunctions(tokens),
 	}
 }
@@ -477,8 +581,15 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 			// Parse body.
 			let (tokens, body) = parse_expr(tokens)?;
 			// Assemble for-loop.
-			Ok((tokens, Expr::ForLoop { loop_var: loop_var.clone(), range: Box::new(range), body: Box::new(body) }))
-		},
+			Ok((
+				tokens,
+				Expr::ForLoop {
+					loop_var: loop_var.clone(),
+					range: Box::new(range),
+					body: Box::new(body),
+				},
+			))
+		}
 		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "for-loop",
 			expected: Some("loop variable".into()),
@@ -496,10 +607,13 @@ fn parse_while_loop(tokens: &[Tok]) -> ParseExprResult {
 	// Parse body.
 	let (tokens, body_expr) = parse_expr(tokens)?;
 	// Assemble while-loop.
-	Ok((tokens, Expr::WhileLoop {
-		test: Box::new(test_expr),
-		body: Box::new(body_expr),
-	}))
+	Ok((
+		tokens,
+		Expr::WhileLoop {
+			test: Box::new(test_expr),
+			body: Box::new(body_expr),
+		},
+	))
 }
 
 /// Parses a branch statment - if-then or if-then-else - starting after "if".
@@ -520,11 +634,14 @@ fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 		(tokens, Expr::TupleExpr(Box::new(Vec::new())))
 	};
 	// Assemble branch statement.
-	Ok((tokens, Expr::Branch {
-		test: Box::new(test_expr),
-		then_expr: Box::new(then_expr),
-		else_expr: Box::new(else_expr),
-	}))
+	Ok((
+		tokens,
+		Expr::Branch {
+			test: Box::new(test_expr),
+			then_expr: Box::new(then_expr),
+			else_expr: Box::new(else_expr),
+		},
+	))
 }
 
 /// Parses an assignment or unit declaration, starting after "let".
@@ -541,16 +658,28 @@ fn parse_assignment_or_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
 			// Parse RHS.
 			let (tokens, rhs) = parse_expr(tokens)?;
 			// Assemble assignment from symbol and RHS.
-			Ok((tokens, Expr::Assign { lhs: lhs.clone(), rhs: Box::new(rhs) }))
-		},
+			Ok((
+				tokens,
+				Expr::Assign {
+					lhs: lhs.clone(),
+					rhs: Box::new(rhs),
+				},
+			))
+		}
 		[Tok::Unit(unit_name), tokens @ ..] => {
 			// Parse "=".
 			let tokens = parse_required_token(&tokens, &Tok::Eq, "unit declaration")?;
 			// Parse value.
 			let (tokens, value) = parse_expr(tokens)?;
 			// Assemble assignment from symbol and RHS.
-			Ok((tokens, Expr::DeclUnit { unit_name: unit_name.clone(), value_expr: Box::new(value) }))
-		},
+			Ok((
+				tokens,
+				Expr::DeclUnit {
+					unit_name: unit_name.clone(),
+					value_expr: Box::new(value),
+				},
+			))
+		}
 		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
 			context: "assignment",
 			expected: Some("variable".into()),

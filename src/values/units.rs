@@ -32,8 +32,13 @@ impl fmt::Display for UnitErr {
 /// A unit of some dimension.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Unit {
-	Base { name: String },
-	NonBase { name: String, base_quantity: Box<Quant> },
+	Base {
+		name: String,
+	},
+	NonBase {
+		name: String,
+		base_quantity: Box<Quant>,
+	},
 }
 
 impl Unit {
@@ -44,12 +49,21 @@ impl Unit {
 		}
 	}
 
-	pub fn base<S>(name: S) -> Self where S: Into<String> {
+	pub fn base<S>(name: S) -> Self
+	where
+		S: Into<String>,
+	{
 		Unit::Base { name: name.into() }
 	}
 
-	pub fn non_base<S>(name: S, base: Quant) -> Self where S: Into<String> {
-		Unit::NonBase { name: name.into(), base_quantity: Box::new(base) }
+	pub fn non_base<S>(name: S, base: Quant) -> Self
+	where
+		S: Into<String>,
+	{
+		Unit::NonBase {
+			name: name.into(),
+			base_quantity: Box::new(base),
+		}
 	}
 }
 
@@ -62,13 +76,15 @@ impl fmt::Display for Unit {
 /// A mapping from dimensions to their units and powers.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Units {
-	map: HashMap<Unit, Num>
+	map: HashMap<Unit, Num>,
 }
 
 impl Units {
 	/// Creates an empty (dimensionless) unit set.
 	pub fn empty() -> Self {
-		Self { map: HashMap::new() }
+		Self {
+			map: HashMap::new(),
+		}
 	}
 
 	/// Whether this unit map is empty, i.e. dimensionless.
@@ -78,7 +94,8 @@ impl Units {
 
 	/// The conversion factor for converting `self` to `other`, if the dimensions match.
 	pub fn conversion_factor(self, other: Units) -> Result<Num, UnitErr> {
-		let (from_base_units, from_factor) = self.to_base_units_and_factor().map_err(UnitErr::num)?;
+		let (from_base_units, from_factor) =
+			self.to_base_units_and_factor().map_err(UnitErr::num)?;
 		let (to_base_units, to_factor) = other.to_base_units_and_factor().map_err(UnitErr::num)?;
 		if from_base_units != to_base_units {
 			Err(UnitErr::Incompatible)
@@ -105,7 +122,9 @@ impl Units {
 			let mut added = false;
 			for (existing_unit, existing_power) in self.map.into_iter() {
 				// Attempt to convert the unit to each unit in `self`.
-				if let Ok(conversion_factor) = Units::from(unit.clone()).conversion_factor(existing_unit.clone().into()) {
+				let conversion_factor =
+					Units::from(unit.clone()).conversion_factor(existing_unit.clone().into());
+				if let Ok(conversion_factor) = conversion_factor {
 					// Found a compatible unit.
 					added = true;
 					factor = (factor / conversion_factor.pow(power.clone())?)?;
@@ -147,17 +166,23 @@ impl Units {
 			match from_unit {
 				from_unit @ Unit::Base { .. } => {
 					// Already a base unit; absorb without modifying scale.
-					let (next_base_units, next_factor) = base_units.merge_unit(from_unit, from_power)?;
+					let (next_base_units, next_factor) =
+						base_units.merge_unit(from_unit, from_power)?;
 					base_units = next_base_units;
 					factor = factor * next_factor;
-				},
-				Unit::NonBase { base_quantity: from_base_quantity, .. } => {
-					let (from_base_value, from_base_units) = from_base_quantity.into_value_and_units();
+				}
+				Unit::NonBase {
+					base_quantity: from_base_quantity,
+					..
+				} => {
+					let (from_base_value, from_base_units) =
+						from_base_quantity.into_value_and_units();
 					// Merge all base units and adjust conversion factor.
-					let (next_base_units, next_factor) = base_units.merge_units(from_base_units.pow(&from_power)?)?;
+					let (next_base_units, next_factor) =
+						base_units.merge_units(from_base_units.pow(&from_power)?)?;
 					base_units = next_base_units;
 					factor = factor * from_base_value.pow(from_power)? * next_factor;
-				},
+				}
 			}
 		}
 		Ok((base_units, factor))
@@ -165,7 +190,13 @@ impl Units {
 
 	/// Negates the unit powers of `self`.
 	pub fn inverse(self) -> Self {
-		Self { map: self.map.into_iter().map(|(unit, power)| (unit, -power)).collect() }
+		Self {
+			map: self
+				.map
+				.into_iter()
+				.map(|(unit, power)| (unit, -power))
+				.collect(),
+		}
 	}
 
 	/// Computes `self` to the power of `exponent`.
@@ -198,13 +229,16 @@ impl Hash for Units {
 
 impl From<Unit> for Units {
 	fn from(unit: Unit) -> Self {
-		Self { map: [(unit, Num::from(1))].iter().cloned().collect() }
+		Self {
+			map: [(unit, Num::from(1))].iter().cloned().collect(),
+		}
 	}
 }
 
 impl fmt::Display for Units {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		self.map.iter()
+		self.map
+			.iter()
 			.sorted_by(|a, b| {
 				// Sort first by decreasing power and then alphabetically.
 				a.1.cmp(&b.1).reverse().then(a.0.name().cmp(&b.0.name()))
@@ -216,6 +250,7 @@ impl fmt::Display for Units {
 					format!("{}^{}", unit.name(), power)
 				}
 			})
-			.join("").fmt(f)
+			.join("")
+			.fmt(f)
 	}
 }

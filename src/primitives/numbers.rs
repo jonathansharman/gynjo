@@ -14,7 +14,7 @@ use num_traits::sign::Signed;
 
 use std::cmp::{Ord, PartialOrd};
 use std::fmt;
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum NumErr {
@@ -112,7 +112,7 @@ impl Num {
 			Num::Rational(rational) => {
 				let (numer, denom) = rational.into();
 				Num::Real(BigDecimal::from(numer) / BigDecimal::from(denom))
-			},
+			}
 			real @ Num::Real(_) => real,
 		}
 	}
@@ -137,12 +137,16 @@ impl Num {
 						result = (Num::from(1) / result)?;
 					}
 					Ok(result.into())
-				},
+				}
 				None => Err(NumErr::ExponentTooLarge),
 			}
 		} else {
-			let base = BigDecimal::from(self.clone()).to_f64().ok_or(NumErr::BaseTooLarge)?;
-			let exponent = BigDecimal::from(rhs).to_f64().ok_or(NumErr::ExponentTooLarge)?;
+			let base = BigDecimal::from(self.clone())
+				.to_f64()
+				.ok_or(NumErr::BaseTooLarge)?;
+			let exponent = BigDecimal::from(rhs)
+				.to_f64()
+				.ok_or(NumErr::ExponentTooLarge)?;
 			Ok(Num::Real(base.pow(exponent).into()).shrink_domain())
 		}
 	}
@@ -153,6 +157,14 @@ impl Num {
 			Num::Integer(_) => NumType::Integer,
 			Num::Rational(_) => NumType::Rational,
 			Num::Real(_) => NumType::Real,
+		}
+	}
+
+	/// Gets `self` as an `i64` if it's integral, otherwise returns `None`.
+	pub fn as_i64(&self) -> Option<i64> {
+		match self {
+			Num::Integer(integer) => integer.to_i64(),
+			_ => None,
 		}
 	}
 }
@@ -206,7 +218,9 @@ impl FormatWithEnv for Num {
 			Num::Rational(rational) => {
 				// Rational numbers are displayed both in rational and real form.
 				let (numer, denom) = rational.clone().into();
-				let real_string = Val::from(Num::Real(BigDecimal::from(numer) / BigDecimal::from(denom))).format_with_env(env);
+				let real_string =
+					Val::from(Num::Real(BigDecimal::from(numer) / BigDecimal::from(denom)))
+						.format_with_env(env);
 				// Rationals are displayed in proper form.
 				let whole_part = rational.trunc();
 				let fractional_part = rational.fract();
@@ -220,11 +234,15 @@ impl FormatWithEnv for Num {
 					// Whole and fractional parts. Ensure fractional part is displayed as positive.
 					format!("{} {} ({})", whole_part, fractional_part.abs(), real_string)
 				}
-			},
+			}
 			Num::Real(real) => {
-				let precision = env.lock().unwrap()
+				let precision = env
+					.lock()
+					.unwrap()
 					// Look up precision setting.
-					.get_var(&Sym { name: "precision".to_string() })
+					.get_var(&Sym {
+						name: "precision".to_string(),
+					})
 					// Interpret as an integer.
 					.and_then(|v| v.as_i64())
 					// Interpret as a non-negative integer.
@@ -232,7 +250,7 @@ impl FormatWithEnv for Num {
 					// If something failed, use default precision setting.
 					.unwrap_or(12);
 				format!("{}", real.with_prec(precision))
-			},
+			}
 		}
 	}
 }
@@ -299,8 +317,12 @@ impl Mul for Num {
 		match (self, rhs) {
 			(Num::Real(lhs), rhs @ _) => Num::Real(lhs * BigDecimal::from(rhs)).shrink_domain(),
 			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) * rhs).shrink_domain(),
-			(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs * BigRational::from(rhs)).shrink_domain(),
-			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) * rhs).shrink_domain(),
+			(Num::Rational(lhs), rhs @ _) => {
+				Num::Rational(lhs * BigRational::from(rhs)).shrink_domain()
+			}
+			(lhs @ _, Num::Rational(rhs)) => {
+				Num::Rational(BigRational::from(lhs) * rhs).shrink_domain()
+			}
 			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs * rhs),
 		}
 	}
@@ -315,8 +337,12 @@ impl Div for Num {
 			Ok(match (self, rhs) {
 				(Num::Real(a), b @ _) => Num::Real(a / BigDecimal::from(b)).shrink_domain(),
 				(a @ _, Num::Real(b)) => Num::Real(BigDecimal::from(a) / b).shrink_domain(),
-				(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs / BigRational::from(rhs)).shrink_domain(),
-				(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) / rhs).shrink_domain(),
+				(Num::Rational(lhs), rhs @ _) => {
+					Num::Rational(lhs / BigRational::from(rhs)).shrink_domain()
+				}
+				(lhs @ _, Num::Rational(rhs)) => {
+					Num::Rational(BigRational::from(lhs) / rhs).shrink_domain()
+				}
 				(Num::Integer(a), Num::Integer(b)) => Num::rational(a, b).shrink_domain(),
 			})
 		}
@@ -351,7 +377,7 @@ impl From<Num> for BigDecimal {
 			Num::Rational(rational) => {
 				let (numer, denom) = rational.into();
 				BigDecimal::from(numer) / BigDecimal::from(denom)
-			},
+			}
 			Num::Real(real) => real,
 		}
 	}

@@ -24,7 +24,12 @@ pub struct Lambda {
 impl fmt::Display for Lambda {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match &self.body {
-			LambdaBody::UserDefined(body) => write!(f, "(({}) -> {})", self.params.iter().map(|s| s.name.clone()).join(", "), body),
+			LambdaBody::UserDefined(body) => write!(
+				f,
+				"(({}) -> {})",
+				self.params.iter().map(|s| s.name.clone()).join(", "),
+				body
+			),
 			LambdaBody::Intrinsic(intrinsic) => intrinsic.fmt(f),
 		}
 	}

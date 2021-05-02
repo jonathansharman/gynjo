@@ -1,5 +1,5 @@
-use crate::tokens::Tok;
 use crate::primitives::Type;
+use crate::tokens::Tok;
 use crate::values::QuantErr;
 
 use itertools::Itertools;
@@ -38,15 +38,21 @@ pub enum ParseErr {
 impl fmt::Display for ParseErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			ParseErr::InvalidInput { context, expected, actual } => {
-				match expected {
-					Some(expected) => write!(f, "Found \"{}\" in {}, expected \"{}\"", actual, context, expected),
-					None => write!(f, "Unexpected \"{}\" in {}", actual, context),
-				}
+			ParseErr::InvalidInput {
+				context,
+				expected,
+				actual,
+			} => match expected {
+				Some(expected) => write!(
+					f,
+					"Found \"{}\" in {}, expected \"{}\"",
+					actual, context, expected
+				),
+				None => write!(f, "Unexpected \"{}\" in {}", actual, context),
 			},
 			ParseErr::EndOfInput { context, expected } => {
 				write!(f, "End of input in {}, expected {}", context, expected)
-			},
+			}
 			ParseErr::UnusedInput { first_unused } => {
 				write!(f, "Unused input starting at \"{}\"", first_unused)
 			}
@@ -73,7 +79,9 @@ pub enum RtErr {
 		to: Type,
 	},
 	OutOfBounds,
-	InvalidIndex { idx: String },
+	InvalidIndex {
+		idx: String,
+	},
 	ArgCountMismatch {
 		required: usize,
 		received: usize,
@@ -81,7 +89,9 @@ pub enum RtErr {
 	Undefined(String),
 	UnusedResult(String),
 	InvalidUnit,
-	UnboundedRange { context: &'static str },
+	UnboundedRange {
+		context: &'static str,
+	},
 	CouldNotOpenFile {
 		filename: String,
 		file_error: String,
@@ -102,30 +112,60 @@ impl fmt::Display for RtErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			RtErr::Quant(err) => err.fmt(f),
-			RtErr::UnaryTypeMismatch { context, expected, actual } => {
-				write!(f, "Expected {} in {}, found {}", expected.iter().map(|t| t.to_string()).join(" or "), context, actual)
-			},
-			RtErr::BinaryTypeMismatch { context, left, right } => {
+			RtErr::UnaryTypeMismatch {
+				context,
+				expected,
+				actual,
+			} => {
+				write!(
+					f,
+					"Expected {} in {}, found {}",
+					expected.iter().map(|t| t.to_string()).join(" or "),
+					context,
+					actual
+				)
+			}
+			RtErr::BinaryTypeMismatch {
+				context,
+				left,
+				right,
+			} => {
 				write!(f, "Cannot perform {} with {} and {}", context, left, right)
-			},
+			}
 			RtErr::InvalidTypeCast { from, to } => {
 				write!(f, "Cannot cast {} to {}", from, to)
-			},
+			}
 			RtErr::OutOfBounds => write!(f, "Out of bounds"),
 			RtErr::InvalidIndex { idx } => write!(f, "Invalid index: {}", idx),
 			RtErr::ArgCountMismatch { required, received } => {
-				write!(f, "Function requires {} argument{}, received {}", required, if *required == 1 { "" } else { "s" }, received)
-			},
+				write!(
+					f,
+					"Function requires {} argument{}, received {}",
+					required,
+					if *required == 1 { "" } else { "s" },
+					received
+				)
+			}
 			RtErr::Undefined(name) => write!(f, "\"{}\" is undefined", name),
 			RtErr::UnusedResult(value) => write!(f, "Unused result: {}", value),
-			RtErr::InvalidUnit => write!(f, "Non-unit quantity on right-hand side of unit conversion"),
-			RtErr::UnboundedRange { context } => write!(f, "Unbounded range not permitted in {}", context),
-			RtErr::CouldNotOpenFile { filename, file_error } => {
+			RtErr::InvalidUnit => {
+				write!(f, "Non-unit quantity on right-hand side of unit conversion")
+			}
+			RtErr::UnboundedRange { context } => {
+				write!(f, "Missing required range bound in {}", context)
+			}
+			RtErr::CouldNotOpenFile {
+				filename,
+				file_error,
+			} => {
 				write!(f, "Could not open \"{}\" ({})", filename, file_error)
-			},
-			RtErr::LibErr { lib_name, nested_error } => {
+			}
+			RtErr::LibErr {
+				lib_name,
+				nested_error,
+			} => {
 				write!(f, "Error in library \"{}\": {}", lib_name, nested_error)
-			},
+			}
 		}
 	}
 }
@@ -142,11 +182,11 @@ impl GynjoErr {
 	pub fn lex(err: LexErr) -> GynjoErr {
 		GynjoErr::Lex(err)
 	}
-	
+
 	pub fn parse(err: ParseErr) -> GynjoErr {
 		GynjoErr::Parse(err)
 	}
-	
+
 	pub fn rt(err: RtErr) -> GynjoErr {
 		GynjoErr::Rt(err)
 	}

@@ -47,7 +47,11 @@ impl fmt::Display for ClusterItem {
 				ClusterConnector::Exp => " ^ ",
 			},
 			self.expr,
-			if let ClusterConnector::AdjParen = self.connector { ")" } else { "" },
+			if let ClusterConnector::AdjParen = self.connector {
+				")"
+			} else {
+				""
+			},
 		)
 	}
 }
@@ -65,6 +69,10 @@ pub struct Cluster {
 
 impl fmt::Display for Cluster {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "({})", self.items.iter().map(ClusterItem::to_string).join(""))
+		write!(
+			f,
+			"({})",
+			self.items.iter().map(ClusterItem::to_string).join("")
+		)
 	}
 }

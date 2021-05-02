@@ -23,12 +23,20 @@ macro_rules! make_tuple_value {
 impl Tuple {
 	/// Creates a tuple with no elements.
 	pub fn empty() -> Tuple {
-		Tuple { elems: Box::new(Vec::new()) }
+		Tuple {
+			elems: Box::new(Vec::new()),
+		}
 	}
 }
 
 impl FormatWithEnv for Tuple {
 	fn format_with_env(&self, env: &SharedEnv) -> String {
-		format!("({})", self.elems.iter().map(|elem| elem.format_with_env(env)).join(", "))
+		format!(
+			"({})",
+			self.elems
+				.iter()
+				.map(|elem| elem.format_with_env(env))
+				.join(", ")
+		)
 	}
 }

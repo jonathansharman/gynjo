@@ -59,33 +59,59 @@ pub enum Expr {
 impl fmt::Display for Expr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Expr::Block(exprs) => write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; ")),
+			Expr::Block(exprs) => {
+				write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; "))
+			}
 			Expr::BinExpr(binary_expr) => binary_expr.fmt(f),
 			Expr::Not(expr) => write!(f, "(not {})", expr),
 			Expr::Cluster(cluster) => cluster.fmt(f),
 			Expr::Lambda(lambda) => lambda.fmt(f),
-			Expr::TupleExpr(exprs) => write!(f, "({})", exprs.iter().map(Expr::to_string).join(", ")),
-			Expr::ListExpr(exprs) => write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", ")),
+			Expr::TupleExpr(exprs) => {
+				write!(f, "({})", exprs.iter().map(Expr::to_string).join(", "))
+			}
+			Expr::ListExpr(exprs) => {
+				write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", "))
+			}
 			Expr::RangeExpr(exprs) => {
-				let start = (*exprs).0.as_ref().map_or(String::new(), |start| format!("{}", start));
-				let end = (*exprs).0.as_ref().map_or(String::new(), |end| format!("{}", end));
-				let stride = (*exprs).0.as_ref().map_or(String::new(), |stride| format!("{}", stride));
+				let start = (*exprs)
+					.0
+					.as_ref()
+					.map_or(String::new(), |start| format!("{}", start));
+				let end = (*exprs)
+					.0
+					.as_ref()
+					.map_or(String::new(), |end| format!("{}", end));
+				let stride = (*exprs)
+					.0
+					.as_ref()
+					.map_or(String::new(), |stride| format!("{}", stride));
 				write!(f, "({}..{} by {})", start, end, stride)
-			},
+			}
 			Expr::Sym(symbol) => symbol.fmt(f),
 			Expr::Unit(unit) => unit.fmt(f),
 			Expr::Prim(primitive) => primitive.fmt(f),
 			Expr::Import(target) => write!(f, "import \"{}\"", target),
 			Expr::Assign { lhs, rhs } => write!(f, "let {} = {}", lhs.name, rhs),
-			Expr::DeclUnit { unit_name, value_expr } => write!(f, "let {} = {}", unit_name, value_expr),
+			Expr::DeclUnit {
+				unit_name,
+				value_expr,
+			} => write!(f, "let {} = {}", unit_name, value_expr),
 			Expr::Basic(expr) => write!(f, "basic {}", expr),
-			Expr::Branch { test, then_expr, else_expr } => {
+			Expr::Branch {
+				test,
+				then_expr,
+				else_expr,
+			} => {
 				write!(f, "if {} then {} else {}", test, then_expr, else_expr)
-			},
+			}
 			Expr::WhileLoop { test, body } => write!(f, "while {} do {}", test, body),
-			Expr::ForLoop { loop_var, range, body } => {
+			Expr::ForLoop {
+				loop_var,
+				range,
+				body,
+			} => {
 				write!(f, "for {} in {} do {}", loop_var.name, range, body)
-			},
+			}
 			Expr::Break => write!(f, "break"),
 			Expr::Return(result) => write!(f, "return {}", result),
 			Expr::Read => write!(f, "read"),

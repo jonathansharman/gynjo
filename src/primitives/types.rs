@@ -36,7 +36,11 @@ pub enum Type {
 impl Type {
 	/// A vector containing the possible quantity types.
 	pub fn quant_types() -> Vec<Type> {
-		vec!(Type::Quant(NumType::Integer), Type::Quant(NumType::Rational), Type::Quant(NumType::Real))
+		vec![
+			Type::Quant(NumType::Integer),
+			Type::Quant(NumType::Rational),
+			Type::Quant(NumType::Real),
+		]
 	}
 }
 

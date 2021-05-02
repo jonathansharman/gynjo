@@ -1,17 +1,20 @@
+use super::Num;
 use super::Text;
 use super::Type;
-use super::Num;
 
 use std::fmt;
 
 /// Boolean Gynjo type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Bool { True, False }
+pub enum Bool {
+	True,
+	False,
+}
 
 impl fmt::Display for Bool {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Bool::True => write!(f, "true"), 
+			Bool::True => write!(f, "true"),
 			Bool::False => write!(f, "false"),
 		}
 	}
@@ -30,7 +33,11 @@ impl From<Bool> for bool {
 /// Rust boolean to Gynjo boolean.
 impl From<bool> for Bool {
 	fn from(boolean: bool) -> Self {
-		if boolean { Bool::True } else { Bool::False }
+		if boolean {
+			Bool::True
+		} else {
+			Bool::False
+		}
 	}
 }
 

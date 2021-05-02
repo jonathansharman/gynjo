@@ -1,5 +1,3 @@
-#![feature(exclusive_range_pattern)]
-
 mod env;
 mod errors;
 mod expressions;
@@ -27,7 +25,9 @@ fn main() {
 	// Try to load user's profile script.
 	env::import_lib_from_path(&mut env, "\"profile.gynj\"");
 	// Initial value of "ans" is ().
-	env.lock().unwrap().set_var("ans".into(), values::Val::empty());
+	env.lock()
+		.unwrap()
+		.set_var("ans".into(), values::Val::empty());
 	// REPL
 	loop {
 		if let Err(error) = repl_iter(&mut env) {
@@ -63,7 +63,7 @@ fn get_expr() -> Result<expressions::Expr, errors::GynjoErr> {
 			// Try reading more input if there's an end-of-input error.
 			Err(errors::ParseErr::EndOfInput { .. }) => {
 				tokens.append(&mut get_token_line("   ")?);
-			},
+			}
 			// Unrecoverable parse error
 			Err(parse_error) => return Err(errors::GynjoErr::parse(parse_error)),
 		}

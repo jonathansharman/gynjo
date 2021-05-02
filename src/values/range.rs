@@ -1,140 +1,162 @@
 use super::quantity::{Quant, QuantErr};
+use crate::errors::RtErr;
 
 use crate::format_with_env::FormatWithEnv;
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-enum Direction { Ascending, Descending, Stuck }
-
-/// An inclusive range of numbers with stride and optional bounds.
+/// A half-open range of quantities with optional stride and bounds.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Range {
-	start: Option<Quant>,
-	end: Option<Quant>,
-	stride: Quant,
-	direction: Direction,
+	pub start: Option<Quant>,
+	pub end: Option<Quant>,
+	pub stride: Option<Quant>,
 }
 
 impl Range {
-	pub fn new(start: Option<Quant>, end: Option<Quant>, stride: Option<Quant>) -> Self {
-		// In the absence of an explicit stride, infer either 1 or -1, depending on bounds.
-		let stride = stride.unwrap_or_else(|| {
-			if let (Some(start), Some(end)) = (&start, &end) {
-				if start > end {
-					return Quant::scalar((-1).into());
+	/// Computes `start`, `end`, and/or `stride` from available values and `length`.
+	///
+	/// Tries to infer a missing `stride` to move from `start` towards `end` by 1.
+	/// Tries to infer a missing `start` and/or `end` as an extremum.
+	pub fn into_start_end_stride(self, length: i64) -> Result<(i64, i64, i64), RtErr> {
+		let get_option_i64 = |quant: Option<Quant>| -> Result<Option<i64>, RtErr> {
+			quant
+				.map(|quant| quant.as_i64().ok_or(RtErr::OutOfBounds))
+				.transpose()
+		};
+		let start = get_option_i64(self.start)?;
+		let end = get_option_i64(self.end)?;
+		let stride = get_option_i64(self.stride)?;
+		// Infer missing fields.
+		Ok(match (start, end, stride) {
+			(None, None, None) => (0.into(), length.into(), 1.into()),
+			(None, None, Some(stride)) => {
+				if stride < 0 {
+					((length - 1).into(), (-1).into(), stride)
+				} else {
+					(0.into(), length.into(), stride)
 				}
 			}
-			Quant::scalar(1.into())
-		});
-		let direction = match &stride {
-			value if value.value().is_positive() => Direction::Ascending,
-			value if value.value().is_negative() => Direction::Descending,
-			_ => Direction::Stuck,
-		};
-		Self { start, end, stride, direction }
-	}
-
-	pub fn start(&self) -> &Option<Quant> {
-		&self.start
-	}
-
-	pub fn end(&self) -> &Option<Quant> {
-		&self.end
-	}
-
-	pub fn stride(&self) -> &Quant {
-		&self.stride
-	}
-
-	pub fn into_start_end_stride(self) -> (Option<Quant>, Option<Quant>, Quant) {
-		(self.start, self.end, self.stride)
+			(None, Some(end), None) => (0.into(), end, 1.into()),
+			(None, Some(end), Some(stride)) => {
+				if stride < 0 {
+					((length - 1).into(), end, stride)
+				} else {
+					(0.into(), end, stride)
+				}
+			}
+			(Some(start), None, None) => (start, (length - 1).into(), 1.into()),
+			(Some(start), None, Some(stride)) => {
+				if stride < 0 {
+					(start, (-1).into(), stride)
+				} else {
+					(start, length.into(), stride)
+				}
+			}
+			(Some(start), Some(end), None) => {
+				if start <= end {
+					(start, end, 1.into())
+				} else {
+					(start, end, (-1).into())
+				}
+			}
+			(Some(start), Some(end), Some(stride)) => (start, end, stride),
+		})
 	}
 
 	pub fn reverse(self) -> Self {
-		let direction = match self.direction {
-			Direction::Ascending => Direction::Descending,
-			Direction::Descending => Direction::Ascending,
-			Direction::Stuck => Direction::Stuck,
-		};
-		Self { start: self.end, end: self.start, stride: -self.stride, direction }
+		Self {
+			start: self.end,
+			end: self.start,
+			stride: self.stride.map(|stride| -stride),
+		}
 	}
 }
 
-pub struct RangeIter(Range);
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+enum Direction {
+	Ascending,
+	Descending,
+	Stuck,
+}
+
+pub struct RangeIter {
+	range: Range,
+	direction: Direction,
+}
 
 impl Iterator for RangeIter {
 	type Item = Result<Quant, QuantErr>;
+
 	fn next(&mut self) -> Option<Self::Item> {
-		match self.0.start.clone() {
-			Some(start) => {
-				match self.0.direction {
-					Direction::Ascending => match &self.0.end {
-						Some(end) => {
-							if &start <= end {
-								match start.clone() + self.0.stride.clone() {
-									Ok(sum) => {
-										self.0.start = Some(sum);
-										Some(Ok(start.clone()))
-									},
-									Err(err) => Some(Err(err)),
-								}
-							} else {
-								None
+		self.range.start.clone().and_then(|start| {
+			let direction = self.direction;
+			let mut ascending_descending = |ascending| match &self.range.end {
+				Some(end) => {
+					if (ascending && &start >= end) || (!ascending && &start <= end) {
+						return None;
+					}
+					self.range
+						.stride
+						.clone()
+						.map(|stride| match start.clone() + stride {
+							Ok(sum) => {
+								self.range.start = Some(sum);
+								Ok(start.clone())
 							}
-						},
-						None => {
-							match start.clone() + self.0.stride.clone() {
-								Ok(sum) => {
-									self.0.start = Some(sum);
-									Some(Ok(start.clone()))
-								},
-								Err(err) => Some(Err(err)),
-							}
-						},
-					},
-					Direction::Descending => match &self.0.end {
-						Some(end) => {
-							if &start >= end {
-								match start.clone() + self.0.stride.clone() {
-									Ok(sum) => {
-										self.0.start = Some(sum);
-										Some(Ok(start.clone()))
-									},
-									Err(err) => Some(Err(err)),
-								}
-							} else {
-								None
-							}
-						},
-						None => {
-							match start.clone() + self.0.stride.clone() {
-								Ok(sum) => {
-									self.0.start = Some(sum);
-									Some(Ok(start.clone()))
-								},
-								Err(err) => Some(Err(err)),
-							}
-						},
-					},
-					Direction::Stuck => Some(Ok(start.clone())),
+							Err(err) => Err(err),
+						})
 				}
-			},
-			None => None,
-		}
+				None => self
+					.range
+					.stride
+					.clone()
+					.map(|stride| match start.clone() + stride {
+						Ok(sum) => {
+							self.range.start = Some(sum);
+							Ok(start.clone())
+						}
+						Err(err) => Err(err),
+					}),
+			};
+			match direction {
+				Direction::Ascending => ascending_descending(true),
+				Direction::Descending => ascending_descending(false),
+				Direction::Stuck => Some(Ok(start.clone())),
+			}
+		})
 	}
 }
 
 impl IntoIterator for Range {
 	type Item = Result<Quant, QuantErr>;
 	type IntoIter = RangeIter;
+
 	fn into_iter(self) -> Self::IntoIter {
-		RangeIter(self)
+		let direction = match &self.stride {
+			None => Direction::Ascending,
+			Some(stride) if stride.value().is_positive() => Direction::Ascending,
+			Some(stride) if stride.value().is_negative() => Direction::Descending,
+			_ => Direction::Stuck,
+		};
+		RangeIter {
+			range: self,
+			direction,
+		}
 	}
 }
 
 impl FormatWithEnv for Range {
 	fn format_with_env(&self, env: &crate::env::SharedEnv) -> String {
-		let start = self.start.as_ref().map_or(String::new(), |start| start.format_with_env(&env));
-		let end = self.end.as_ref().map_or(String::new(), |start| start.format_with_env(&env));
-		format!("({}..{} by {})", start, end, self.stride().format_with_env(&env))
+		let start = self
+			.start
+			.as_ref()
+			.map_or(String::new(), |start| start.format_with_env(&env));
+		let end = self
+			.end
+			.as_ref()
+			.map_or(String::new(), |end| end.format_with_env(&env));
+		let stride = self.stride.as_ref().map_or(String::new(), |stride| {
+			format!(" by {}", stride.format_with_env(&env))
+		});
+		format!("({}..{}{})", start, end, stride)
 	}
 }
