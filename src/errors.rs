@@ -82,6 +82,7 @@ pub enum RtErr {
 	InvalidIndex {
 		idx: String,
 	},
+	ZeroStrideSlice,
 	ArgCountMismatch {
 		required: usize,
 		received: usize,
@@ -137,6 +138,7 @@ impl fmt::Display for RtErr {
 			}
 			RtErr::OutOfBounds => write!(f, "Out of bounds"),
 			RtErr::InvalidIndex { idx } => write!(f, "Invalid index: {}", idx),
+			RtErr::ZeroStrideSlice => write!(f, "Slice stride cannot be zero"),
 			RtErr::ArgCountMismatch { required, received } => {
 				write!(
 					f,

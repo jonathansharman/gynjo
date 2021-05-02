@@ -213,8 +213,9 @@ impl List {
 						})
 				}
 				Val::Range(range) => {
-					let (start, end, stride) =
-						range.clone().into_start_end_stride(self.len() as i64)?;
+					let (start, end, stride) = range
+						.clone()
+						.into_start_end_stride(&env, self.len() as i64)?;
 					Ok(Index::Slice { start, end, stride })
 				}
 				invalid @ _ => Err(RtErr::InvalidIndex {

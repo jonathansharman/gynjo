@@ -597,11 +597,13 @@ fn eval_for_loop(
 		Val::Range(range) => {
 			// Ensure there's a start and infer the stride if it's missing.
 			let range = match (&range.start, &range.end, &range.stride) {
+				// Step from start by 1 forever.
 				(Some(start), None, None) => Range {
 					start: range.start.clone(),
-					end: range.end.clone(),
+					end: None,
 					stride: Some(Quant::new(1.into(), start.units().clone())),
 				},
+				// Step from start to end by 1.
 				(Some(start), Some(end), None) => Range {
 					start: range.start.clone(),
 					end: range.end.clone(),
@@ -609,6 +611,18 @@ fn eval_for_loop(
 						if start <= end { 1 } else { -1 }.into(),
 						start.units().clone(),
 					)),
+				},
+				// Step from start by stride forever.
+				(Some(_), None, Some(_)) => Range {
+					start: range.start.clone(),
+					end: None,
+					stride: range.stride.clone(),
+				},
+				// Step from start to end by stride.
+				(Some(_), Some(_), Some(_)) => Range {
+					start: range.start.clone(),
+					end: range.end.clone(),
+					stride: range.stride.clone(),
 				},
 				// If there's no start, the range is considered out of bounds.
 				_ => {

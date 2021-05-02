@@ -1,6 +1,6 @@
 use super::quantity::{Quant, QuantErr};
+use crate::env::SharedEnv;
 use crate::errors::RtErr;
-
 use crate::format_with_env::FormatWithEnv;
 
 /// A half-open range of quantities with optional stride and bounds.
@@ -16,50 +16,59 @@ impl Range {
 	///
 	/// Tries to infer a missing `stride` to move from `start` towards `end` by 1.
 	/// Tries to infer a missing `start` and/or `end` as an extremum.
-	pub fn into_start_end_stride(self, length: i64) -> Result<(i64, i64, i64), RtErr> {
+	pub fn into_start_end_stride(
+		self,
+		env: &SharedEnv,
+		length: i64,
+	) -> Result<(i64, i64, i64), RtErr> {
 		let get_option_i64 = |quant: Option<Quant>| -> Result<Option<i64>, RtErr> {
 			quant
-				.map(|quant| quant.as_i64().ok_or(RtErr::OutOfBounds))
+				.map(|quant| {
+					quant.as_i64().ok_or(RtErr::InvalidIndex {
+						idx: quant.format_with_env(&env),
+					})
+				})
 				.transpose()
 		};
 		let start = get_option_i64(self.start)?;
 		let end = get_option_i64(self.end)?;
 		let stride = get_option_i64(self.stride)?;
-		// Infer missing fields.
-		Ok(match (start, end, stride) {
-			(None, None, None) => (0.into(), length.into(), 1.into()),
+		// Infer missing fields and perform some validation.
+		match (start, end, stride) {
+			(_, _, Some(stride)) if stride == 0 => Err(RtErr::ZeroStrideSlice),
+			(None, None, None) => Ok((0.into(), length.into(), 1.into())),
 			(None, None, Some(stride)) => {
 				if stride < 0 {
-					((length - 1).into(), (-1).into(), stride)
+					Ok(((length - 1).into(), (-1).into(), stride))
 				} else {
-					(0.into(), length.into(), stride)
+					Ok((0.into(), length.into(), stride))
 				}
 			}
-			(None, Some(end), None) => (0.into(), end, 1.into()),
+			(None, Some(end), None) => Ok((0.into(), end, 1.into())),
 			(None, Some(end), Some(stride)) => {
 				if stride < 0 {
-					((length - 1).into(), end, stride)
+					Ok(((length - 1).into(), end, stride))
 				} else {
-					(0.into(), end, stride)
+					Ok((0.into(), end, stride))
 				}
 			}
-			(Some(start), None, None) => (start, (length - 1).into(), 1.into()),
+			(Some(start), None, None) => Ok((start, (length - 1).into(), 1.into())),
 			(Some(start), None, Some(stride)) => {
 				if stride < 0 {
-					(start, (-1).into(), stride)
+					Ok((start, (-1).into(), stride))
 				} else {
-					(start, length.into(), stride)
+					Ok((start, length.into(), stride))
 				}
 			}
 			(Some(start), Some(end), None) => {
 				if start <= end {
-					(start, end, 1.into())
+					Ok((start, end, 1.into()))
 				} else {
-					(start, end, (-1).into())
+					Ok((start, end, (-1).into()))
 				}
 			}
-			(Some(start), Some(end), Some(stride)) => (start, end, stride),
-		})
+			(Some(start), Some(end), Some(stride)) => Ok((start, end, stride)),
+		}
 	}
 
 	pub fn reverse(self) -> Self {
