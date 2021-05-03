@@ -136,7 +136,7 @@ impl fmt::Display for RtErr {
 			RtErr::InvalidTypeCast { from, to } => {
 				write!(f, "Cannot cast {} to {}", from, to)
 			}
-			RtErr::OutOfBounds => write!(f, "Out of bounds"),
+			RtErr::OutOfBounds => write!(f, "Index out of bounds"),
 			RtErr::InvalidIndex { idx } => write!(f, "Invalid index: {}", idx),
 			RtErr::ZeroStrideSlice => write!(f, "Slice stride cannot be zero"),
 			RtErr::ArgCountMismatch { required, received } => {

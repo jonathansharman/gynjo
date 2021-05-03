@@ -130,34 +130,31 @@ impl List {
 				.map(|val| val.clone()),
 			Index::Slice {
 				mut start,
-				mut end,
-				mut stride,
+				end,
+				stride,
 			} => {
 				let mut result = Self::empty();
-				// Ensure positive iteration direction. Note that lists are built last-in-first-out.
+				let span = (end - start).abs() as usize;
+				// Ensure positive iteration direction. Note that List::iter() is last-in-first-out,
+				// which is the opposite of what we want for forward iteration.
+				let (iter, reversed);
 				if stride < 0 {
 					start = self.len() as i64 - start;
-					end = self.len() as i64 - end;
-					stride = -stride;
-					let iter = self
-						.iter()
-						.skip(start as usize)
-						.step_by(stride as usize)
-						.take(((end - start) / stride) as usize);
-					for val in iter {
-						result = result.push(val.clone());
-					}
+					iter = self.iter();
 				} else {
-					let reversed = self.reverse();
-					let iter = reversed
-						.iter()
-						.skip(start as usize)
-						.step_by(stride as usize)
-						.take(((end - start) / stride) as usize);
-					for val in iter {
-						result = result.push(val.clone());
-					}
+					reversed = self.reverse();
+					iter = reversed.iter();
 				};
+				// Ensure the start index is non-negative.
+				if start < 0 {
+					start = start.rem_euclid(stride);
+				}
+				let start = start as usize;
+				let stride = stride.abs() as usize;
+				let iter = iter.skip(start).step_by(stride).take(span / stride);
+				for val in iter {
+					result = result.push(val.clone());
+				}
 				Ok(Val::List(result))
 			}
 		}
@@ -201,7 +198,7 @@ impl List {
 
 	/// Converts this list to an `Index` if it contains a single element which
 	/// is either a single integer `Quant` or a single `Range`.
-	pub fn as_index(&self, env: &SharedEnv) -> Result<Index, RtErr> {
+	pub fn as_index(&self, env: &SharedEnv, length: i64) -> Result<Index, RtErr> {
 		match (self.head(), self.tail()) {
 			// There must be exactly one element.
 			(Some(head), Some(tail)) if tail.is_empty() => match head {
@@ -213,9 +210,8 @@ impl List {
 						})
 				}
 				Val::Range(range) => {
-					let (start, end, stride) = range
-						.clone()
-						.into_start_end_stride(&env, self.len() as i64)?;
+					let (start, end, stride) = range.clone().into_start_end_stride(&env, length)?;
+					println!("  slice: {}..{} by {}", start, end, stride);
 					Ok(Index::Slice { start, end, stride })
 				}
 				invalid @ _ => Err(RtErr::InvalidIndex {

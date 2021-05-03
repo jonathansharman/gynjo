@@ -21,6 +21,11 @@ impl Text {
 		&self.0
 	}
 
+	/// The number of characters in this text.
+	pub fn len(&self) -> usize {
+		return self.0.len();
+	}
+
 	/// Copies one or more characters from this text, based on `idx`.
 	///
 	/// `env`: Used for formatting error messages if an error occurs.
@@ -73,38 +78,6 @@ impl Text {
 			Err(RtErr::InvalidIndex {
 				idx: idx.format_with_env(&env),
 			})
-		}
-	}
-
-	/// Copies a slice from this text, based on `index`.
-	///
-	/// `env`: Used for formatting error messages if an error occurs.
-	/// `index`: Either an single integral index or a `Range` of indices.
-	///
-	/// Empty lower/upper bounds use the beginning/end of the string.
-	///
-	/// Individual indices are copied modulo the length of the string.
-	pub fn slice2(&self, env: &SharedEnv, idx: List) -> Result<Val, RtErr> {
-		if idx.len() != 1 {
-			return Err(RtErr::InvalidIndex {
-				idx: idx.format_with_env(&env),
-			});
-		}
-		match idx.head().unwrap().clone() {
-			Val::Quant(idx) => Ok(Val::Prim(Prim::Text(Text(
-				self.nth(&env, idx)?.to_string(),
-			)))),
-			Val::Range(range) => {
-				//range.infer_missing(self.0.len());
-				let mut result_string = "".to_string();
-				for idx in range.into_iter() {
-					result_string.push(self.nth(&env, idx.map_err(RtErr::quant)?)?);
-				}
-				Ok(Val::Prim(Prim::Text(Text(result_string))))
-			}
-			invalid @ _ => Err(RtErr::InvalidIndex {
-				idx: invalid.format_with_env(&env),
-			}),
 		}
 	}
 }

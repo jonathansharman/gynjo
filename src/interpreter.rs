@@ -713,10 +713,10 @@ fn eval_evaluated_cluster(
 				// The RHS may be an index/slice.
 				cluster[idx].value = match &cluster[idx].value {
 					// List index/slice operation
-					Val::List(left) => left.slice(right.as_index(&env)?),
+					Val::List(left) => left.slice(right.as_index(&env, left.len() as i64)?),
 					// String index/slice operation
 					Val::Prim(Prim::Text(left)) => {
-						Ok(left.slice(&env, right.clone().as_index(&env)?)?)
+						Ok(left.slice(&env, right.clone().as_index(&env, left.len() as i64)?)?)
 					}
 					_ => continue,
 				}?;
