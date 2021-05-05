@@ -52,7 +52,7 @@ impl Range {
 					Ok((0.into(), end, stride))
 				}
 			}
-			(Some(start), None, None) => Ok((start, (length - 1).into(), 1.into())),
+			(Some(start), None, None) => Ok((start, length.into(), 1.into())),
 			(Some(start), None, Some(stride)) => {
 				if stride < 0 {
 					Ok((start, (-1).into(), stride))

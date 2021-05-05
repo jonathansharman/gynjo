@@ -135,15 +135,14 @@ impl List {
 			} => {
 				let mut result = Self::empty();
 				let span = (end - start).abs() as usize;
-				// Ensure positive iteration direction. Note that List::iter() is last-in-first-out,
-				// which is the opposite of what we want for forward iteration.
+				// Ensure positive iteration direction.
 				let (iter, reversed);
 				if stride < 0 {
 					start = self.len() as i64 - start;
-					iter = self.iter();
-				} else {
 					reversed = self.reverse();
 					iter = reversed.iter();
+				} else {
+					iter = self.iter();
 				};
 				// Ensure the start index is non-negative.
 				if start < 0 {
@@ -155,7 +154,8 @@ impl List {
 				for val in iter {
 					result = result.push(val.clone());
 				}
-				Ok(Val::List(result))
+				// The result list was constructed in reverse; re-reverse it.
+				Ok(Val::List(result.reverse()))
 			}
 		}
 	}
@@ -211,7 +211,6 @@ impl List {
 				}
 				Val::Range(range) => {
 					let (start, end, stride) = range.clone().into_start_end_stride(&env, length)?;
-					println!("  slice: {}..{} by {}", start, end, stride);
 					Ok(Index::Slice { start, end, stride })
 				}
 				invalid @ _ => Err(RtErr::InvalidIndex {
