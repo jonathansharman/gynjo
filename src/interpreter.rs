@@ -1697,7 +1697,7 @@ mod tests {
 				&mut env,
 				r"{
 				let a = 0;
-				for x in 1..3 do let a = a + x;
+				for x in 1..4 do let a = a + x;
 				for x in [] do let a = 10;
 				a
 			}",

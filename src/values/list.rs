@@ -123,11 +123,16 @@ impl List {
 	/// `env`: Used for formatting error messages if an error occurs.
 	pub fn slice(&self, idx: Index) -> Result<Val, RtErr> {
 		match idx {
-			Index::Element(idx) => self
-				.iter()
-				.nth(idx as usize)
-				.ok_or(RtErr::OutOfBounds)
-				.map(|val| val.clone()),
+			Index::Element(idx) => {
+				if self.len() == 0 {
+					Err(RtErr::OutOfBounds)
+				} else {
+					self.iter()
+						.nth(idx.rem_euclid(self.len() as i64) as usize)
+						.ok_or(RtErr::OutOfBounds)
+						.map(|val| val.clone())
+				}
+			}
 			Index::Slice {
 				mut start,
 				end,
