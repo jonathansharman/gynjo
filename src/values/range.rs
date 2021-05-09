@@ -39,7 +39,7 @@ impl Range {
 			(None, None, None) => Ok((0.into(), length.into(), 1.into())),
 			(None, None, Some(stride)) => {
 				if stride < 0 {
-					Ok(((length - 1).into(), (-1).into(), stride))
+					Ok((length.into(), 0.into(), stride))
 				} else {
 					Ok((0.into(), length.into(), stride))
 				}
@@ -47,7 +47,7 @@ impl Range {
 			(None, Some(end), None) => Ok((0.into(), end, 1.into())),
 			(None, Some(end), Some(stride)) => {
 				if stride < 0 {
-					Ok(((length - 1).into(), end, stride))
+					Ok((length.into(), end, stride))
 				} else {
 					Ok((0.into(), end, stride))
 				}
@@ -55,7 +55,7 @@ impl Range {
 			(Some(start), None, None) => Ok((start, length.into(), 1.into())),
 			(Some(start), None, Some(stride)) => {
 				if stride < 0 {
-					Ok((start, (-1).into(), stride))
+					Ok((start, 0.into(), stride))
 				} else {
 					Ok((start, length.into(), stride))
 				}

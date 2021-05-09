@@ -9,6 +9,7 @@ use crate::format_with_env::FormatWithEnv;
 use crate::primitives::Num;
 
 use itertools::Itertools;
+use num::integer::div_ceil;
 use num_traits::cast::ToPrimitive;
 
 use std::sync::Arc;
@@ -135,31 +136,44 @@ impl List {
 			}
 			Index::Slice {
 				mut start,
-				end,
-				stride,
+				mut end,
+				mut stride,
 			} => {
-				let mut result = Self::empty();
-				let span = (end - start).abs() as usize;
-				// Ensure positive iteration direction.
+				let len = self.len() as i64;
+				// Compute the iterator, start, end, and stride, making any adjustments required to ensure forward iteration.
 				let (iter, reversed);
-				if stride < 0 {
-					start = self.len() as i64 - start;
+				if stride.is_positive() {
+					iter = self.iter();
+				} else {
+					// Iterate over the reversed list.
 					reversed = self.reverse();
 					iter = reversed.iter();
-				} else {
-					iter = self.iter();
+					// Reverse start/end/stride with respect to the list length.
+					start = len - start;
+					end = len - end;
+					stride = -stride;
 				};
-				// Ensure the start index is non-negative.
-				if start < 0 {
-					start = start.rem_euclid(stride);
+				// Ensure non-negative start.
+				while start < 0 {
+					start += stride;
 				}
-				let start = start as usize;
-				let stride = stride.abs() as usize;
-				let iter = iter.skip(start).step_by(stride).take(span / stride);
+				// Ensure end doesn't go past the length.
+				end = end.min(len);
+				// Compute the number of elements in the slice.
+				let count = div_ceil((end - start).max(0), stride);
+				// Build the result list in reverse.
+				let iter = iter
+					// Skip ahead to the start index.
+					.skip(start as usize)
+					// Step by the stride.
+					.step_by(stride as usize)
+					// Take count elements.
+					.take(count as usize);
+				let mut result = Self::empty();
 				for val in iter {
 					result = result.push(val.clone());
 				}
-				// The result list was constructed in reverse; re-reverse it.
+				// Since the result list was constructed in reverse, reverse it again.
 				Ok(Val::List(result.reverse()))
 			}
 		}

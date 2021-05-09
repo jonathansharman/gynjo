@@ -1367,31 +1367,14 @@ mod tests {
 				make_list_value!(Val::scalar(2)),
 				eval(&mut env, "[1, 2][1..]")?
 			);
-			assert_eq!(
-				make_list_value!(Val::scalar(1)),
-				eval(&mut env, "[1, 2][..0]")?
-			);
+			assert_eq!(make_list_value!(), eval(&mut env, "[1, 2][..0]")?);
+			assert_eq!(make_list_value!(), eval(&mut env, "[1, 2][..-1]")?);
 			assert_eq!(
 				make_list_value!(Val::scalar(1), Val::scalar(2)),
-				eval(&mut env, "[1, 2][..-1]")?
-			);
-			assert_eq!(
-				make_list_value!(
-					Val::scalar(1),
-					Val::scalar(2),
-					Val::scalar(1),
-					Val::scalar(2)
-				),
 				eval(&mut env, "[1, 2][..3]")?
 			);
-			assert_eq!(
-				make_list_value!(Val::scalar(4), Val::scalar(1)),
-				eval(&mut env, "[1, 2, 3, 4][-1..0]")?
-			);
-			assert_eq!(
-				make_list_value!(Val::scalar(1), Val::scalar(4)),
-				eval(&mut env, "[1, 2, 3, 4][0..-1]")?
-			);
+			assert_eq!(make_list_value!(), eval(&mut env, "[1, 2, 3, 4][-1..0]")?);
+			assert_eq!(make_list_value!(), eval(&mut env, "[1, 2, 3, 4][0..-1]")?);
 			Ok(())
 		}
 		#[test]
@@ -1932,11 +1915,11 @@ mod tests {
 			let mut env = Env::new(None);
 			assert_eq!(
 				make_list_value!(Val::scalar(1), Val::scalar(2)),
-				eval(&mut env, "(1..2) as list")?
+				eval(&mut env, "(1..3) as list")?
 			);
 			assert_eq!(
 				make_tuple_value!(Val::scalar(1), Val::scalar(2)),
-				eval(&mut env, "(1..2) as tuple")?
+				eval(&mut env, "(1..3) as tuple")?
 			);
 			assert!(eval(&mut env, "(1..) as list").is_err());
 			assert!(eval(&mut env, "(..1) as list").is_err());
