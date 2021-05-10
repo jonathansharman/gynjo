@@ -8,6 +8,7 @@ use bigdecimal::ToPrimitive;
 
 use std::cmp::{Ord, PartialOrd};
 use std::fmt;
+use std::hash::Hash;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Eq, PartialEq, Debug)]
@@ -38,7 +39,7 @@ impl fmt::Display for QuantErr {
 }
 
 /// Numeric Gynjo types.
-#[derive(Clone, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct Quant {
 	val: Num,
 	units: Units,
@@ -80,17 +81,17 @@ impl Quant {
 
 	/// Gets `self` as an `i64` if it's integral, otherwise returns `None`.
 	pub fn as_i64(&self) -> Option<i64> {
-		return self.clone().into_scalar().ok().and_then(|n| match n {
+		self.clone().into_scalar().ok().and_then(|n| match n {
 			Num::Integer(i) => i.to_i64(),
 			_ => None,
-		});
+		})
 	}
 
 	/// Converts `self` into a quantity that uses only base units.
 	pub fn convert_into_base(self) -> Result<Self, QuantErr> {
 		let (units, factor) = self
 			.units
-			.to_base_units_and_factor()
+			.into_base_units_and_factor()
 			.map_err(QuantErr::num)?;
 		Ok(Self {
 			val: self.val * factor,
@@ -162,6 +163,13 @@ impl PartialOrd for Quant {
 			.convert_into(self.units.clone())
 			.map(|same_units| self.val.cmp(&same_units.val))
 			.ok()
+	}
+}
+
+impl Hash for Quant {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.units.hash(state);
+		self.val.hash(state);
 	}
 }
 

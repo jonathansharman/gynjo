@@ -14,7 +14,7 @@ type ParseExprResult<'a> = Result<(&'a [Tok], Expr), ParseErr>;
 
 /// Parses an expression from `tokens`. Requires all tokens to be consumed.
 pub fn parse(tokens: &[Tok]) -> Result<Expr, ParseErr> {
-	let (tokens, expr) = parse_expr(&tokens[..])?;
+	let (tokens, expr) = parse_expr(tokens)?;
 	if tokens.is_empty() {
 		Ok(expr)
 	} else {
@@ -37,7 +37,7 @@ fn parse_required_token<'a>(
 			expected: format!("\"{}\"", required),
 		}),
 		[t, tokens @ ..] if (t == required) => Ok(tokens),
-		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidInput {
 			context,
 			expected: Some(format!("\"{}\"", required)),
 			actual: invalid.clone(),
@@ -113,7 +113,7 @@ fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 			expected: "function body".into(),
 		}),
 		[Tok::Arrow, tokens @ ..] => parse_expr(tokens),
-		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidInput {
 			context: "lambda",
 			expected: Some("function body".into()),
 			actual: invalid.clone(),
@@ -158,7 +158,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 								tokens = after_rparen;
 								break;
 							}
-							[invalid @ _, ..] => {
+							[invalid, ..] => {
 								return Err(ParseErr::InvalidInput {
 									context: "tuple expression",
 									expected: Some(r#""," or ")""#.into()),
@@ -191,7 +191,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					return Ok((
 						after_body,
 						Expr::Lambda(Lambda {
-							params: params,
+							params,
 							body: LambdaBody::UserDefined(Box::new(body_expr)),
 						}),
 					));
@@ -204,7 +204,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				Ok((after_tuple, elems.remove(0)))
 			} else {
 				// Return unmodified tuple.
-				Ok((after_tuple, Expr::TupleExpr(Box::new(elems))))
+				Ok((after_tuple, Expr::TupleExpr(elems)))
 			}
 		}
 		// List
@@ -236,7 +236,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 							tokens = after_rsquare;
 							break;
 						}
-						[invalid @ _, ..] => {
+						[invalid, ..] => {
 							return Err(ParseErr::InvalidInput {
 								context: "list expression",
 								expected: Some(r#""," or ")""#.into()),
@@ -254,7 +254,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		// Block
 		[Tok::Lcurly, after_lcurly @ ..] => {
 			let mut tokens = after_lcurly;
-			let mut exprs = Box::new(Vec::new());
+			let mut exprs = Vec::new();
 			// Parse expressions.
 			let mut final_semicolon = false;
 			loop {
@@ -273,7 +273,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					[Tok::Rcurly, after_rclurly @ ..] => {
 						// End of block. If block ended with a semicolon, the result is ().
 						if final_semicolon {
-							exprs.push(Expr::TupleExpr(Box::new(Vec::new())));
+							exprs.push(Expr::TupleExpr(Vec::new()));
 						}
 						return Ok((after_rclurly, Expr::Block(exprs)));
 					}
@@ -356,8 +356,8 @@ fn parse_required_cluster_item(
 		after_expr,
 		ClusterItem {
 			expr: Box::new(expr),
-			negated: negated,
-			connector: connector,
+			negated,
+			connector,
 		},
 	))
 }
@@ -442,23 +442,20 @@ fn parse_binary_expressions<'a>(
 	// Parse first expression.
 	let (mut tokens, mut exprs) = subparse(tokens)?;
 	// Parse subsequent expressions.
-	loop {
-		match tokens.first() {
-			Some(token) => match op_map.get(token) {
-				Some(op) => {
-					let (after_expr, next_expr) = subparse(&tokens[1..])?;
-					tokens = after_expr;
-					// Incorporate next expression into expression.
-					exprs = Expr::BinExpr(BinExpr {
-						op: *op,
-						left: Box::new(exprs),
-						right: Box::new(next_expr),
-					});
-				}
-				None => break,
-			},
+	while let Some(token) = tokens.first() {
+		match op_map.get(token) {
+			Some(op) => {
+				let (after_expr, next_expr) = subparse(&tokens[1..])?;
+				tokens = after_expr;
+				// Incorporate next expression into expression.
+				exprs = Expr::BinExpr(BinExpr {
+					op: *op,
+					left: Box::new(exprs),
+					right: Box::new(next_expr),
+				});
+			}
 			None => break,
-		};
+		}
 	}
 	Ok((tokens, exprs))
 }
@@ -590,7 +587,7 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 				},
 			))
 		}
-		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidInput {
 			context: "for-loop",
 			expected: Some("loop variable".into()),
 			actual: invalid.clone(),
@@ -631,7 +628,7 @@ fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 		parse_expr(tokens)?
 	} else {
 		// Missing else branch is equivalent to ().
-		(tokens, Expr::TupleExpr(Box::new(Vec::new())))
+		(tokens, Expr::TupleExpr(Vec::new()))
 	};
 	// Assemble branch statement.
 	Ok((
@@ -680,7 +677,7 @@ fn parse_assignment_or_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
 				},
 			))
 		}
-		[invalid @ _, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidInput {
 			context: "assignment",
 			expected: Some("variable".into()),
 			actual: invalid.clone(),

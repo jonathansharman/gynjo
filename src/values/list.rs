@@ -101,7 +101,7 @@ impl List {
 	/// Creates a reference iterator into this list's elements.
 	pub fn iter(&self) -> Iter<'_> {
 		Iter {
-			next: self.head.as_ref().map(|node| &**node),
+			next: self.head.as_deref(),
 		}
 	}
 
@@ -123,7 +123,7 @@ impl List {
 	pub fn slice(&self, idx: Index) -> Result<Val, RtErr> {
 		match idx {
 			Index::Element(idx) => {
-				if self.len() == 0 {
+				if self.is_empty() {
 					Err(RtErr::OutOfBounds)
 				} else {
 					self.iter()
@@ -196,7 +196,7 @@ impl List {
 				result = iter.next();
 				idx -= 1;
 			}
-			result.map(|val| val.clone()).ok_or(RtErr::OutOfBounds)
+			result.cloned().ok_or(RtErr::OutOfBounds)
 		} else {
 			Err(RtErr::InvalidIndex {
 				idx: idx.format_with_env(&env),
@@ -219,18 +219,14 @@ impl List {
 		match (self.head(), self.tail()) {
 			// There must be exactly one element.
 			(Some(head), Some(tail)) if tail.is_empty() => match head {
-				Val::Quant(idx) => {
-					idx.as_i64()
-						.map(|idx| Index::Element(idx))
-						.ok_or(RtErr::InvalidIndex {
-							idx: idx.format_with_env(&env),
-						})
-				}
+				Val::Quant(idx) => idx.as_i64().map(Index::Element).ok_or(RtErr::InvalidIndex {
+					idx: idx.format_with_env(&env),
+				}),
 				Val::Range(range) => {
 					let (start, end, stride) = range.clone().into_start_end_stride(&env, length)?;
 					Ok(Index::Slice { start, end, stride })
 				}
-				invalid @ _ => Err(RtErr::InvalidIndex {
+				invalid => Err(RtErr::InvalidIndex {
 					idx: invalid.format_with_env(&env),
 				}),
 			},
@@ -263,7 +259,7 @@ impl<'a> Iterator for Iter<'a> {
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.next.map(|node| {
-			self.next = node.next.as_ref().map(|node| &**node);
+			self.next = node.next.as_deref();
 			&node.elem
 		})
 	}

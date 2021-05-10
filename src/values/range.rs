@@ -36,28 +36,28 @@ impl Range {
 		// Infer missing fields and perform some validation.
 		match (start, end, stride) {
 			(_, _, Some(stride)) if stride == 0 => Err(RtErr::ZeroStrideSlice),
-			(None, None, None) => Ok((0.into(), length.into(), 1.into())),
+			(None, None, None) => Ok((0.into(), length, 1.into())),
 			(None, None, Some(stride)) => {
 				if stride < 0 {
-					Ok((length.into(), 0.into(), stride))
+					Ok((length, 0.into(), stride))
 				} else {
-					Ok((0.into(), length.into(), stride))
+					Ok((0.into(), length, stride))
 				}
 			}
 			(None, Some(end), None) => Ok((0.into(), end, 1.into())),
 			(None, Some(end), Some(stride)) => {
 				if stride < 0 {
-					Ok((length.into(), end, stride))
+					Ok((length, end, stride))
 				} else {
 					Ok((0.into(), end, stride))
 				}
 			}
-			(Some(start), None, None) => Ok((start, length.into(), 1.into())),
+			(Some(start), None, None) => Ok((start, length, 1.into())),
 			(Some(start), None, Some(stride)) => {
 				if stride < 0 {
 					Ok((start, 0.into(), stride))
 				} else {
-					Ok((start, length.into(), stride))
+					Ok((start, length, stride))
 				}
 			}
 			(Some(start), Some(end), None) => {

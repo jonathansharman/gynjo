@@ -13,7 +13,7 @@ pub enum Val {
 	Quant(Quant),
 	Tuple(Tuple),
 	List(List),
-	Range(Range),
+	Range(Box<Range>),
 	Closure(Closure),
 	Break,
 	Return { result: Box<Val> },

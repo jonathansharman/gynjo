@@ -20,46 +20,46 @@ pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 	match expr {
 		Expr::Block(exprs) => eval_block(&mut env, exprs),
 		Expr::BinExpr(bin_expr) => eval_bin_expr(&mut env, bin_expr),
-		Expr::Not(expr) => eval_not(&mut env, expr),
+		Expr::Not(expr) => eval_not(&mut env, *expr),
 		Expr::Cluster(cluster) => eval_cluster(env, cluster),
 		Expr::Lambda(f) => Ok(Val::Closure(Closure {
-			f: f,
+			f,
 			env: env.clone(),
 		})),
 		Expr::TupleExpr(expr_elems) => eval_tuple_expr(&mut env, expr_elems),
-		Expr::ListExpr(expr_elems) => eval_list_expr(&mut env, expr_elems),
+		Expr::ListExpr(expr_elems) => eval_list_expr(&mut env, *expr_elems),
 		Expr::RangeExpr(exprs) => eval_range_expr(&mut env, (*exprs).0, (*exprs).1, (*exprs).2),
 		Expr::Sym(symbol) => eval_symbol(&mut env, symbol),
 		Expr::Prim(primitive) => Ok(match primitive {
 			// Convert number into dimensionless quantity.
 			Prim::Num(number) => Val::scalar(number.shrink_domain()),
-			primitive @ _ => Val::Prim(primitive),
+			primitive => Val::Prim(primitive),
 		}),
 		Expr::Unit(unit) => eval_unit(&mut env, unit),
 		Expr::DeclUnit {
 			unit_name,
 			value_expr,
-		} => eval_unit_declaration(&mut env, unit_name, value_expr),
-		Expr::Basic(expr) => eval_basic(&mut env, expr),
-		Expr::Import(target) => eval_import(&mut env, target),
-		Expr::Assign { lhs, rhs } => eval_assignment(&mut env, lhs, rhs),
+		} => eval_unit_declaration(&mut env, unit_name, *value_expr),
+		Expr::Basic(expr) => eval_basic(&mut env, *expr),
+		Expr::Import(target) => eval_import(&mut env, *target),
+		Expr::Assign { lhs, rhs } => eval_assignment(&mut env, lhs, *rhs),
 		Expr::Branch {
 			test,
 			then_expr,
 			else_expr,
-		} => eval_branch(&mut env, test, then_expr, else_expr),
-		Expr::WhileLoop { test, body } => eval_while_loop(env, test, body),
+		} => eval_branch(&mut env, *test, *then_expr, *else_expr),
+		Expr::WhileLoop { test, body } => eval_while_loop(env, *test, *body),
 		Expr::ForLoop {
 			loop_var,
 			range,
 			body,
-		} => eval_for_loop(env, loop_var, range, body),
+		} => eval_for_loop(env, loop_var, *range, body),
 		Expr::Break => Ok(Val::Break),
 		Expr::Return(result) => Ok(match eval_expr(env, *result)? {
 			// Return is idempotent; don't wrap the return value if it's already wrapped.
 			result @ Val::Return { .. } => result,
 			// Wrap non-returned value into returned value.
-			result @ _ => Val::Return {
+			result => Val::Return {
 				result: Box::new(result),
 			},
 		}),
@@ -88,7 +88,7 @@ pub fn eval(env: &mut SharedEnv, input: &str) -> Result<Val, GynjoErr> {
 	eval_expr(env, expr).map_err(GynjoErr::rt)
 }
 
-fn eval_block(env: &mut SharedEnv, mut exprs: Box<Vec<Expr>>) -> EvalResult {
+fn eval_block(env: &mut SharedEnv, mut exprs: Vec<Expr>) -> EvalResult {
 	let last = exprs.pop();
 	if let Some(last) = last {
 		for expr in exprs.into_iter() {
@@ -104,7 +104,7 @@ fn eval_block(env: &mut SharedEnv, mut exprs: Box<Vec<Expr>>) -> EvalResult {
 					// Return non-final result.
 					return Ok(result);
 				}
-				unused @ _ => {
+				unused => {
 					// Non-final, non-returned, non-empty results are errors.
 					return Err(RtErr::UnusedResult(unused.format_with_env(env)));
 				}
@@ -175,7 +175,7 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 		Val::Prim(Prim::Type(to)) => {
 			match (eval_expr(env, *bin_expr.left)?, to) {
 				// T -> T
-				(value @ _, to @ _) if value.get_type() == to => Ok(value),
+				(value, to) if value.get_type() == to => Ok(value),
 				// integer | rational -> rational
 				(Val::Quant(quant), Type::Quant(NumType::Rational)) => {
 					let (value, units) = quant.into_value_and_units();
@@ -203,7 +203,7 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				}
 				// list -> tuple
 				(Val::List(list), Type::Tuple) => {
-					let mut elems = Box::new(Vec::new());
+					let mut elems = Vec::with_capacity(list.len());
 					for value in list.iter() {
 						elems.push(value.clone());
 					}
@@ -267,24 +267,22 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 							})
 						}
 					};
-					let mut elems = Box::new(Vec::new());
+					let mut elems = Vec::new();
 					for val in range.into_iter() {
 						elems.push(Val::Quant(val.map_err(RtErr::quant)?));
 					}
 					Ok(Val::Tuple(Tuple { elems }))
 				}
 				// T -> string
-				(value @ _, Type::Text) => {
-					Ok(Val::Prim(Prim::Text(value.format_with_env(env).into())))
-				}
+				(value, Type::Text) => Ok(Val::Prim(Prim::Text(value.format_with_env(env).into()))),
 				// Invalid conversion
-				(value @ _, to @ _) => Err(RtErr::InvalidTypeCast {
+				(value, to) => Err(RtErr::InvalidTypeCast {
 					from: value.get_type(),
 					to,
 				}),
 			}
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "type cast",
 			expected: vec![Type::Type],
 			actual: invalid.get_type(),
@@ -301,14 +299,14 @@ fn eval_in(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 			}
 			match eval_expr(env, *bin_expr.left)? {
 				Val::Quant(from) => Ok(from.convert_into(to_units).map_err(RtErr::quant)?.into()),
-				invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+				invalid => Err(RtErr::UnaryTypeMismatch {
 					context: "unit conversion",
 					expected: Type::quant_types(),
 					actual: invalid.get_type(),
 				}),
 			}
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "unit conversion",
 			expected: Type::quant_types(),
 			actual: invalid.get_type(),
@@ -322,7 +320,7 @@ fn eval_and(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 			if left.into() {
 				match eval_expr(env, *bin_expr.right)? {
 					Val::Prim(Prim::Bool(right)) => Ok(right.into()),
-					invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+					invalid => Err(RtErr::UnaryTypeMismatch {
 						context: "logical conjunction",
 						expected: vec![Type::Boolean],
 						actual: invalid.get_type(),
@@ -333,7 +331,7 @@ fn eval_and(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				Ok(Bool::False.into())
 			}
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "logical conjunction",
 			expected: vec![Type::Boolean],
 			actual: invalid.get_type(),
@@ -350,7 +348,7 @@ fn eval_or(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 			} else {
 				match eval_expr(env, *bin_expr.right)? {
 					Val::Prim(Prim::Bool(right)) => Ok(right.into()),
-					invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+					invalid => Err(RtErr::UnaryTypeMismatch {
 						context: "logical disjunction",
 						expected: vec![Type::Boolean],
 						actual: invalid.get_type(),
@@ -358,7 +356,7 @@ fn eval_or(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				}
 			}
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "logical disjunction",
 			expected: vec![Type::Boolean],
 			actual: invalid.get_type(),
@@ -379,7 +377,7 @@ fn eval_approx(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				Quant::new(right_value.expand_domain(), right_units).format_with_env(env);
 			left_string == right_string
 		}
-		(left @ _, right @ _) => left == right,
+		(left, right) => left == right,
 	}))
 }
 
@@ -391,12 +389,12 @@ fn eval_concat(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 		(Val::Prim(Prim::Text(left)), Val::Prim(Prim::Text(right))) => {
 			Ok(Val::from(format!("{}{}", left, right)))
 		}
-		(Val::Prim(Prim::Text(left)), right @ _) => Ok(Val::from(format!(
+		(Val::Prim(Prim::Text(left)), right) => Ok(Val::from(format!(
 			"{}{}",
 			left,
 			right.format_with_env(&env)
 		))),
-		(left @ _, Val::Prim(Prim::Text(right))) => Ok(Val::from(format!(
+		(left, Val::Prim(Prim::Text(right))) => Ok(Val::from(format!(
 			"{}{}",
 			left.format_with_env(&env),
 			right
@@ -404,7 +402,7 @@ fn eval_concat(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 		// List concatenation
 		(Val::List(left), Val::List(right)) => Ok(Val::List(left.concat(right))),
 		// Invalid concatenation
-		(left @ _, right @ _) => Err(RtErr::BinaryTypeMismatch {
+		(left, right) => Err(RtErr::BinaryTypeMismatch {
 			context: "concatenation",
 			left: left.get_type(),
 			right: right.get_type(),
@@ -412,10 +410,10 @@ fn eval_concat(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 	}
 }
 
-fn eval_not(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
-	match eval_expr(env, *expr)? {
+fn eval_not(env: &mut SharedEnv, expr: Expr) -> EvalResult {
+	match eval_expr(env, expr)? {
 		Val::Prim(Prim::Bool(b)) => Ok(Bool::from(!bool::from(b)).into()),
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "logical negation",
 			expected: vec![Type::Boolean],
 			actual: invalid.get_type(),
@@ -423,15 +421,15 @@ fn eval_not(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
 	}
 }
 
-fn eval_tuple_expr(env: &mut SharedEnv, expr_elems: Box<Vec<Expr>>) -> EvalResult {
-	let mut elems = Box::new(Vec::with_capacity(expr_elems.len()));
+fn eval_tuple_expr(env: &mut SharedEnv, expr_elems: Vec<Expr>) -> EvalResult {
+	let mut elems = Vec::with_capacity(expr_elems.len());
 	for value in expr_elems.into_iter().map(|elem| eval_expr(env, elem)) {
 		elems.push(value?);
 	}
-	Ok(Val::Tuple(Tuple { elems: elems }))
+	Ok(Val::Tuple(Tuple { elems }))
 }
 
-fn eval_list_expr(env: &mut SharedEnv, expr_elems: Box<VecDeque<Expr>>) -> EvalResult {
+fn eval_list_expr(env: &mut SharedEnv, expr_elems: VecDeque<Expr>) -> EvalResult {
 	let mut list = List::empty();
 	for expr_elem in expr_elems.into_iter() {
 		list = list.push(eval_expr(env, expr_elem)?);
@@ -452,7 +450,7 @@ fn eval_range_expr(
 		};
 		let component = match component_val {
 			Some(Val::Quant(quant)) => Some(quant),
-			Some(invalid @ _) => {
+			Some(invalid) => {
 				return Err(RtErr::UnaryTypeMismatch {
 					context,
 					expected: Type::quant_types(),
@@ -466,14 +464,13 @@ fn eval_range_expr(
 	let start = get_range_component_quantity(start_expr, "range expression start")?;
 	let end = get_range_component_quantity(end_expr, "range expression end")?;
 	let stride = get_range_component_quantity(stride_expr, "range expression stride")?;
-	Ok(Val::Range(Range { start, end, stride }))
+	Ok(Val::Range(Box::new(Range { start, end, stride })))
 }
 
 fn eval_symbol(env: &mut SharedEnv, symbol: Sym) -> EvalResult {
 	env.lock()
 		.unwrap()
 		.get_var(&symbol)
-		.map(|v| v)
 		.ok_or(RtErr::Undefined(symbol.name))
 }
 
@@ -485,9 +482,9 @@ fn eval_unit(env: &mut SharedEnv, unit_name: String) -> EvalResult {
 	Ok(Val::from(Quant::new(Num::from(1), units)))
 }
 
-fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr>) -> EvalResult {
+fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Expr) -> EvalResult {
 	// Evaluate the value expression.
-	match eval_expr(env, *value)? {
+	match eval_expr(env, value)? {
 		Val::Quant(value) => {
 			// Perform the unit assignment, possibly overwriting the existing value.
 			env.lock()
@@ -495,7 +492,7 @@ fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr
 				.set_unit(unit_name, value.convert_into_base().map_err(RtErr::quant)?);
 			Ok(Val::empty())
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "unit declaration",
 			expected: Type::quant_types(),
 			actual: invalid.get_type(),
@@ -503,10 +500,10 @@ fn eval_unit_declaration(env: &mut SharedEnv, unit_name: String, value: Box<Expr
 	}
 }
 
-fn eval_basic(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
-	match eval_expr(env, *expr)? {
+fn eval_basic(env: &mut SharedEnv, expr: Expr) -> EvalResult {
+	match eval_expr(env, expr)? {
 		Val::Quant(value) => Ok(value.convert_into_base().map_err(RtErr::quant)?.into()),
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "base units conversion",
 			expected: Type::quant_types(),
 			actual: invalid.get_type(),
@@ -514,8 +511,8 @@ fn eval_basic(env: &mut SharedEnv, expr: Box<Expr>) -> EvalResult {
 	}
 }
 
-fn eval_import(env: &mut SharedEnv, target: Box<Expr>) -> EvalResult {
-	match eval_expr(env, *target)? {
+fn eval_import(env: &mut SharedEnv, target: Expr) -> EvalResult {
+	match eval_expr(env, target)? {
 		Val::Prim(Prim::Text(filename)) => {
 			let filename: String = filename.into();
 			let lib_text =
@@ -528,7 +525,7 @@ fn eval_import(env: &mut SharedEnv, target: Box<Expr>) -> EvalResult {
 				nested_error: Box::new(err),
 			})
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
+		invalid => Err(RtErr::UnaryTypeMismatch {
 			context: "import",
 			expected: vec![Type::Text],
 			actual: invalid.get_type(),
@@ -536,22 +533,17 @@ fn eval_import(env: &mut SharedEnv, target: Box<Expr>) -> EvalResult {
 	}
 }
 
-fn eval_assignment(env: &mut SharedEnv, lhs: Sym, rhs: Box<Expr>) -> EvalResult {
-	let rhs_value = eval_expr(env, *rhs)?;
+fn eval_assignment(env: &mut SharedEnv, lhs: Sym, rhs: Expr) -> EvalResult {
+	let rhs_value = eval_expr(env, rhs)?;
 	// Perform the variable assignment, possibly overwriting the existing value.
 	env.lock().unwrap().set_var(lhs, rhs_value);
 	Ok(Val::empty())
 }
 
-fn eval_branch(
-	env: &mut SharedEnv,
-	test: Box<Expr>,
-	then_expr: Box<Expr>,
-	else_expr: Box<Expr>,
-) -> EvalResult {
-	let test_value = eval_expr(env, *test)?;
+fn eval_branch(env: &mut SharedEnv, test: Expr, then_expr: Expr, else_expr: Expr) -> EvalResult {
+	let test_value = eval_expr(env, test)?;
 	match test_value {
-		Val::Prim(Prim::Bool(b)) => eval_expr(env, if b.into() { *then_expr } else { *else_expr }),
+		Val::Prim(Prim::Bool(b)) => eval_expr(env, if b.into() { then_expr } else { else_expr }),
 		_ => Err(RtErr::UnaryTypeMismatch {
 			context: "conditional test",
 			expected: vec![Type::Boolean],
@@ -560,15 +552,15 @@ fn eval_branch(
 	}
 }
 
-fn eval_while_loop(env: &mut SharedEnv, test: Box<Expr>, body: Box<Expr>) -> EvalResult {
+fn eval_while_loop(env: &mut SharedEnv, test: Expr, body: Expr) -> EvalResult {
 	loop {
 		// Evaluate the test condition.
-		let test_value = eval_expr(env, (*test).clone())?;
+		let test_value = eval_expr(env, test.clone())?;
 		match test_value {
 			Val::Prim(Prim::Bool(b)) => {
 				if b.into() {
 					// Evaluate next iteration.
-					match eval_expr(env, (*body).clone())? {
+					match eval_expr(env, body.clone())? {
 						Val::Tuple(Tuple { elems }) if elems.is_empty() => {
 							// Non-final empty results are okay.
 						}
@@ -580,7 +572,7 @@ fn eval_while_loop(env: &mut SharedEnv, test: Box<Expr>, body: Box<Expr>) -> Eva
 							// Exit loop via return.
 							return Ok(result);
 						}
-						unused @ _ => {
+						unused => {
 							// Non-final, non-returned, non-empty results are errors.
 							return Err(RtErr::UnusedResult(unused.format_with_env(env)));
 						}
@@ -598,12 +590,7 @@ fn eval_while_loop(env: &mut SharedEnv, test: Box<Expr>, body: Box<Expr>) -> Eva
 	}
 }
 
-fn eval_for_loop(
-	env: &mut SharedEnv,
-	loop_var: Sym,
-	range: Box<Expr>,
-	body: Box<Expr>,
-) -> EvalResult {
+fn eval_for_loop(env: &mut SharedEnv, loop_var: Sym, range: Expr, body: Box<Expr>) -> EvalResult {
 	// Common loop body logic. The return value is
 	// (1) An error if body evaluation encountered an error,
 	// (2) `None` if the loop should continue, or
@@ -617,10 +604,10 @@ fn eval_for_loop(
 			// Return expression. Exit loop via return.
 			result @ Val::Return { .. } => Ok(Some(Ok(result))),
 			// Error: non-final, non-returned, non-empty result.
-			unused @ _ => Ok(Some(Err(RtErr::UnusedResult(unused.format_with_env(env))))),
+			unused => Ok(Some(Err(RtErr::UnusedResult(unused.format_with_env(env))))),
 		}
 	};
-	match eval_expr(env, *range)? {
+	match eval_expr(env, range)? {
 		Val::List(range_list) => {
 			for value in range_list.iter() {
 				// Assign the loop variable to the current value in the range list.
@@ -681,8 +668,8 @@ fn eval_for_loop(
 			}
 			Ok(Val::empty())
 		}
-		invalid @ _ => Err(RtErr::UnaryTypeMismatch {
-			context: "for-loop range".into(),
+		invalid => Err(RtErr::UnaryTypeMismatch {
+			context: "for-loop range",
 			expected: vec![Type::List, Type::Range],
 			actual: invalid.get_type(),
 		}),
@@ -713,7 +700,7 @@ fn eval_bin_op(
 			})?))
 		}
 		// Invalid numeric operation
-		(left @ _, right @ _) => Err(RtErr::BinaryTypeMismatch {
+		(left, right) => Err(RtErr::BinaryTypeMismatch {
 			context: op_name,
 			left: left.get_type(),
 			right: right.get_type(),
@@ -857,7 +844,7 @@ fn eval_cluster(env: &mut SharedEnv, cluster: Cluster) -> EvalResult {
 fn eval_application(c: Closure, args: Val) -> EvalResult {
 	// Extract arguments into a vector.
 	let args = match args {
-		Val::Tuple(tuple) => *tuple.elems,
+		Val::Tuple(tuple) => tuple.elems,
 		_ => vec![args],
 	};
 	// Ensure correct number of arguments.
@@ -878,7 +865,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 		LambdaBody::Intrinsic(body) => match body {
 			Intrinsic::Pop => match local_env.lock().unwrap().get_var(&"list".into()).unwrap() {
 				Val::List(list) => Ok(Val::List(list.tail().ok_or(RtErr::OutOfBounds)?)),
-				arg @ _ => Err(RtErr::UnaryTypeMismatch {
+				arg => Err(RtErr::UnaryTypeMismatch {
 					context: "pop()",
 					expected: vec![Type::List],
 					actual: arg.get_type(),
@@ -889,7 +876,7 @@ fn eval_application(c: Closure, args: Val) -> EvalResult {
 	// Unwrap returned value, if any.
 	Ok(match result {
 		Val::Return { result } => *result,
-		other @ _ => other,
+		other => other,
 	})
 }
 
@@ -1062,11 +1049,11 @@ mod tests {
 			// Cannot be compared.
 			match eval(&mut env, "false < true").err().unwrap() {
 				GynjoErr::Rt(RtErr::BinaryTypeMismatch { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 			match eval(&mut env, "(1, 2, 3) < (3, 2, 1)").err().unwrap() {
 				GynjoErr::Rt(RtErr::BinaryTypeMismatch { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 			Ok(())
 		}
@@ -1081,7 +1068,7 @@ mod tests {
 		fn different_types_cannot_be_order_compared() {
 			match eval(&mut Env::new(None), "(x -> x) < false").err().unwrap() {
 				GynjoErr::Rt(RtErr::BinaryTypeMismatch { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 		}
 		#[test]
@@ -1593,11 +1580,11 @@ mod tests {
 			);
 			match eval(&mut env, "[1][true]").err().unwrap() {
 				GynjoErr::Rt(RtErr::InvalidIndex { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 			match eval(&mut env, "[1][1, 2]").err().unwrap() {
 				GynjoErr::Rt(RtErr::InvalidIndex { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 		}
 		#[test]
@@ -1810,11 +1797,11 @@ mod tests {
 			);
 			match eval(&mut env, r#" "hi"[true] "#).err().unwrap() {
 				GynjoErr::Rt(RtErr::InvalidIndex { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 			match eval(&mut env, r#" "hi"[1, 2] "#).err().unwrap() {
 				GynjoErr::Rt(RtErr::InvalidIndex { .. }) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 		}
 	}
@@ -1880,7 +1867,7 @@ mod tests {
 		// "a" should be undefined.
 		match eval(&mut env, "sum (1) (2) get_a ()").err().unwrap() {
 			GynjoErr::Rt(RtErr::Undefined(_)) => (),
-			_ => assert!(false),
+			_ => panic!(),
 		}
 		Ok(())
 	}
@@ -1954,11 +1941,11 @@ mod tests {
 			let mut env = Env::new(None);
 			match eval(&mut env, "{1;2}").err().unwrap() {
 				GynjoErr::Rt(RtErr::UnusedResult(_)) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 			match eval(&mut env, "{1;}").err().unwrap() {
 				GynjoErr::Rt(RtErr::UnusedResult(_)) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 		}
 		#[test]
@@ -2016,7 +2003,7 @@ mod tests {
 		fn unused_result() {
 			match eval(&mut Env::new(None), "while true do 1").err().unwrap() {
 				GynjoErr::Rt(RtErr::UnusedResult(_)) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 		}
 	}
@@ -2060,7 +2047,7 @@ mod tests {
 				.unwrap()
 			{
 				GynjoErr::Rt(RtErr::UnusedResult(_)) => (),
-				_ => assert!(false),
+				_ => panic!(),
 			}
 		}
 	}

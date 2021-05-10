@@ -74,7 +74,7 @@ impl fmt::Display for Unit {
 }
 
 /// A mapping from dimensions to their units and powers.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, Debug)]
 pub struct Units {
 	map: HashMap<Unit, Num>,
 }
@@ -95,8 +95,9 @@ impl Units {
 	/// The conversion factor for converting `self` to `other`, if the dimensions match.
 	pub fn conversion_factor(self, other: Units) -> Result<Num, UnitErr> {
 		let (from_base_units, from_factor) =
-			self.to_base_units_and_factor().map_err(UnitErr::num)?;
-		let (to_base_units, to_factor) = other.to_base_units_and_factor().map_err(UnitErr::num)?;
+			self.into_base_units_and_factor().map_err(UnitErr::num)?;
+		let (to_base_units, to_factor) =
+			other.into_base_units_and_factor().map_err(UnitErr::num)?;
 		if from_base_units != to_base_units {
 			Err(UnitErr::Incompatible)
 		} else {
@@ -158,7 +159,7 @@ impl Units {
 	}
 
 	/// Converts `self` to base units and a conversion factor.
-	pub fn to_base_units_and_factor(self) -> Result<(Self, Num), NumErr> {
+	pub fn into_base_units_and_factor(self) -> Result<(Self, Num), NumErr> {
 		let mut factor = Num::from(1);
 		let mut base_units = Self::empty();
 		// Break each unit into its base units and merge into resulting unit map.
@@ -214,6 +215,12 @@ impl IntoIterator for Units {
 	type IntoIter = std::collections::hash_map::IntoIter<Unit, Num>;
 	fn into_iter(self) -> Self::IntoIter {
 		self.map.into_iter()
+	}
+}
+
+impl PartialEq for Units {
+	fn eq(&self, other: &Self) -> bool {
+		self.map.eq(&other.map)
 	}
 }
 

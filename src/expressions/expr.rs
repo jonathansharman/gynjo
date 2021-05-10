@@ -14,12 +14,12 @@ use std::fmt;
 /// Gynjo expressions.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expr {
-	Block(Box<Vec<Expr>>),
+	Block(Vec<Expr>),
 	BinExpr(BinExpr),
 	Not(Box<Expr>),
 	Cluster(Cluster),
 	Lambda(Lambda),
-	TupleExpr(Box<Vec<Expr>>),
+	TupleExpr(Vec<Expr>),
 	ListExpr(Box<VecDeque<Expr>>),
 	RangeExpr(Box<(Option<Expr>, Option<Expr>, Option<Expr>)>),
 	Sym(Sym),

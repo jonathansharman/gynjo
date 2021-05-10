@@ -24,14 +24,14 @@ impl Text {
 
 	/// The number of characters in this text.
 	pub fn len(&self) -> usize {
-		return self.0.len();
+		self.0.len()
 	}
 
 	/// Copies one or more characters from this text, based on `idx`.
 	pub fn slice(&self, idx: Index) -> Result<Val, RtErr> {
 		match idx {
 			Index::Element(idx) => {
-				if self.0.len() == 0 {
+				if self.0.is_empty() {
 					Err(RtErr::OutOfBounds)
 				} else {
 					self.0

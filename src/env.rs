@@ -10,7 +10,7 @@ macro_rules! import_core_lib {
 	($env:ident, $core_lib:literal) => {
 		if let Err(err) = eval(&mut $env, include_str!($core_lib)) {
 			println!("Error importing core library \"{}\": {}", $core_lib, err);
-			}
+		}
 	};
 }
 
@@ -33,7 +33,7 @@ impl Env {
 		Arc::new(Mutex::new(Env {
 			local_vars: HashMap::new(),
 			local_units: HashMap::new(),
-			parent_env: parent_env,
+			parent_env,
 		}))
 	}
 
@@ -63,21 +63,20 @@ impl Env {
 
 	/// Returns the value of the variable named `name` or `None` if the variable is undefined.
 	pub fn get_var(&self, name: &Sym) -> Option<Val> {
-		self.local_vars.get(name).map(|v| v.clone()).or(self
-			.parent_env
-			.as_ref()
-			.and_then(|p| p.lock().unwrap().get_var(name)))
+		self.local_vars.get(name).cloned().or_else(|| {
+			self.parent_env
+				.as_ref()
+				.and_then(|p| p.lock().unwrap().get_var(name))
+		})
 	}
 
 	/// Returns the value corresponding to `unit` `None` if the unit is undefined.
-	pub fn get_unit(&self, unit_name: &String) -> Option<Quant> {
-		self.local_units
-			.get(unit_name)
-			.map(|value| value.clone())
-			.or(self
-				.parent_env
+	pub fn get_unit(&self, unit_name: &str) -> Option<Quant> {
+		self.local_units.get(unit_name).cloned().or_else(|| {
+			self.parent_env
 				.as_ref()
-				.and_then(|p| p.lock().unwrap().get_unit(unit_name)))
+				.and_then(|p| p.lock().unwrap().get_unit(unit_name))
+		})
 	}
 }
 

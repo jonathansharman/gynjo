@@ -14,6 +14,7 @@ use num_traits::sign::Signed;
 
 use std::cmp::{Ord, PartialOrd};
 use std::fmt;
+use std::hash::Hash;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Eq, PartialEq, Debug)]
@@ -34,7 +35,7 @@ impl fmt::Display for NumErr {
 }
 
 /// Numeric Gynjo types.
-#[derive(Clone, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub enum Num {
 	Integer(BigInt),
 	Rational(BigRational),
@@ -136,7 +137,7 @@ impl Num {
 					if negative {
 						result = (Num::from(1) / result)?;
 					}
-					Ok(result.into())
+					Ok(result)
 				}
 				None => Err(NumErr::ExponentTooLarge),
 			}
@@ -172,10 +173,10 @@ impl Num {
 impl PartialEq for Num {
 	fn eq(&self, other: &Self) -> bool {
 		match (self, other) {
-			(Num::Real(lhs), rhs @ _) => lhs == &BigDecimal::from(rhs.clone()),
-			(lhs @ _, Num::Real(rhs)) => &BigDecimal::from(lhs.clone()) == rhs,
-			(Num::Rational(lhs), rhs @ _) => lhs == &BigRational::from(rhs.clone()),
-			(lhs @ _, Num::Rational(rhs)) => &BigRational::from(lhs.clone()) == rhs,
+			(Num::Real(lhs), rhs) => lhs == &BigDecimal::from(rhs.clone()),
+			(lhs, Num::Real(rhs)) => &BigDecimal::from(lhs.clone()) == rhs,
+			(Num::Rational(lhs), rhs) => lhs == &BigRational::from(rhs.clone()),
+			(lhs, Num::Rational(rhs)) => &BigRational::from(lhs.clone()) == rhs,
 			(Num::Integer(lhs), Num::Integer(rhs)) => lhs == rhs,
 		}
 	}
@@ -186,10 +187,10 @@ impl Eq for Num {}
 impl Ord for Num {
 	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
 		match (self, other) {
-			(Num::Real(lhs), rhs @ _) => lhs.cmp(&BigDecimal::from(rhs.clone())),
-			(lhs @ _, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
-			(Num::Rational(lhs), rhs @ _) => lhs.cmp(&BigRational::from(rhs.clone())),
-			(lhs @ _, Num::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
+			(Num::Real(lhs), rhs) => lhs.cmp(&BigDecimal::from(rhs.clone())),
+			(lhs, Num::Real(rhs)) => BigDecimal::from(lhs.clone()).cmp(rhs),
+			(Num::Rational(lhs), rhs) => lhs.cmp(&BigRational::from(rhs.clone())),
+			(lhs, Num::Rational(rhs)) => BigRational::from(lhs.clone()).cmp(rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => lhs.cmp(rhs),
 		}
 	}
@@ -198,6 +199,16 @@ impl Ord for Num {
 impl PartialOrd for Num {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
 		Some(self.cmp(other))
+	}
+}
+
+impl Hash for Num {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		match self {
+			Num::Real(n) => n.hash(state),
+			Num::Rational(n) => n.hash(state),
+			Num::Integer(n) => n.hash(state),
+		}
 	}
 }
 
@@ -289,10 +300,10 @@ impl Add for Num {
 	type Output = Num;
 	fn add(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
-			(Num::Real(lhs), rhs @ _) => Num::Real(lhs + BigDecimal::from(rhs)),
-			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) + rhs),
-			(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs + BigRational::from(rhs)),
-			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) + rhs),
+			(Num::Real(lhs), rhs) => Num::Real(lhs + BigDecimal::from(rhs)),
+			(lhs, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) + rhs),
+			(Num::Rational(lhs), rhs) => Num::Rational(lhs + BigRational::from(rhs)),
+			(lhs, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) + rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs + rhs),
 		}
 	}
@@ -302,10 +313,10 @@ impl Sub for Num {
 	type Output = Num;
 	fn sub(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
-			(Num::Real(lhs), rhs @ _) => Num::Real(lhs - BigDecimal::from(rhs)),
-			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) - rhs),
-			(Num::Rational(lhs), rhs @ _) => Num::Rational(lhs - BigRational::from(rhs)),
-			(lhs @ _, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) - rhs),
+			(Num::Real(lhs), rhs) => Num::Real(lhs - BigDecimal::from(rhs)),
+			(lhs, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) - rhs),
+			(Num::Rational(lhs), rhs) => Num::Rational(lhs - BigRational::from(rhs)),
+			(lhs, Num::Rational(rhs)) => Num::Rational(BigRational::from(lhs) - rhs),
 			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs - rhs),
 		}
 	}
@@ -315,12 +326,12 @@ impl Mul for Num {
 	type Output = Num;
 	fn mul(self, rhs: Self) -> Self::Output {
 		match (self, rhs) {
-			(Num::Real(lhs), rhs @ _) => Num::Real(lhs * BigDecimal::from(rhs)).shrink_domain(),
-			(lhs @ _, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) * rhs).shrink_domain(),
-			(Num::Rational(lhs), rhs @ _) => {
+			(Num::Real(lhs), rhs) => Num::Real(lhs * BigDecimal::from(rhs)).shrink_domain(),
+			(lhs, Num::Real(rhs)) => Num::Real(BigDecimal::from(lhs) * rhs).shrink_domain(),
+			(Num::Rational(lhs), rhs) => {
 				Num::Rational(lhs * BigRational::from(rhs)).shrink_domain()
 			}
-			(lhs @ _, Num::Rational(rhs)) => {
+			(lhs, Num::Rational(rhs)) => {
 				Num::Rational(BigRational::from(lhs) * rhs).shrink_domain()
 			}
 			(Num::Integer(lhs), Num::Integer(rhs)) => Num::Integer(lhs * rhs),
@@ -335,12 +346,12 @@ impl Div for Num {
 			Err(NumErr::DivisionByZero)
 		} else {
 			Ok(match (self, rhs) {
-				(Num::Real(a), b @ _) => Num::Real(a / BigDecimal::from(b)).shrink_domain(),
-				(a @ _, Num::Real(b)) => Num::Real(BigDecimal::from(a) / b).shrink_domain(),
-				(Num::Rational(lhs), rhs @ _) => {
+				(Num::Real(a), b) => Num::Real(a / BigDecimal::from(b)).shrink_domain(),
+				(a, Num::Real(b)) => Num::Real(BigDecimal::from(a) / b).shrink_domain(),
+				(Num::Rational(lhs), rhs) => {
 					Num::Rational(lhs / BigRational::from(rhs)).shrink_domain()
 				}
-				(lhs @ _, Num::Rational(rhs)) => {
+				(lhs, Num::Rational(rhs)) => {
 					Num::Rational(BigRational::from(lhs) / rhs).shrink_domain()
 				}
 				(Num::Integer(a), Num::Integer(b)) => Num::rational(a, b).shrink_domain(),
