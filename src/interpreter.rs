@@ -211,11 +211,30 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				}
 				// range -> list
 				(Val::Range(range), Type::List) => {
-					if range.start.is_none() || range.end.is_none() {
-						return Err(RtErr::UnboundedRange {
-							context: "range to list conversion",
-						});
-					}
+					// Ensure there's a start and end and infer the stride if it's missing.
+					let range = match (&range.start, &range.end, &range.stride) {
+						// Step from start to end by 1.
+						(Some(start), Some(end), None) => Range {
+							start: range.start.clone(),
+							end: range.end.clone(),
+							stride: Some(Quant::new(
+								if start <= end { 1 } else { -1 }.into(),
+								start.units().clone(),
+							)),
+						},
+						// Step from start to end by stride.
+						(Some(_), Some(_), Some(_)) => Range {
+							start: range.start.clone(),
+							end: range.end.clone(),
+							stride: range.stride.clone(),
+						},
+						// If there's no start or no end, the range is considered out of bounds.
+						_ => {
+							return Err(RtErr::UnboundedRange {
+								context: "range to list conversion",
+							})
+						}
+					};
 					let mut list = List::empty();
 					for val in range.into_iter() {
 						list = list.push(Val::Quant(val.map_err(RtErr::quant)?));
@@ -224,11 +243,30 @@ fn eval_as(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 				}
 				// range -> tuple
 				(Val::Range(range), Type::Tuple) => {
-					if range.start.is_none() || range.end.is_none() {
-						return Err(RtErr::UnboundedRange {
-							context: "range to tuple conversion",
-						});
-					}
+					// Ensure there's a start and end and infer the stride if it's missing.
+					let range = match (&range.start, &range.end, &range.stride) {
+						// Step from start to end by 1.
+						(Some(start), Some(end), None) => Range {
+							start: range.start.clone(),
+							end: range.end.clone(),
+							stride: Some(Quant::new(
+								if start <= end { 1 } else { -1 }.into(),
+								start.units().clone(),
+							)),
+						},
+						// Step from start to end by stride.
+						(Some(_), Some(_), Some(_)) => Range {
+							start: range.start.clone(),
+							end: range.end.clone(),
+							stride: range.stride.clone(),
+						},
+						// If there's no start or no end, the range is considered out of bounds.
+						_ => {
+							return Err(RtErr::UnboundedRange {
+								context: "range to tuple conversion",
+							})
+						}
+					};
 					let mut elems = Box::new(Vec::new());
 					for val in range.into_iter() {
 						elems.push(Val::Quant(val.map_err(RtErr::quant)?));
@@ -1988,16 +2026,6 @@ mod tests {
 		#[test]
 		fn for_loop_over_list() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
-			let result = eval(
-				&mut env,
-				r"{
-				let a = 0;
-				for x in [1, 2, 3] do let a = a + x;
-				for x in [] do let a = 10;
-				a
-			}",
-			)?;
-			assert_eq!(Val::scalar(6), result);
 			let result = eval(
 				&mut env,
 				r"{
