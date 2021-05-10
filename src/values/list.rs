@@ -120,8 +120,6 @@ impl List {
 	}
 
 	/// Copies a value or slice of values from this list, based on `idx`.
-	///
-	/// `env`: Used for formatting error messages if an error occurs.
 	pub fn slice(&self, idx: Index) -> Result<Val, RtErr> {
 		match idx {
 			Index::Element(idx) => {
@@ -154,8 +152,8 @@ impl List {
 					stride = -stride;
 				};
 				// Ensure non-negative start.
-				while start < 0 {
-					start += stride;
+				if start < 0 {
+					start = start.rem_euclid(stride);
 				}
 				// Ensure end doesn't go past the length.
 				end = end.min(len);

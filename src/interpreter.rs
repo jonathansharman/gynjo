@@ -716,7 +716,7 @@ fn eval_evaluated_cluster(
 					Val::List(left) => left.slice(right.as_index(&env, left.len() as i64)?),
 					// String index/slice operation
 					Val::Prim(Prim::Text(left)) => {
-						Ok(left.slice(&env, right.clone().as_index(&env, left.len() as i64)?)?)
+						Ok(left.slice(right.as_index(&env, left.len() as i64)?)?)
 					}
 					_ => continue,
 				}?;
@@ -1571,28 +1571,196 @@ mod tests {
 			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[-1]"#)?);
 			Ok(())
 		}
-		#[test]
-		fn valid_string_slicing() -> Result<(), GynjoErr> {
+		#[rstest]
+		#[case("..", "hi")]
+		#[case(".. by -2", "i")]
+		#[case(".. by -1", "ih")]
+		#[case(".. by 1", "hi")]
+		#[case(".. by 2", "h")]
+		#[case("..-1", "")]
+		#[case("..-1 by -2", "i")]
+		#[case("..-1 by -1", "ih")]
+		#[case("..-1 by 1", "")]
+		#[case("..-1 by 2", "")]
+		#[case("..0", "")]
+		#[case("..0 by -2", "i")]
+		#[case("..0 by -1", "ih")]
+		#[case("..0 by 1", "")]
+		#[case("..0 by 2", "")]
+		#[case("..1", "h")]
+		#[case("..1 by -2", "i")]
+		#[case("..1 by -1", "i")]
+		#[case("..1 by 1", "h")]
+		#[case("..1 by 2", "h")]
+		#[case("..2", "hi")]
+		#[case("..2 by -2", "")]
+		#[case("..2 by -1", "")]
+		#[case("..2 by 1", "hi")]
+		#[case("..2 by 2", "h")]
+		#[case("..3", "hi")]
+		#[case("..3 by -2", "")]
+		#[case("..3 by -1", "")]
+		#[case("..3 by 1", "hi")]
+		#[case("..3 by 2", "h")]
+		#[case("-1..", "hi")]
+		#[case("-1.. by -2", "")]
+		#[case("-1.. by -1", "")]
+		#[case("-1.. by 1", "hi")]
+		#[case("-1.. by 2", "i")]
+		#[case("-1..-1", "")]
+		#[case("-1..-1 by -2", "")]
+		#[case("-1..-1 by -1", "")]
+		#[case("-1..-1 by 1", "")]
+		#[case("-1..-1 by 2", "")]
+		#[case("-1..0", "")]
+		#[case("-1..0 by -2", "")]
+		#[case("-1..0 by -1", "")]
+		#[case("-1..0 by 1", "")]
+		#[case("-1..0 by 2", "")]
+		#[case("-1..1", "h")]
+		#[case("-1..1 by -2", "")]
+		#[case("-1..1 by -1", "")]
+		#[case("-1..1 by 1", "h")]
+		#[case("-1..1 by 2", "")]
+		#[case("-1..2", "hi")]
+		#[case("-1..2 by -2", "")]
+		#[case("-1..2 by -1", "")]
+		#[case("-1..2 by 1", "hi")]
+		#[case("-1..2 by 2", "i")]
+		#[case("-1..3", "hi")]
+		#[case("-1..3 by -2", "")]
+		#[case("-1..3 by -1", "")]
+		#[case("-1..3 by 1", "hi")]
+		#[case("-1..3 by 2", "i")]
+		#[case("0..", "hi")]
+		#[case("0.. by -2", "")]
+		#[case("0.. by -1", "")]
+		#[case("0.. by 1", "hi")]
+		#[case("0.. by 2", "h")]
+		#[case("0..-1", "")]
+		#[case("0..-1 by -2", "")]
+		#[case("0..-1 by -1", "")]
+		#[case("0..-1 by 1", "")]
+		#[case("0..-1 by 2", "")]
+		#[case("0..0", "")]
+		#[case("0..0 by -2", "")]
+		#[case("0..0 by -1", "")]
+		#[case("0..0 by 1", "")]
+		#[case("0..0 by 2", "")]
+		#[case("0..1", "h")]
+		#[case("0..1 by -2", "")]
+		#[case("0..1 by -1", "")]
+		#[case("0..1 by 1", "h")]
+		#[case("0..1 by 2", "h")]
+		#[case("0..2", "hi")]
+		#[case("0..2 by -2", "")]
+		#[case("0..2 by -1", "")]
+		#[case("0..2 by 1", "hi")]
+		#[case("0..2 by 2", "h")]
+		#[case("0..3", "hi")]
+		#[case("0..3 by -2", "")]
+		#[case("0..3 by -1", "")]
+		#[case("0..3 by 1", "hi")]
+		#[case("0..3 by 2", "h")]
+		#[case("1..", "i")]
+		#[case("1.. by -2", "h")]
+		#[case("1.. by -1", "h")]
+		#[case("1.. by 1", "i")]
+		#[case("1.. by 2", "i")]
+		#[case("1..-1", "h")]
+		#[case("1..-1 by -2", "h")]
+		#[case("1..-1 by -1", "h")]
+		#[case("1..-1 by 1", "")]
+		#[case("1..-1 by 2", "")]
+		#[case("1..0", "h")]
+		#[case("1..0 by -2", "h")]
+		#[case("1..0 by -1", "h")]
+		#[case("1..0 by 1", "")]
+		#[case("1..0 by 2", "")]
+		#[case("1..1", "")]
+		#[case("1..1 by -2", "")]
+		#[case("1..1 by -1", "")]
+		#[case("1..1 by 1", "")]
+		#[case("1..1 by 2", "")]
+		#[case("1..2", "i")]
+		#[case("1..2 by -2", "")]
+		#[case("1..2 by -1", "")]
+		#[case("1..2 by 1", "i")]
+		#[case("1..2 by 2", "i")]
+		#[case("1..3", "i")]
+		#[case("1..3 by -2", "")]
+		#[case("1..3 by -1", "")]
+		#[case("1..3 by 1", "i")]
+		#[case("1..3 by 2", "i")]
+		#[case("2..", "")]
+		#[case("2.. by -2", "i")]
+		#[case("2.. by -1", "ih")]
+		#[case("2.. by 1", "")]
+		#[case("2.. by 2", "")]
+		#[case("2..-1", "ih")]
+		#[case("2..-1 by -2", "i")]
+		#[case("2..-1 by -1", "ih")]
+		#[case("2..-1 by 1", "")]
+		#[case("2..-1 by 2", "")]
+		#[case("2..0", "ih")]
+		#[case("2..0 by -2", "i")]
+		#[case("2..0 by -1", "ih")]
+		#[case("2..0 by 1", "")]
+		#[case("2..0 by 2", "")]
+		#[case("2..1", "i")]
+		#[case("2..1 by -2", "i")]
+		#[case("2..1 by -1", "i")]
+		#[case("2..1 by 1", "")]
+		#[case("2..1 by 2", "")]
+		#[case("2..2", "")]
+		#[case("2..2 by -2", "")]
+		#[case("2..2 by -1", "")]
+		#[case("2..2 by 1", "")]
+		#[case("2..2 by 2", "")]
+		#[case("2..3", "")]
+		#[case("2..3 by -2", "")]
+		#[case("2..3 by -1", "")]
+		#[case("2..3 by 1", "")]
+		#[case("2..3 by 2", "")]
+		#[case("3..", "")]
+		#[case("3.. by -2", "h")]
+		#[case("3.. by -1", "ih")]
+		#[case("3.. by 1", "")]
+		#[case("3.. by 2", "")]
+		#[case("3..-1", "ih")]
+		#[case("3..-1 by -2", "h")]
+		#[case("3..-1 by -1", "ih")]
+		#[case("3..-1 by 1", "")]
+		#[case("3..-1 by 2", "")]
+		#[case("3..0", "ih")]
+		#[case("3..0 by -2", "h")]
+		#[case("3..0 by -1", "ih")]
+		#[case("3..0 by 1", "")]
+		#[case("3..0 by 2", "")]
+		#[case("3..1", "i")]
+		#[case("3..1 by -2", "")]
+		#[case("3..1 by -1", "i")]
+		#[case("3..1 by 1", "")]
+		#[case("3..1 by 2", "")]
+		#[case("3..2", "")]
+		#[case("3..2 by -2", "")]
+		#[case("3..2 by -1", "")]
+		#[case("3..2 by 1", "")]
+		#[case("3..2 by 2", "")]
+		#[case("3..3", "")]
+		#[case("3..3 by -2", "")]
+		#[case("3..3 by -1", "")]
+		#[case("3..3 by 1", "")]
+		#[case("3..3 by 2", "")]
+		fn valid_string_slicing(
+			#[case] index: &str,
+			#[case] expected: &str,
+		) -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
-			assert_eq!(Val::from("hi".to_string()), eval(&mut env, r#""hi"[..]"#)?);
-			assert_eq!(Val::from("i".to_string()), eval(&mut env, r#""hi"[1..]"#)?);
-			assert_eq!(Val::from("h".to_string()), eval(&mut env, r#""hi"[..0]"#)?);
-			assert_eq!(
-				Val::from("hi".to_string()),
-				eval(&mut env, r#""hi"[..-1]"#)?
-			);
-			assert_eq!(
-				Val::from("hihi".to_string()),
-				eval(&mut env, r#""hi"[..3]"#)?
-			);
-			assert_eq!(
-				Val::from("oh".to_string()),
-				eval(&mut env, r#""hello"[-1..0]"#)?
-			);
-			assert_eq!(
-				Val::from("ho".to_string()),
-				eval(&mut env, r#""hello"[0..-1]"#)?
-			);
+			let input = format!(r#" "hi"[{}] "#, index);
+			let expected = eval(&mut env, &format!(r#" "{}" "#, expected))?;
+			let actual = eval(&mut env, &input)?;
+			assert_eq!(expected, actual);
 			Ok(())
 		}
 		#[test]
@@ -1600,13 +1768,13 @@ mod tests {
 			let mut env = Env::new(None);
 			assert_eq!(
 				GynjoErr::Rt(RtErr::OutOfBounds),
-				eval(&mut env, r#"""[0]"#).err().unwrap()
+				eval(&mut env, r#" ""[0] "#).err().unwrap()
 			);
-			match eval(&mut env, r#""hi"[true]"#).err().unwrap() {
+			match eval(&mut env, r#" "hi"[true] "#).err().unwrap() {
 				GynjoErr::Rt(RtErr::InvalidIndex { .. }) => (),
 				_ => assert!(false),
 			}
-			match eval(&mut env, r#""hi"[1, 2]"#).err().unwrap() {
+			match eval(&mut env, r#" "hi"[1, 2] "#).err().unwrap() {
 				GynjoErr::Rt(RtErr::InvalidIndex { .. }) => (),
 				_ => assert!(false),
 			}

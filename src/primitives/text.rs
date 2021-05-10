@@ -2,8 +2,9 @@ use crate::env::SharedEnv;
 use crate::errors::RtErr;
 use crate::format_with_env::FormatWithEnv;
 use crate::primitives::{Num, Prim};
-use crate::values::{Index, List, Quant, Val};
+use crate::values::{Index, Quant, Val};
 
+use num::integer::div_ceil;
 use num_traits::ToPrimitive;
 
 use std::fmt;
@@ -27,31 +28,61 @@ impl Text {
 	}
 
 	/// Copies one or more characters from this text, based on `idx`.
-	///
-	/// `env`: Used for formatting error messages if an error occurs.
-	pub fn slice(&self, _env: &SharedEnv, _idx: Index) -> Result<Val, RtErr> {
-		Ok(Val::empty())
-		// match idx {
-		// 	Index::Element(idx) => self
-		// 		.0
-		// 		.chars()
-		// 		.nth(idx)
-		// 		.ok_or(RtErr::OutOfBounds)
-		// 		.map(|c| Val::Prim(Prim::Text(Text(c.into())))),
-		// 	Index::Slice { start, end, stride } => {
-		// 		let iter = self
-		// 			.0
-		// 			.chars()
-		// 			.skip(start)
-		// 			.step_by(stride)
-		// 			.take((end - start) / stride);
-		// 		let mut result_string = "".to_string();
-		// 		for c in iter {
-		// 			result_string.push(c);
-		// 		}
-		// 		Ok(Val::Prim(Prim::Text(Text(result_string))))
-		// 	}
-		// }
+	pub fn slice(&self, idx: Index) -> Result<Val, RtErr> {
+		match idx {
+			Index::Element(idx) => {
+				if self.0.len() == 0 {
+					Err(RtErr::OutOfBounds)
+				} else {
+					self.0
+						.chars()
+						.nth(idx.rem_euclid(self.len() as i64) as usize)
+						.ok_or(RtErr::OutOfBounds)
+						.map(|c| Val::Prim(Prim::Text(Text(c.into()))))
+				}
+			}
+			Index::Slice {
+				mut start,
+				mut end,
+				mut stride,
+			} => {
+				let len = self.len() as i64;
+				// Compute the text, start, end, and stride, making any adjustments required to ensure forward iteration.
+				let text;
+				if stride.is_positive() {
+					text = self.0.clone();
+				} else {
+					// Iterate over the reversed text.
+					text = self.0.chars().rev().collect::<String>();
+					// Reverse start/end/stride with respect to the text length.
+					start = len - start;
+					end = len - end;
+					stride = -stride;
+				};
+				// Ensure non-negative start.
+				while start < 0 {
+					start += stride;
+				}
+				// Ensure end doesn't go past the length.
+				end = end.min(len);
+				// Compute the number of characters in the slice.
+				let count = div_ceil((end - start).max(0), stride);
+				// Build the result text.
+				let iter = text
+					.chars()
+					// Skip ahead to the start index.
+					.skip(start as usize)
+					// Step by the stride.
+					.step_by(stride as usize)
+					// Take count characters.
+					.take(count as usize);
+				let mut result = String::new();
+				for c in iter {
+					result.push(c);
+				}
+				Ok(Val::Prim(Prim::Text(result.into())))
+			}
+		}
 	}
 
 	/// Gets the character of this text at index `idx` modulo the text length.
