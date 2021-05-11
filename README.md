@@ -16,10 +16,10 @@ A command-line calculator and programming language with an emphasis on short, ma
 
 ## Contents
 1. [Variable Assignment](#variable-assignment)
+1. [Value Types](#value-types)
 1. [Operators and Precedence](#operators-and-precedence)
 1. [Units and Dimensional Analysis](#units-and-dimensional-analysis)
 1. [Blocks and Control Flow](#blocks-and-control-flow)
-1. [Value Types](#value-types)
 1. [Functions](#functions)
 1. [Importing Scripts](#importing-scripts)
 
@@ -34,6 +34,40 @@ Variables can be set using `let` *variable* `=` *value*. Variable names can cont
 >> ans
 3
 ```
+
+## Value Types
+
+| Type             | Description                               | Examples                             |
+| :--------------- | :---------------------------------------- | :----------------------------------- |
+| `type`           | One of the types in this table            | `integer`, `get_type(1)`             |
+| `boolean`        | `true` or `false`                         | `true`, `false`                      |
+| `integer`        | Arbitrary-precision integer quantity      | `0`, `-1`, `2.s`                     |
+| `rational`       | Arbitrary-precision rational quantity     | `1/2`, `-5/3`, `2.m/3.kg`            |
+| `real`           | High-precision floating-point quantity    | `0.1`, `-42.5`, `1.5.m`              |
+| `string`         | String of ASCII text                      | `"hello"`, `"world"`                 |
+| `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                       |
+| `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                       |
+| `range`          | A lazy, half-open range of values         | `0..5`, `0..-5`, `0.m .. 8.m by 2.m` |
+| `closure`        | A function with its captured environment  | `x -> x`, `(a, b) -> a + b`          |
+| `break_value`    | The result of a break expression          | `break`                              |
+| `return_value`   | The result of a `return` expression       | `return 1`                           |
+
+The Gynjo runtime tries to store numerical values as an integer if possible. The expression `(3/2) * 2` is a `rational` times an `integer`, which in general is a `rational`, but since the resulting value is integral (in the mathematical sense), its type is actually `integer`. That also means that `1.0` evaluates to an object of type `integer`. The runtime does not attempt to shrink `real`s into `rational`s since there could be round-off error.
+
+Why have both `tuple` and `list` when both are just lists of values? The reason is syntactic: `(1)` is interpreted as `1` rather than a `tuple` containing `1`. This allows the use of parentheses to change the order of operations without turning something into a `tuple`. Also, the empty `tuple`, `()`, is use to represent no return value. Meanwhile, `list`s are always just `list`s.
+
+### Possible Type Conversions via the `as` Operator
+| From       | To         |
+| :--------- | :--------- |
+| any type   | itself     |
+| any type   | `string`   |
+| `integer`  | `rational` |
+| `integer`  | `real`     |
+| `rational` | `real`     |
+| `list`     | `tuple`    |
+| `tuple`    | `list`     |
+| `range`    | `list`     |
+| `range`    | `tuple`    |
 
 ## Operators and Precedence
 
@@ -69,8 +103,6 @@ Implicit multiplication is supported and uses the same syntax as function applic
 
 Function application varies in precedence depending on the use of parentheses so that, for example, `sin x^2` does `x^2` first but `sin(x)^2` does `sin(x)` first, to better match expectations.
 
-List and string indexes (including in slices) are modulo length, so `[1, 2, 3][-1]` is equal to `3`, and `"hello"[-1..0]` is equal to `"oh"`. Within a slice expression, an empty range start defaults to `0`, and an empty range end defaults to one less than the length of the list/string.
-
 Lists can be concatenated with lists, and strings can be concatenated with arbitrary values on either side.
 
 Approximate equality is like equality, except that numeric types compare approximately equal if their real-valued display representations are equal. By default, `real` values are displayed using twelve significant digits. This display setting can be overridden in the current environment by setting the variable `precision` to some positive number of digits.
@@ -80,6 +112,12 @@ Approximate equality is like equality, except that numeric types compare approxi
 >> 1/3 as real ~ .33
 true
 ```
+
+### Indexing and Slicing
+
+List and string indices are zero-based and modulo length, so `[1, 2, 3][-1]` is equal to `3`, and `"hello"[5]` is equal to `"h"`. Indexing into an empty list results in an out-of-bounds error.
+
+Indexing into a list or string using a range value creates a slice: a subsequence of the list/string elements. Conceptually, slice indices can be thought of as sitting "between" the zero-indexed elements, so `[1, 2, 3][1..2]` and `[1, 2, 3][2..1]` are both `[2]`. Slices can infer missing start, end, and/or stride, so `[1, 2, 3][..]` is `[1, 2, 3]`, `[1, 2, 3][2.. by -1]` is `[2, 1]`, and `"hello"[1.. by 2]` is `"el"`. Out-of-bounds portions of a slice are simply ignored, so `[1, 2, 3][10..]` is `[]`.
 
 ## Units and Dimensional Analysis
 
@@ -164,40 +202,6 @@ Blocks allow sequential evaluation of a semicolon-separated list of expressions 
 3
 1
 ```
-
-## Value Types
-
-| Type             | Description                               | Examples                             |
-| :--------------- | :---------------------------------------- | :----------------------------------- |
-| `type`           | One of the types in this table            | `integer`, `get_type(1)`             |
-| `boolean`        | `true` or `false`                         | `true`, `false`                      |
-| `integer`        | Arbitrary-precision integer quantity      | `0`, `-1`, `2.s`                     |
-| `rational`       | Arbitrary-precision rational quantity     | `1/2`, `-5/3`, `2.m/3.kg`            |
-| `real`           | High-precision floating-point quantity    | `0.1`, `-42.5`, `1.5.m`              |
-| `string`         | String of ASCII text                      | `"hello"`, `"world"`                 |
-| `tuple`          | List of values, mainly used for arguments | `()`, `(1, 2)`                       |
-| `list`           | Functional singly-linked list of values   | `[]`, `[1, 2]`                       |
-| `range`          | A lazy, inclusive range of values         | `0..5`, `0..-5`, `0.m .. 8.m by 2.m` |
-| `closure`        | A function with its captured environment  | `x -> x`, `(a, b) -> a + b`          |
-| `break_value`    | The result of a break expression          | `break`                              |
-| `return_value`   | The result of a `return` expression       | `return 1`                           |
-
-The Gynjo runtime tries to store numerical values as an integer if possible. The expression `(3/2) * 2` is a `rational` times an `integer`, which in general is a `rational`, but since the resulting value is integral (in the mathematical sense), its type is actually `integer`. That also means that `1.0` evaluates to an object of type `integer`. The runtime does not attempt to shrink `real`s into `rational`s since there could be round-off error.
-
-Why have both `tuple` and `list` when both are just lists of values? The reason is syntactic: `(1)` is interpreted as `1` rather than a `tuple` containing `1`. This allows the use of parentheses to change the order of operations without turning something into a `tuple`. Also, the empty `tuple`, `()`, is use to represent no return value. Meanwhile, `list`s are always just `list`s.
-
-### Possible Type Conversions via the `as` Operator
-| From       | To         |
-| :--------- | :--------- |
-| any type   | itself     |
-| any type   | `string`   |
-| `integer`  | `rational` |
-| `integer`  | `real`     |
-| `rational` | `real`     |
-| `list`     | `tuple`    |
-| `tuple`    | `list`     |
-| `range`    | `list`     |
-| `range`    | `tuple`    |
 
 ## Functions
 
