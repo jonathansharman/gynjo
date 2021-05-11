@@ -1984,10 +1984,10 @@ mod tests {
 		}
 	}
 
-	mod while_loops {
+	mod while_loop {
 		use super::*;
 		#[test]
-		fn basic_while_loop() -> Result<(), GynjoErr> {
+		fn basic() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
 			eval(
 				&mut env,
@@ -2008,10 +2008,10 @@ mod tests {
 		}
 	}
 
-	mod for_loops {
+	mod for_loop {
 		use super::*;
 		#[test]
-		fn for_loop_over_list() -> Result<(), GynjoErr> {
+		fn over_list() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
 			let result = eval(
 				&mut env,
@@ -2026,7 +2026,7 @@ mod tests {
 			Ok(())
 		}
 		#[test]
-		fn for_loop_over_range() -> Result<(), GynjoErr> {
+		fn over_range() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
 			let result = eval(
 				&mut env,
@@ -2195,37 +2195,12 @@ mod tests {
 			);
 			Ok(())
 		}
-		#[test]
-		fn get_type() -> Result<(), GynjoErr> {
-			let mut env = Env::new(None);
-			assert_eq!(
-				Val::Prim(Prim::Type(Type::Quant(NumType::Integer))),
-				eval(&mut env, "get_type 1")?
-			);
-			assert_eq!(
-				Val::Prim(Prim::Type(Type::Quant(NumType::Real))),
-				eval(&mut env, "get_type 1.5")?
-			);
-			assert_eq!(
-				Val::Prim(Prim::Type(Type::List)),
-				eval(&mut env, "get_type []")?
-			);
-			assert_eq!(
-				Val::Prim(Prim::Type(Type::List)),
-				eval(&mut env, "get_type [1]")?
-			);
-			assert_eq!(
-				Val::Prim(Prim::Type(Type::Type)),
-				eval(&mut env, "get_type get_type 1")?
-			);
-			Ok(())
-		}
 	}
 
-	mod type_conversions {
+	mod type_operations {
 		use super::*;
 		#[test]
-		fn type_to_itself() -> Result<(), GynjoErr> {
+		fn type_as_itself() -> Result<(), GynjoErr> {
 			let mut env = Env::new(None);
 			assert_eq!(Val::scalar(1), eval(&mut env, "1 as integer")?);
 			assert_eq!(
@@ -2319,6 +2294,31 @@ mod tests {
 			assert_eq!(
 				closure_to_boolean,
 				eval(&mut env, "(x -> x) as boolean").err().unwrap()
+			);
+			Ok(())
+		}
+		#[test]
+		fn get_type() -> Result<(), GynjoErr> {
+			let mut env = Env::new(None);
+			assert_eq!(
+				Val::Prim(Prim::Type(Type::Quant(NumType::Integer))),
+				eval(&mut env, "get_type 1")?
+			);
+			assert_eq!(
+				Val::Prim(Prim::Type(Type::Quant(NumType::Real))),
+				eval(&mut env, "get_type 1.5")?
+			);
+			assert_eq!(
+				Val::Prim(Prim::Type(Type::List)),
+				eval(&mut env, "get_type []")?
+			);
+			assert_eq!(
+				Val::Prim(Prim::Type(Type::List)),
+				eval(&mut env, "get_type [1]")?
+			);
+			assert_eq!(
+				Val::Prim(Prim::Type(Type::Type)),
+				eval(&mut env, "get_type get_type 1")?
 			);
 			Ok(())
 		}
