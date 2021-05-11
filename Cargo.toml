@@ -5,14 +5,12 @@ name = "gynjo"
 version = "0.1.0"
 
 [dependencies]
-bigdecimal = "0.1.2"
-itertools = "0.9.0"
-lazy_static = "1.4.0"
-logos = "0.11.4"
-num = "0.4.0"
-num-bigint = "0.2.6"
-num-rational = "0.2.4"
-num-traits = "0.2.11"
+bigdecimal = "0.2"
+itertools = "0.9"
+lazy_static = "1.4"
+logos = "0.11"
+num = "0.3"
+num-traits = "0.2"
 
 [dev-dependencies]
-rstest = "0.9.0"
+rstest = "0.9"

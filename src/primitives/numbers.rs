@@ -5,9 +5,8 @@ use crate::format_with_env::FormatWithEnv;
 use crate::symbol::Sym;
 use crate::values::Val;
 
-use bigdecimal::BigDecimal;
-use num_bigint::BigInt;
-use num_rational::BigRational;
+use bigdecimal::{BigDecimal, FromPrimitive};
+use num::{BigInt, BigRational};
 use num_traits::cast::ToPrimitive;
 use num_traits::pow::Pow;
 use num_traits::sign::Signed;
@@ -22,6 +21,7 @@ pub enum NumErr {
 	DivisionByZero,
 	ExponentTooLarge,
 	BaseTooLarge,
+	PowerNotRepresentable,
 }
 
 impl fmt::Display for NumErr {
@@ -30,6 +30,9 @@ impl fmt::Display for NumErr {
 			NumErr::DivisionByZero => write!(f, "Division by zero"),
 			NumErr::ExponentTooLarge => write!(f, "Exponent too large"),
 			NumErr::BaseTooLarge => write!(f, "Base in non-integral exponentiation too large"),
+			NumErr::PowerNotRepresentable => {
+				write!(f, "Result of non-integral exponentiation not representable")
+			}
 		}
 	}
 }
@@ -148,7 +151,10 @@ impl Num {
 			let exponent = BigDecimal::from(rhs)
 				.to_f64()
 				.ok_or(NumErr::ExponentTooLarge)?;
-			Ok(Num::Real(base.pow(exponent).into()).shrink_domain())
+			Ok(Num::Real(
+				BigDecimal::from_f64(base.pow(exponent)).ok_or(NumErr::PowerNotRepresentable)?,
+			)
+			.shrink_domain())
 		}
 	}
 
@@ -260,7 +266,7 @@ impl FormatWithEnv for Num {
 					.and_then(|v| if v < 1 { None } else { Some(v as u64) })
 					// If something failed, use default precision setting.
 					.unwrap_or(12);
-				format!("{}", real.with_prec(precision))
+				format!("{}", real.with_prec(precision).normalized())
 			}
 		}
 	}
@@ -274,7 +280,7 @@ impl From<i64> for Num {
 
 impl From<f64> for Num {
 	fn from(n: f64) -> Num {
-		Num::Real(n.into())
+		BigDecimal::from_f64(n).map(Num::Real).unwrap()
 	}
 }
 

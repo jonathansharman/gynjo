@@ -4,7 +4,7 @@ use crate::symbol::Sym;
 
 use bigdecimal::BigDecimal;
 use logos::Logos;
-use num_bigint::BigInt;
+use num::BigInt;
 
 use std::fmt;
 use std::str::FromStr;
