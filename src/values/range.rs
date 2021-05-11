@@ -1,4 +1,7 @@
-use super::quantity::{Quant, QuantErr};
+use super::{
+	quantity::{Quant, QuantErr},
+	Index,
+};
 use crate::env::SharedEnv;
 use crate::errors::RtErr;
 use crate::format_with_env::FormatWithEnv;
@@ -12,15 +15,11 @@ pub struct Range {
 }
 
 impl Range {
-	/// Computes `start`, `end`, and/or `stride` from available values and `length`.
+	/// Attempts to convert this range into an index based on available values and `length`.
 	///
 	/// Tries to infer a missing `stride` to move from `start` towards `end` by 1.
-	/// Tries to infer a missing `start` and/or `end` as an extremum.
-	pub fn into_start_end_stride(
-		self,
-		env: &SharedEnv,
-		length: i64,
-	) -> Result<(i64, i64, i64), RtErr> {
+	/// Tries to infer a missing `start` and/or `end` as an extremum with respect to `length`.
+	pub fn into_index(self, env: &SharedEnv, length: i64) -> Result<Index, RtErr> {
 		let get_option_i64 = |quant: Option<Quant>| -> Result<Option<i64>, RtErr> {
 			quant
 				.map(|quant| {
@@ -36,38 +35,82 @@ impl Range {
 		// Infer missing fields and perform some validation.
 		match (start, end, stride) {
 			(_, _, Some(stride)) if stride == 0 => Err(RtErr::ZeroStrideSlice),
-			(None, None, None) => Ok((0.into(), length, 1.into())),
+			(None, None, None) => Ok(Index::Slice {
+				start: 0.into(),
+				end: length,
+				stride: 1.into(),
+			}),
 			(None, None, Some(stride)) => {
 				if stride < 0 {
-					Ok((length, 0.into(), stride))
+					Ok(Index::Slice {
+						start: length,
+						end: 0.into(),
+						stride,
+					})
 				} else {
-					Ok((0.into(), length, stride))
+					Ok(Index::Slice {
+						start: 0.into(),
+						end: length,
+						stride,
+					})
 				}
 			}
-			(None, Some(end), None) => Ok((0.into(), end, 1.into())),
+			(None, Some(end), None) => Ok(Index::Slice {
+				start: 0.into(),
+				end,
+				stride: 1.into(),
+			}),
 			(None, Some(end), Some(stride)) => {
 				if stride < 0 {
-					Ok((length, end, stride))
+					Ok(Index::Slice {
+						start: length,
+						end,
+						stride,
+					})
 				} else {
-					Ok((0.into(), end, stride))
+					Ok(Index::Slice {
+						start: 0.into(),
+						end,
+						stride,
+					})
 				}
 			}
-			(Some(start), None, None) => Ok((start, length, 1.into())),
+			(Some(start), None, None) => Ok(Index::Slice {
+				start,
+				end: length,
+				stride: 1.into(),
+			}),
 			(Some(start), None, Some(stride)) => {
 				if stride < 0 {
-					Ok((start, 0.into(), stride))
+					Ok(Index::Slice {
+						start,
+						end: 0.into(),
+						stride,
+					})
 				} else {
-					Ok((start, length, stride))
+					Ok(Index::Slice {
+						start,
+						end: length,
+						stride,
+					})
 				}
 			}
 			(Some(start), Some(end), None) => {
 				if start <= end {
-					Ok((start, end, 1.into()))
+					Ok(Index::Slice {
+						start,
+						end,
+						stride: 1.into(),
+					})
 				} else {
-					Ok((start, end, (-1).into()))
+					Ok(Index::Slice {
+						start,
+						end,
+						stride: (-1).into(),
+					})
 				}
 			}
-			(Some(start), Some(end), Some(stride)) => Ok((start, end, stride)),
+			(Some(start), Some(end), Some(stride)) => Ok(Index::Slice { start, end, stride }),
 		}
 	}
 

@@ -222,10 +222,7 @@ impl List {
 				Val::Quant(idx) => idx.as_i64().map(Index::Element).ok_or(RtErr::InvalidIndex {
 					idx: idx.format_with_env(&env),
 				}),
-				Val::Range(range) => {
-					let (start, end, stride) = range.clone().into_start_end_stride(&env, length)?;
-					Ok(Index::Slice { start, end, stride })
-				}
+				Val::Range(range) => range.clone().into_index(&env, length),
 				invalid => Err(RtErr::InvalidIndex {
 					idx: invalid.format_with_env(&env),
 				}),
