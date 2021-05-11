@@ -96,6 +96,12 @@ mod tests {
 	}
 
 	#[test]
+	fn invalid_leading_zero() {
+		assert!(lex("00").is_err());
+		assert!(lex("01").is_err());
+	}
+
+	#[test]
 	fn line_comments() -> Result<(), LexErr> {
 		let expected = vec![Tok::from(1), Tok::Plus, Tok::from(2)];
 		let actual = lex("1+2 // This is a line comment.")?;

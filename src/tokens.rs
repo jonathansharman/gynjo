@@ -152,6 +152,8 @@ pub enum Tok {
 	#[token("\\")]
 	LineContinuation,
 	#[error]
+	// Prevent leading 0s from matching literal "0".
+	#[regex(r"0\d+")]
 	// Whitespace (ignored)
 	#[regex(r"\s+", logos::skip)]
 	// Line comment (ignored)
