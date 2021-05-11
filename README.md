@@ -193,7 +193,7 @@ Blocks allow sequential evaluation of a semicolon-separated list of expressions 
 "one"
 "two"
 "three"
->> for a in 1..5 by 2 do write a
+>> for a in 1..6 by 2 do write a
 1
 3
 5
