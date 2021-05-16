@@ -2328,22 +2328,19 @@ mod tests {
 		use super::*;
 		#[test]
 		fn canceling() -> Result<(), GynjoErr> {
-			assert_eq!(Val::scalar(5), eval(&mut Env::with_core_libs(), "5.m/1.m")?);
+			assert_eq!(Val::scalar(5), eval(&mut Env::new(None), "5.m/1.m")?);
 			Ok(())
 		}
 		#[test]
 		fn single_unit_addition_and_subtraction() -> Result<(), GynjoErr> {
-			let mut env = Env::with_core_libs();
-			assert_eq!(
-				"3.m",
-				eval(&mut Env::with_core_libs(), "1.m + 2.m")?.format_with_env(&env)
-			);
+			let mut env = Env::new(None);
+			assert_eq!("3.m", eval(&mut env, "1.m + 2.m")?.format_with_env(&env));
 			assert_eq!("1.m", eval(&mut env, "2.m - 1.m")?.format_with_env(&env));
 			Ok(())
 		}
 		#[test]
 		fn invalid_addition_and_subtraction() {
-			let mut env = Env::with_core_libs();
+			let mut env = Env::new(None);
 			let err = GynjoErr::Rt(RtErr::Quant(QuantErr::Unit(UnitErr::Incompatible)));
 			assert_eq!(err, eval(&mut env, "1.m + 1.s").err().unwrap());
 			assert_eq!(err, eval(&mut env, "1.m - 1.s").err().unwrap());
