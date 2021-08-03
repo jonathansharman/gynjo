@@ -5,7 +5,7 @@
 A command-line calculator and programming language with an emphasis on short, mathematically natural syntax. Pronounced /'dʒɪndʒoʊ/.
 
 ```
->> let f_to_c = f -> 5/9(f - 32) // Fahrenheit to Celsius
+>> let f_to_c = f -> (5/9)(f - 32) // Fahrenheit to Celsius
 >> f_to_c 32
 0
 >> f_to_c 77
