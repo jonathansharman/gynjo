@@ -41,7 +41,7 @@ fn repl_iter(mut env: &mut env::SharedEnv) -> Result<(), errors::GynjoErr> {
 	let value = interpreter::eval_expr(&mut env, get_expr()?).map_err(errors::GynjoErr::rt)?;
 	if value != values::Val::empty() {
 		// Print the computed value.
-		println!("{}", value.format_with_env(&env));
+		println!("{}", value.format_with_env(env));
 		// Assign the value to "ans".
 		env.lock().unwrap().set_var("ans".into(), value);
 	}

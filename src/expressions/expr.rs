@@ -15,13 +15,13 @@ use std::fmt;
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Expr {
 	Block(Vec<Expr>),
-	BinExpr(BinExpr),
+	Bin(BinExpr),
 	Not(Box<Expr>),
 	Cluster(Cluster),
 	Lambda(Lambda),
-	TupleExpr(Vec<Expr>),
-	ListExpr(Box<VecDeque<Expr>>),
-	RangeExpr(Box<(Option<Expr>, Option<Expr>, Option<Expr>)>),
+	Tuple(Vec<Expr>),
+	List(Box<VecDeque<Expr>>),
+	Range(Box<(Option<Expr>, Option<Expr>, Option<Expr>)>),
 	Sym(Sym),
 	Unit(String),
 	Prim(Prim),
@@ -62,17 +62,17 @@ impl fmt::Display for Expr {
 			Expr::Block(exprs) => {
 				write!(f, "{{ {} }}", exprs.iter().map(Expr::to_string).join("; "))
 			}
-			Expr::BinExpr(binary_expr) => binary_expr.fmt(f),
+			Expr::Bin(binary_expr) => binary_expr.fmt(f),
 			Expr::Not(expr) => write!(f, "(not {})", expr),
 			Expr::Cluster(cluster) => cluster.fmt(f),
 			Expr::Lambda(lambda) => lambda.fmt(f),
-			Expr::TupleExpr(exprs) => {
+			Expr::Tuple(exprs) => {
 				write!(f, "({})", exprs.iter().map(Expr::to_string).join(", "))
 			}
-			Expr::ListExpr(exprs) => {
+			Expr::List(exprs) => {
 				write!(f, "[{}]", exprs.iter().map(Expr::to_string).join(", "))
 			}
-			Expr::RangeExpr(exprs) => {
+			Expr::Range(exprs) => {
 				let start = (*exprs)
 					.0
 					.as_ref()

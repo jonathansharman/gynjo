@@ -199,7 +199,7 @@ impl List {
 			result.cloned().ok_or(RtErr::OutOfBounds)
 		} else {
 			Err(RtErr::InvalidIndex {
-				idx: idx.format_with_env(&env),
+				idx: idx.format_with_env(env),
 			})
 		}
 	}
@@ -220,15 +220,15 @@ impl List {
 			// There must be exactly one element.
 			(Some(head), Some(tail)) if tail.is_empty() => match head {
 				Val::Quant(idx) => idx.as_i64().map(Index::Element).ok_or(RtErr::InvalidIndex {
-					idx: idx.format_with_env(&env),
+					idx: idx.format_with_env(env),
 				}),
-				Val::Range(range) => range.clone().into_index(&env, length),
+				Val::Range(range) => range.clone().into_index(env, length),
 				invalid => Err(RtErr::InvalidIndex {
-					idx: invalid.format_with_env(&env),
+					idx: invalid.format_with_env(env),
 				}),
 			},
 			_ => Err(RtErr::InvalidIndex {
-				idx: self.format_with_env(&env),
+				idx: self.format_with_env(env),
 			}),
 		}
 	}
@@ -271,9 +271,7 @@ impl FormatWithEnv for List {
 	fn format_with_env(&self, env: &SharedEnv) -> String {
 		format!(
 			"[{}]",
-			self.iter()
-				.map(|elem| elem.format_with_env(&env))
-				.join(", ")
+			self.iter().map(|elem| elem.format_with_env(env)).join(", ")
 		)
 	}
 }

@@ -248,7 +248,7 @@ impl fmt::Display for Units {
 			.iter()
 			.sorted_by(|a, b| {
 				// Sort first by decreasing power and then alphabetically.
-				a.1.cmp(&b.1).reverse().then(a.0.name().cmp(&b.0.name()))
+				a.1.cmp(b.1).reverse().then(a.0.name().cmp(b.0.name()))
 			})
 			.map(|(unit, power)| {
 				if power == &Num::from(1) {

@@ -37,7 +37,7 @@ fn parse_required_token<'a>(
 			expected: format!("\"{}\"", required),
 		}),
 		[t, tokens @ ..] if (t == required) => Ok(tokens),
-		[invalid, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidToken {
 			context,
 			expected: Some(format!("\"{}\"", required)),
 			actual: invalid.clone(),
@@ -83,12 +83,12 @@ fn parse_range_expr(tokens: &[Tok], lower_expr: Option<Expr>) -> ParseExprResult
 		let (tokens, stride_expr) = parse_basic_expr(tokens)?;
 		Ok((
 			tokens,
-			Expr::RangeExpr(Box::new((lower_expr, upper_expr, Some(stride_expr)))),
+			Expr::Range(Box::new((lower_expr, upper_expr, Some(stride_expr)))),
 		))
 	} else {
 		Ok((
 			tokens,
-			Expr::RangeExpr(Box::new((lower_expr, upper_expr, None))),
+			Expr::Range(Box::new((lower_expr, upper_expr, None))),
 		))
 	}
 }
@@ -113,7 +113,7 @@ fn parse_body(tokens: &[Tok]) -> ParseExprResult {
 			expected: "function body".into(),
 		}),
 		[Tok::Arrow, tokens @ ..] => parse_expr(tokens),
-		[invalid, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidToken {
 			context: "lambda",
 			expected: Some("function body".into()),
 			actual: invalid.clone(),
@@ -159,7 +159,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 								break;
 							}
 							[invalid, ..] => {
-								return Err(ParseErr::InvalidInput {
+								return Err(ParseErr::InvalidToken {
 									context: "tuple expression",
 									expected: Some(r#""," or ")""#.into()),
 									actual: invalid.clone(),
@@ -204,7 +204,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				Ok((after_tuple, elems.remove(0)))
 			} else {
 				// Return unmodified tuple.
-				Ok((after_tuple, Expr::TupleExpr(elems)))
+				Ok((after_tuple, Expr::Tuple(elems)))
 			}
 		}
 		// List
@@ -237,7 +237,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 							break;
 						}
 						[invalid, ..] => {
-							return Err(ParseErr::InvalidInput {
+							return Err(ParseErr::InvalidToken {
 								context: "list expression",
 								expected: Some(r#""," or ")""#.into()),
 								actual: invalid.clone(),
@@ -247,9 +247,9 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 				}
 			} else {
 				// Parse close square bracket of empty list.
-				tokens = parse_required_token(&tokens, &Tok::Rsquare, "list expression")?;
+				tokens = parse_required_token(tokens, &Tok::Rsquare, "list expression")?;
 			}
-			Ok((tokens, Expr::ListExpr(elems)))
+			Ok((tokens, Expr::List(elems)))
 		}
 		// Block
 		[Tok::Lcurly, after_lcurly @ ..] => {
@@ -273,7 +273,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 					[Tok::Rcurly, after_rclurly @ ..] => {
 						// End of block. If block ended with a semicolon, the result is ().
 						if final_semicolon {
-							exprs.push(Expr::TupleExpr(Vec::new()));
+							exprs.push(Expr::Tuple(Vec::new()));
 						}
 						return Ok((after_rclurly, Expr::Block(exprs)));
 					}
@@ -337,7 +337,7 @@ fn parse_value(tokens: &[Tok]) -> ParseExprResult {
 		// Unit
 		[Tok::Unit(unit_name), tokens @ ..] => Ok((tokens, Expr::Unit(unit_name.clone()))),
 		// Invalid
-		[invalid, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidToken {
 			context: "value expression",
 			expected: None,
 			actual: invalid.clone(),
@@ -448,7 +448,7 @@ fn parse_binary_expressions<'a>(
 				let (after_expr, next_expr) = subparse(&tokens[1..])?;
 				tokens = after_expr;
 				// Incorporate next expression into expression.
-				exprs = Expr::BinExpr(BinExpr {
+				exprs = Expr::Bin(BinExpr {
 					op: *op,
 					left: Box::new(exprs),
 					right: Box::new(next_expr),
@@ -587,7 +587,7 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 				},
 			))
 		}
-		[invalid, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidToken {
 			context: "for-loop",
 			expected: Some("loop variable".into()),
 			actual: invalid.clone(),
@@ -598,9 +598,9 @@ fn parse_for_loop(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a while-loop, starting after "while".
 fn parse_while_loop(tokens: &[Tok]) -> ParseExprResult {
 	// Parse test expression.
-	let (tokens, test_expr) = parse_expr(&tokens)?;
+	let (tokens, test_expr) = parse_expr(tokens)?;
 	// Parse "do".
-	let tokens = parse_required_token(&tokens, &Tok::Do, "while-loop")?;
+	let tokens = parse_required_token(tokens, &Tok::Do, "while-loop")?;
 	// Parse body.
 	let (tokens, body_expr) = parse_expr(tokens)?;
 	// Assemble while-loop.
@@ -616,19 +616,19 @@ fn parse_while_loop(tokens: &[Tok]) -> ParseExprResult {
 /// Parses a branch statment - if-then or if-then-else - starting after "if".
 fn parse_branch(tokens: &[Tok]) -> ParseExprResult {
 	// Parse test expression.
-	let (tokens, test_expr) = parse_expr(&tokens)?;
+	let (tokens, test_expr) = parse_expr(tokens)?;
 	// Parse "then".
-	let tokens = parse_required_token(&tokens, &Tok::Then, "branch statement")?;
+	let tokens = parse_required_token(tokens, &Tok::Then, "branch statement")?;
 	// Parse "then" branch.
-	let (tokens, then_expr) = parse_expr(&tokens)?;
+	let (tokens, then_expr) = parse_expr(tokens)?;
 	// Check for "else" branch.
-	let (tokens, has_else_branch) = parse_optional_token(&tokens, &Tok::Else);
+	let (tokens, has_else_branch) = parse_optional_token(tokens, &Tok::Else);
 	let (tokens, else_expr) = if has_else_branch {
 		// Parse "else" branch.
 		parse_expr(tokens)?
 	} else {
 		// Missing else branch is equivalent to ().
-		(tokens, Expr::TupleExpr(Vec::new()))
+		(tokens, Expr::Tuple(Vec::new()))
 	};
 	// Assemble branch statement.
 	Ok((
@@ -651,7 +651,7 @@ fn parse_assignment_or_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
 		}),
 		[Tok::Sym(lhs), tokens @ ..] => {
 			// Parse "=".
-			let tokens = parse_required_token(&tokens, &Tok::Eq, "assignment")?;
+			let tokens = parse_required_token(tokens, &Tok::Eq, "assignment")?;
 			// Parse RHS.
 			let (tokens, rhs) = parse_expr(tokens)?;
 			// Assemble assignment from symbol and RHS.
@@ -665,7 +665,7 @@ fn parse_assignment_or_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
 		}
 		[Tok::Unit(unit_name), tokens @ ..] => {
 			// Parse "=".
-			let tokens = parse_required_token(&tokens, &Tok::Eq, "unit declaration")?;
+			let tokens = parse_required_token(tokens, &Tok::Eq, "unit declaration")?;
 			// Parse value.
 			let (tokens, value) = parse_expr(tokens)?;
 			// Assemble assignment from symbol and RHS.
@@ -677,7 +677,7 @@ fn parse_assignment_or_unit_declaration(tokens: &[Tok]) -> ParseExprResult {
 				},
 			))
 		}
-		[invalid, ..] => Err(ParseErr::InvalidInput {
+		[invalid, ..] => Err(ParseErr::InvalidToken {
 			context: "assignment",
 			expected: Some("variable".into()),
 			actual: invalid.clone(),

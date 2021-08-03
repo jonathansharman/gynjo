@@ -107,7 +107,7 @@ impl Text {
 			c.ok_or(RtErr::OutOfBounds)
 		} else {
 			Err(RtErr::InvalidIndex {
-				idx: idx.format_with_env(&env),
+				idx: idx.format_with_env(env),
 			})
 		}
 	}

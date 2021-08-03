@@ -24,7 +24,7 @@ impl Range {
 			quant
 				.map(|quant| {
 					quant.as_i64().ok_or(RtErr::InvalidIndex {
-						idx: quant.format_with_env(&env),
+						idx: quant.format_with_env(env),
 					})
 				})
 				.transpose()
@@ -201,13 +201,13 @@ impl FormatWithEnv for Range {
 		let start = self
 			.start
 			.as_ref()
-			.map_or(String::new(), |start| start.format_with_env(&env));
+			.map_or(String::new(), |start| start.format_with_env(env));
 		let end = self
 			.end
 			.as_ref()
-			.map_or(String::new(), |end| end.format_with_env(&env));
+			.map_or(String::new(), |end| end.format_with_env(env));
 		let stride = self.stride.as_ref().map_or(String::new(), |stride| {
-			format!(" by {}", stride.format_with_env(&env))
+			format!(" by {}", stride.format_with_env(env))
 		});
 		format!("({}..{}{})", start, end, stride)
 	}

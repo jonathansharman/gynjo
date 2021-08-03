@@ -19,16 +19,16 @@ type EvalResult = Result<Val, RtErr>;
 pub fn eval_expr(mut env: &mut SharedEnv, expr: Expr) -> EvalResult {
 	match expr {
 		Expr::Block(exprs) => eval_block(&mut env, exprs),
-		Expr::BinExpr(bin_expr) => eval_bin_expr(&mut env, bin_expr),
+		Expr::Bin(bin_expr) => eval_bin_expr(&mut env, bin_expr),
 		Expr::Not(expr) => eval_not(&mut env, *expr),
 		Expr::Cluster(cluster) => eval_cluster(env, cluster),
 		Expr::Lambda(f) => Ok(Val::Closure(Closure {
 			f,
 			env: env.clone(),
 		})),
-		Expr::TupleExpr(expr_elems) => eval_tuple_expr(&mut env, expr_elems),
-		Expr::ListExpr(expr_elems) => eval_list_expr(&mut env, *expr_elems),
-		Expr::RangeExpr(exprs) => eval_range_expr(&mut env, (*exprs).0, (*exprs).1, (*exprs).2),
+		Expr::Tuple(expr_elems) => eval_tuple_expr(&mut env, expr_elems),
+		Expr::List(expr_elems) => eval_list_expr(&mut env, *expr_elems),
+		Expr::Range(exprs) => eval_range_expr(&mut env, (*exprs).0, (*exprs).1, (*exprs).2),
 		Expr::Sym(symbol) => eval_symbol(&mut env, symbol),
 		Expr::Prim(primitive) => Ok(match primitive {
 			// Convert number into dimensionless quantity.
@@ -389,16 +389,12 @@ fn eval_concat(env: &mut SharedEnv, bin_expr: BinExpr) -> EvalResult {
 		(Val::Prim(Prim::Text(left)), Val::Prim(Prim::Text(right))) => {
 			Ok(Val::from(format!("{}{}", left, right)))
 		}
-		(Val::Prim(Prim::Text(left)), right) => Ok(Val::from(format!(
-			"{}{}",
-			left,
-			right.format_with_env(&env)
-		))),
-		(left, Val::Prim(Prim::Text(right))) => Ok(Val::from(format!(
-			"{}{}",
-			left.format_with_env(&env),
-			right
-		))),
+		(Val::Prim(Prim::Text(left)), right) => {
+			Ok(Val::from(format!("{}{}", left, right.format_with_env(env))))
+		}
+		(left, Val::Prim(Prim::Text(right))) => {
+			Ok(Val::from(format!("{}{}", left.format_with_env(env), right)))
+		}
 		// List concatenation
 		(Val::List(left), Val::List(right)) => Ok(Val::List(left.concat(right))),
 		// Invalid concatenation
@@ -584,7 +580,7 @@ fn eval_while_loop(env: &mut SharedEnv, test: Expr, body: Expr) -> EvalResult {
 			}
 			_ => print!(
 				"while-loop test value must be boolean, found {}",
-				test_value.format_with_env(&env)
+				test_value.format_with_env(env)
 			),
 		}
 	}
@@ -738,10 +734,10 @@ fn eval_evaluated_cluster(
 				// The RHS may be an index/slice.
 				cluster[idx].value = match &cluster[idx].value {
 					// List index/slice operation
-					Val::List(left) => left.slice(right.as_index(&env, left.len() as i64)?),
+					Val::List(left) => left.slice(right.as_index(env, left.len() as i64)?),
 					// String index/slice operation
 					Val::Prim(Prim::Text(left)) => {
-						Ok(left.slice(right.as_index(&env, left.len() as i64)?)?)
+						Ok(left.slice(right.as_index(env, left.len() as i64)?)?)
 					}
 					_ => continue,
 				}?;

@@ -110,17 +110,17 @@ impl FormatWithEnv for Val {
 			// Can't just use Primitive::to_string() because Value::to_string() needs to respect the current precision.
 			Val::Prim(primitive) => match primitive {
 				Prim::Bool(b) => b.to_string(),
-				Prim::Num(number) => number.format_with_env(&env),
+				Prim::Num(number) => number.format_with_env(env),
 				Prim::Text(t) => t.to_string(),
 				Prim::Type(t) => t.to_string(),
 			},
-			Val::Quant(quant) => quant.format_with_env(&env),
-			Val::Tuple(tuple) => tuple.format_with_env(&env),
-			Val::List(list) => list.format_with_env(&env),
-			Val::Range(range) => range.format_with_env(&env),
-			Val::Closure(c) => c.format_with_env(&env),
+			Val::Quant(quant) => quant.format_with_env(env),
+			Val::Tuple(tuple) => tuple.format_with_env(env),
+			Val::List(list) => list.format_with_env(env),
+			Val::Range(range) => range.format_with_env(env),
+			Val::Closure(c) => c.format_with_env(env),
 			Val::Break => "break".to_string(),
-			Val::Return { result } => format!("(return {})", result.format_with_env(&env)),
+			Val::Return { result } => format!("(return {})", result.format_with_env(env)),
 		}
 	}
 }

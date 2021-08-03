@@ -21,7 +21,7 @@ impl fmt::Display for LexErr {
 /// An error that occurs while parsing tokens into a Gynjo AST.
 #[derive(Eq, PartialEq, Debug)]
 pub enum ParseErr {
-	InvalidInput {
+	InvalidToken {
 		context: &'static str,
 		expected: Option<String>,
 		actual: Tok,
@@ -38,7 +38,7 @@ pub enum ParseErr {
 impl fmt::Display for ParseErr {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			ParseErr::InvalidInput {
+			ParseErr::InvalidToken {
 				context,
 				expected,
 				actual,
