@@ -79,10 +79,3 @@ impl Env {
 		})
 	}
 }
-
-/// Attempts to import library at `filename` into `env`. Displays an error message on failure.
-pub fn import_lib_from_path(env: &mut SharedEnv, filename: &str) {
-	if let Err(err) = eval(env, &format!("import {}", filename)) {
-		println!("Error importing {}: {}", filename, err);
-	}
-}

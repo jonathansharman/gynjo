@@ -222,3 +222,5 @@ Very simple textual importation is supported via `import` expressions. The argum
 ```
 >> import "path/to/lib.gynj" // Executes the script at "path/to/lib.gynj"
 ```
+
+At startup, the interpreter will check for `.gynjo_profile` in the user's home directory and execute it if present.
