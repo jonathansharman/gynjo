@@ -22,8 +22,15 @@ use std::io::{self, Write};
 fn main() {
 	// Create environment with core libs.
 	let mut env = env::Env::with_core_libs();
-	// Try to load user's profile script.
-	env::import_lib_from_path(&mut env, "\"profile.gynj\"");
+	// Try to execute the user's profile script.
+	if let Some(mut path) = home::home_dir() {
+		path.push(".gynjo_profile");
+		if let Ok(source) = std::fs::read_to_string(path) {
+			if let Err(err) = interpreter::eval(&mut env, &source) {
+				println!("Error in .gynjo_profile: {}", &err);
+			}
+		}
+	}
 	// Initial value of "ans" is ().
 	env.lock()
 		.unwrap()

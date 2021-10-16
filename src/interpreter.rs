@@ -511,12 +511,12 @@ fn eval_import(env: &mut SharedEnv, target: Expr) -> EvalResult {
 	match eval_expr(env, target)? {
 		Val::Prim(Prim::Text(filename)) => {
 			let filename: String = filename.into();
-			let lib_text =
+			let source =
 				std::fs::read_to_string(&filename).map_err(|err| RtErr::CouldNotOpenFile {
 					filename: filename.clone(),
 					file_error: err.to_string(),
 				})?;
-			eval(env, &lib_text).map_err(|err| RtErr::LibErr {
+			eval(env, &source).map_err(|err| RtErr::LibErr {
 				lib_name: filename,
 				nested_error: Box::new(err),
 			})
